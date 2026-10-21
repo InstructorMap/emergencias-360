@@ -49,6 +49,8 @@
     <section class="tab-panel" id="tab-sos" data-tab="sos" role="tabpanel" aria-labelledby="nav-sos">
       <h1 class="panel-title">Emergencia SOS <span class="tag-linea-a">Línea A</span></h1>
 
+      <div class="b2b-banner" id="b2bBanner" hidden></div>
+
       <div class="sos-zone">
         <button type="button" id="btnSOS" class="btn-sos"
                 aria-label="Mantener presionado 1.5 segundos para emitir alerta SOS">
@@ -58,7 +60,6 @@
         </button>
       </div>
 
-      <!-- GPS / Fallback manual -->
       <div class="gps-panel" id="gpsPanel">
         <div class="gps-status" id="gpsStatus" aria-live="polite">GPS: sin capturar</div>
         <button type="button" class="btn-secondary" id="btnGps">Capturar mi ubicación</button>
@@ -68,14 +69,12 @@
         </div>
       </div>
 
-      <!-- Estado del incidente en vivo -->
       <div class="incident-panel" id="incidentPanel" hidden>
         <h2 class="incident-title">Estado del incidente</h2>
         <div class="incident-state" id="incidentState" aria-live="assertive">—</div>
         <ol class="timeline" id="timeline"></ol>
       </div>
 
-      <!-- Botones de llamada directa -->
       <div class="call-actions">
         <a href="tel:107" class="btn-call btn-call-107">📞 Llamar 107 (SAME)</a>
         <a href="tel:911" class="btn-call btn-call-911">📞 Llamar 911</a>
@@ -83,7 +82,7 @@
       </div>
     </section>
 
-    <!-- ============ TAB 2: MI FICHA DE EMERGENCIA ============ -->
+    <!-- ============ TAB 2: MI FICHA ============ -->
     <section class="tab-panel" id="tab-ficha" data-tab="ficha" role="tabpanel" aria-labelledby="nav-ficha" hidden>
       <h1 class="panel-title">Mi Ficha de Emergencia <span class="tag-modulo">Módulo 1</span></h1>
       <p class="privacy-note">Minimización de datos: solo pedimos lo indispensable para una urgencia.</p>
@@ -125,7 +124,7 @@
       </form>
     </section>
 
-    <!-- ============ TAB 3: RED DE BENEFICIOS (LÍNEA B) ============ -->
+    <!-- ============ TAB 3: RED DE BENEFICIOS ============ -->
     <section class="tab-panel" id="tab-beneficios" data-tab="beneficios" role="tabpanel" aria-labelledby="nav-beneficios" hidden>
       <h1 class="panel-title">Red de Beneficios <span class="tag-linea-b">Línea B</span></h1>
       <p class="aviso-comercial"><strong>Programa comercial de descuentos.</strong> No constituye obra social, medicina prepaga ni seguro médico.</p>
@@ -162,10 +161,12 @@
     <div class="test-panel" id="testPanel" hidden>
       <p class="test-title">Simulador Central Operativa</p>
       <button type="button" class="btn-test" data-sim="recibir">Simular: Central acusa recibo</button>
-      <button type="button" class="btn-test" data-sim="aceptar">Simular: Central acepta</button>
+      <button type="button" class="btn-test" data-sim="clasificar">Simular: Central clasifica (Triage)</button>
       <button type="button" class="btn-test" data-sim="asignar">Simular: Móvil asignado</button>
       <button type="button" class="btn-test" data-sim="camino">Simular: Móvil en camino</button>
-      <button type="button" class="btn-test" id="btnOpenCentral">Abrir central.html en otra pestaña</button>
+      <a class="btn-test" href="central.html" target="_blank" rel="noopener">↗ Abrir Central Operativa</a>
+      <a class="btn-test" href="b2b.html" target="_blank" rel="noopener">↗ Abrir Módulo B2B</a>
+      <a class="btn-test" href="admin.html" target="_blank" rel="noopener">↗ Abrir Panel Admin</a>
     </div>
   </div>
 
