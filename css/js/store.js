@@ -629,4 +629,172 @@
           return ref.length > 0 && ref.toLowerCase() !== 'pendiente de firma';
         })
         .filter(b => lineBAllowedByOrg(b))
-        .filter(b => !locality || b.locality
+        .filter(b => !locality || b.locality === locality)
+        .map(b => ({
+          id: b.id,
+          name: b.name,
+          category: b.category,
+          locality: b.locality,
+          benefitDetail: b.benefitDetail,
+          agreementRef: b.agreementRef,
+          validUntil: b.validUntil,
+          status: b.status
+        }));
+    },
+
+    getAllBenefitsRaw() {
+      const state = loadState();
+      return state.benefits.map(b => ({ ...b }));
+    },
+
+    updateBenefitStatus(benefitId, newStatus, agreementRef, validUntil, adminName) {
+      const actor = requireAdmin(adminName);
+      if (!BENEFIT_STATUSES.includes(newStatus)) {
+        throw new Error('Estado de convenio inválido: ' + newStatus);
+      }
+      const ref = String(agreementRef || '').trim();
+      if (newStatus === 'activo' && (!ref || ref.toLowerCase() === 'pendiente de firma')) {
+        throw new Error('Para activar el convenio se requiere N° de Convenio / Respaldo Documental.');
+      }
+      const state = loadState();
+      const benefit = state.benefits.find(b => b.id === benefitId);
+      if (!benefit) throw new Error('Prestador no encontrado.');
+      const prevStatus = benefit.status;
+      benefit.status = newStatus;
+      if (ref) benefit.agreementRef = ref;
+      if (validUntil) benefit.validUntil = validUntil;
+      appendAudit(state, 'UPDATE_BENEFIT_STATUS', {
+        benefitId,
+        from: prevStatus,
+        to: newStatus,
+        agreementRef: benefit.agreementRef,
+        validUntil: benefit.validUntil,
+        adminName: actor
+      }, actor);
+      saveState(state);
+      return { ...benefit };
+    },
+
+    // ======================= B2B (Módulo 5) =======================
+    getB2BEstablishments(baseId) {
+      const state = loadState();
+      const list = baseId && baseId !== 'ALL'
+        ? state.b2b_establishments.filter(e => e.baseId === baseId)
+        : state.b2b_establishments.slice();
+      return list.map(e => ({ ...e }));
+    },
+
+    getB2BById(id) {
+      const state = loadState();
+      const est = state.b2b_establishments.find(e => e.id === id);
+      return est ? { ...est } : null;
+    },
+
+    saveB2BEstablishment(data, actorName) {
+      const actor = requireAdmin(actorName);
+      const name = String(data.name || '').trim();
+      const type = String(data.type || '').trim();
+      const baseId = String(data.baseId || '').trim();
+      const address = String(data.address || '').trim();
+      if (!name || !type || !baseId || !address) {
+        throw new Error('Completá nombre, rubro, base asignada y dirección.');
+      }
+      if (!['DOLORES', 'LA_COSTA'].includes(baseId)) {
+        throw new Error('Base asignada inválida.');
+      }
+      const state = loadState();
+      const isNew = !data.id;
+      const record = {
+        id: data.id || uid('b2b'),
+        name,
+        type,
+        baseId,
+        address,
+        coords: data.coords || null,
+        referencePhone: String(data.referencePhone || '').trim(),
+        protocol: String(data.protocol || '').trim(),
+        status: B2B_STATUSES.includes(data.status) ? data.status : 'en_revision',
+        createdAt: isNew ? nowISO() : (data.createdAt || nowISO())
+      };
+      if (isNew) {
+        state.b2b_establishments.push(record);
+      } else {
+        const idx = state.b2b_establishments.findIndex(e => e.id === record.id);
+        if (idx === -1) throw new Error('Establecimiento B2B no encontrado.');
+        state.b2b_establishments[idx] = record;
+      }
+      appendAudit(state, isNew ? 'CREATE_B2B_ESTABLISHMENT' : 'UPDATE_B2B_ESTABLISHMENT', {
+        b2bId: record.id,
+        name: record.name,
+        baseId: record.baseId
+      }, actor);
+      saveState(state);
+      return { ...record };
+    },
+
+    toggleB2BStatus(id, newStatus, actorName) {
+      const actor = requireAdmin(actorName);
+      if (!B2B_STATUSES.includes(newStatus)) {
+        throw new Error('Estado B2B inválido: ' + newStatus);
+      }
+      const state = loadState();
+      const est = state.b2b_establishments.find(e => e.id === id);
+      if (!est) throw new Error('Establecimiento B2B no encontrado.');
+      const prev = est.status;
+      est.status = newStatus;
+      appendAudit(state, 'TOGGLE_B2B_STATUS', { b2bId: id, from: prev, to: newStatus }, actor);
+      saveState(state);
+      return { ...est };
+    },
+
+    // ======================= ADMIN / RESET =======================
+    clearAndResetDemo(adminName) {
+      const actor = requireAdmin(adminName);
+      const seed = buildSeed();
+      seed.audit_logs.unshift({
+        id: uid('aud'),
+        ts: nowISO(),
+        action: 'CLEAR_AND_RESET_DEMO',
+        payload: {},
+        actor
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return seed;
+    },
+
+    // ======================= AUDITORÍA =======================
+    getAuditLogs() {
+      const state = loadState();
+      return state.audit_logs.map(l => ({ ...l }));
+    },
+
+    // ======================= SUSCRIPCIÓN =======================
+    subscribe(callback) {
+      if (!channel) {
+        const handler = (e) => {
+          if (e.key === STORAGE_KEY) callback({ type: 'STATE_CHANGED', ts: Date.now() });
+        };
+        global.addEventListener('storage', handler);
+        return () => global.removeEventListener('storage', handler);
+      }
+      const handler = (msg) => { callback(msg.data); };
+      channel.addEventListener('message', handler);
+      return () => channel.removeEventListener('message', handler);
+    },
+
+    // ======================= UTILIDADES =======================
+    _resetStore() {
+      const seed = buildSeed();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return seed;
+    },
+
+    _getState() {
+      return loadState();
+    }
+  };
+
+  global.E360Store = E360Store;
+})(typeof window !== 'undefined' ? window : globalThis);
