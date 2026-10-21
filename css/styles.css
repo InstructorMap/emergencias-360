@@ -18,7 +18,8 @@
   --nav-height: 64px;
 }
 
-* , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* Reset explícito (Fix H-02) */
+html, body, div, span, main, header, section, nav, ul, ol, li, form, input, select, textarea, button, a, h1, h2, h3, p, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   height: 100%;
@@ -257,7 +258,7 @@ html, body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 .test-panel {
-  position: absolute; bottom: 40px; right: 0; width: 240px;
+  position: absolute; bottom: 40px; right: 0; width: 260px;
   background: var(--color-surface); border: 1px solid var(--color-border);
   border-radius: var(--radius); padding: 10px;
   display: grid; gap: 6px;
@@ -268,8 +269,23 @@ html, body {
   background: var(--color-surface-2); color: var(--color-text);
   border: 1px solid var(--color-border); border-radius: 6px;
   padding: 8px; font-size: 0.75rem; cursor: pointer; text-align: left;
+  text-decoration: none;
 }
 .btn-test:hover { background: var(--color-border); }
+
+/* Aviso B2B Área Protegida */
+.b2b-banner {
+  background: rgba(34,197,94,0.15);
+  border: 1px solid var(--color-green);
+  color: #bbf7d0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+.b2b-banner strong { color: #fff; display: block; margin-bottom: 2px; }
+.b2b-banner .b2b-proto { color: var(--color-text-dim); font-size: 0.75rem; margin-top: 4px; }
 
 /* ===================== RESPONSIVE ===================== */
 @media (min-width: 640px) {
@@ -291,7 +307,6 @@ html, body {
   padding-bottom: 24px;
 }
 
-/* ---------- Header Central ---------- */
 .central-header {
   background: #0b1220;
   border-bottom: 2px solid var(--color-border);
@@ -378,7 +393,6 @@ html, body {
   50% { transform: scale(1.15); }
 }
 
-/* ---------- Layout Columnas ---------- */
 .central-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -423,7 +437,6 @@ html, body {
   justify-content: space-between;
 }
 
-/* ---------- Bandeja Incidentes ---------- */
 .incident-filters {
   display: flex;
   gap: 6px;
@@ -489,7 +502,6 @@ html, body {
 .incident-card .card-meta { color: var(--color-text-dim); font-size: 0.72rem; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .incident-card .card-loc { color: var(--color-text); font-size: 0.75rem; margin-top: 4px; word-break: break-word; }
 
-/* ---------- Badges de Estado y Prioridad ---------- */
 .badge {
   display: inline-block;
   font-size: 0.65rem;
@@ -513,7 +525,6 @@ html, body {
 .badge-priority-AMARILLO { background: var(--color-amber); color: #1a1a1a; }
 .badge-priority-VERDE { background: var(--color-green); color: #fff; }
 
-/* ---------- Panel Detalle ---------- */
 .detail-empty {
   color: var(--color-text-dim);
   font-size: 0.85rem;
@@ -605,8 +616,6 @@ html, body {
   font-size: 0.82rem;
   font-family: inherit;
 }
-.detail-actions .inline-form .row-2 { display: flex; gap: 6px; }
-.detail-actions .inline-form .row-2 > * { flex: 1; }
 
 .gps-link {
   display: inline-block;
@@ -616,7 +625,6 @@ html, body {
   margin-top: 4px;
 }
 
-/* ---------- Bitácora ---------- */
 .bitacora-list {
   list-style: none;
   font-size: 0.75rem;
@@ -632,7 +640,6 @@ html, body {
 .bitacora-list li strong { color: var(--color-text); }
 .bitacora-list li:last-child { border-bottom: none; }
 
-/* ---------- Flota ---------- */
 .fleet-base-header {
   background: var(--color-bg);
   border-radius: var(--radius-sm);
@@ -694,7 +701,6 @@ html, body {
 .unit-status-en_salida { color: var(--color-blue); }
 .unit-status-mantenimiento { color: var(--color-red); }
 
-/* ---------- Operador faltante ---------- */
 .warn-operador {
   background: rgba(245,158,11,0.15);
   border: 1px solid var(--color-amber);
@@ -705,7 +711,6 @@ html, body {
   margin-bottom: 10px;
 }
 
-/* ---------- Scrollbars ---------- */
 .incident-list::-webkit-scrollbar,
 .bitacora-list::-webkit-scrollbar {
   width: 6px;
@@ -715,3 +720,71 @@ html, body {
   background: var(--color-border);
   border-radius: 3px;
 }
+
+/* ============================================================
+   ===================== B2B / ADMIN (3B) =====================
+   ============================================================ */
+.b2b-body, .admin-body {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding-bottom: 24px;
+}
+.b2b-header, .admin-header {
+  background: #0b1220;
+  border-bottom: 2px solid var(--color-border);
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+.b2b-header .badge-b2b, .admin-header .badge-admin {
+  background: var(--color-green);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 6px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+.admin-header .badge-admin { background: #7c3aed; }
+.b2b-header .header-controls, .admin-header .header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
+}
+.b2b-header label, .admin-header label {
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.b2b-header select, .b2b-header input,
+.admin-header select, .admin-header input {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  min-width: 150px;
+}
+.b2b-header input.operator-input, .admin-header input.admin-input {
+  min-width: 220px;
+  border-color: var(--color-amber);
+}
+.b2b-header .btn-link, .admin-header .btn-link {
+  background: var(--color-blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 
