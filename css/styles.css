@@ -787,4 +787,201 @@ html, body {
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 0.8rem;
-  font-weight: 
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.b2b-main, .admin-main {
+  padding: 14px 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.b2b-card, .admin-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  padding: 14px;
+}
+.b2b-card h2, .admin-card h2 {
+  font-size: 0.95rem;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.b2b-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .b2b-form { grid-template-columns: 1fr 1fr; }
+  .b2b-form .full { grid-column: 1 / -1; }
+}
+.b2b-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--color-text-dim);
+  font-weight: 600;
+}
+.b2b-form input, .b2b-form select, .b2b-form textarea {
+  width: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 9px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.b2b-form .btn-primary { grid-column: 1 / -1; }
+
+.b2b-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .b2b-grid { grid-template-columns: 1fr 1fr; }
+}
+.b2b-est-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.b2b-est-card .est-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.b2b-est-card .est-name { font-weight: 800; font-size: 0.92rem; }
+.b2b-est-card .est-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.b2b-est-card .est-meta strong { color: var(--color-text); font-weight: 600; }
+.b2b-est-card .est-proto {
+  font-size: 0.75rem;
+  color: var(--color-text);
+  background: rgba(59,130,246,0.12);
+  border-left: 3px solid var(--color-blue);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.qr-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #fff;
+  color: #000;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+}
+.qr-box svg { display: block; width: 72px; height: 72px; }
+.qr-box .qr-info {
+  font-size: 0.72rem;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.qr-box .qr-info strong { font-size: 0.75rem; }
+.qr-box .qr-info code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 0.68rem; }
+
+.badge-status-activo { background: var(--color-green); color: #fff; }
+.badge-status-en_revision { background: var(--color-amber); color: #1a1a1a; }
+.badge-status-suspendido { background: var(--color-red); color: #fff; }
+.badge-status-propuesto { background: var(--color-surface-2); color: var(--color-text-dim); }
+.badge-status-en_negociacion { background: #a16207; color: #fff; }
+.badge-status-vencido { background: #7f1d1d; color: #fca5a5; }
+.badge-status-suspendido { background: var(--color-red); color: #fff; }
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.admin-table th, .admin-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.admin-table th {
+  color: var(--color-text-dim);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-table td input, .admin-table td select {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  width: 100%;
+}
+.admin-table .row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.admin-table .row-actions button {
+  background: var(--color-blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+.admin-table .row-actions button.btn-danger { background: var(--color-primary); }
+.admin-table .row-actions button.btn-muted { background: var(--color-surface-2); color: var(--color-text); }
+
+.semaforo {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.semaforo-activo { background: var(--color-green); box-shadow: 0 0 6px var(--color-green); }
+.semaforo-en_negociacion { background: var(--color-amber); }
+.semaforo-suspendido { background: var(--color-red); }
+.semaforo-vencido { background: #7f1d1d; }
+.semaforo-propuesto { background: var(--color-surface-2); }
+
+.audit-list {
+  list-style: none;
+  font-size: 0.75rem;
+  max-height: 420px;
+  overflow-y: auto;
+  font-family: ui-monospace, "SF Mono", monospace;
+}
+.audit-list li {
+  padding: 6px 8px;
+  border-bottom: 1px dashed rgba(71,85,105,0.5);
+  color: var(--color-text-dim);
+}
+.audit-list li strong { color: var(--color-text); font-weight: 700; }
+.audit-list li .audit-act { color: var(--color-blue); font-weight: 700; }
