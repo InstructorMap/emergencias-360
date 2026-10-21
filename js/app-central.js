@@ -2,6 +2,7 @@
    app-central.js — Controlador de central.html
    Consola Operativa EMP: bandeja, despacho paso a paso,
    flota y sincronización en vivo con index.html.
+   Fix H-01: helper el() respeta disabled=null/false.
    ============================================================ */
 
 (function () {
@@ -16,37 +17,36 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  // Estado local de la consola
   const uiState = {
     baseFilter: 'DOLORES',
     operatorName: '',
     selectedIncidentId: null,
-    incidentFilter: 'active',   // 'active' | 'closed'
+    incidentFilter: 'active',
     lastPendingCount: 0,
     audioCtx: null
   };
 
   // ============================================================
-  // HELPERS DOM SEGUROS
+  // HELPER el() — Fix H-01
   // ============================================================
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) {
       Object.keys(attrs).forEach((k) => {
-        if (k === 'className') node.className = attrs[k];
-        else if (k === 'textContent') node.textContent = attrs[k];
-        else if (k === 'onclick' && typeof attrs[k] === 'function') {
-          node.addEventListener('click', attrs[k]);
-        } else if (k.startsWith('aria-') || k.startsWith('data-') || k === 'title' || k === 'href' || k === 'type' || k === 'id' || k === 'value' || k === 'placeholder' || k === 'maxlength' || k === 'disabled') {
-          node.setAttribute(k, attrs[k]);
-        } else {
-          node.setAttribute(k, attrs[k]);
-        }
+        const val = attrs[k];
+        // Fix H-01: null/false no deben escribir atributo (ni disabled="null")
+        if (val === null || val === undefined || val === false) return;
+        if (val === true) { node.setAttribute(k, ''); return; }
+        if (k === 'className') { node.className = val; return; }
+        if (k === 'textContent') { node.textContent = val; return; }
+        if (k === 'onclick' && typeof val === 'function') { node.addEventListener('click', val); return; }
+        node.setAttribute(k, val);
       });
     }
     (children || []).forEach((c) => {
+      if (c === null || c === undefined) return;
       if (typeof c === 'string') node.appendChild(document.createTextNode(c));
-      else if (c) node.appendChild(c);
+      else node.appendChild(c);
     });
     return node;
   }
@@ -98,7 +98,7 @@
   }
 
   // ============================================================
-  // BEEP DE ALERTA
+  // BEEP
   // ============================================================
   function playAlertBeep() {
     try {
@@ -141,7 +141,7 @@
   }
 
   // ============================================================
-  // FILTROS DE BANDEJA
+  // FILTROS
   // ============================================================
   function initIncidentFilters() {
     $$('.btn-incident-filter').forEach((btn) => {
@@ -155,7 +155,7 @@
   }
 
   // ============================================================
-  // RENDER: CONTADOR DE PENDIENTES
+  // CONTADOR
   // ============================================================
   function renderAlertCounter() {
     const counter = $('#alertCounter');
@@ -163,20 +163,15 @@
     const pending = incidents.filter(i => i.status === 'RECIBIDA_SERVIDOR').length;
     counter.textContent = String(pending);
 
-    if (pending > 0) {
-      counter.classList.add('pulse');
-    } else {
-      counter.classList.remove('pulse');
-    }
+    if (pending > 0) counter.classList.add('pulse');
+    else counter.classList.remove('pulse');
 
-    if (pending > uiState.lastPendingCount) {
-      playAlertBeep();
-    }
+    if (pending > uiState.lastPendingCount) playAlertBeep();
     uiState.lastPendingCount = pending;
   }
 
   // ============================================================
-  // RENDER: BANDEJA
+  // BANDEJA
   // ============================================================
   function renderIncidentList() {
     const list = $('#incidentList');
@@ -230,7 +225,7 @@
   }
 
   // ============================================================
-  // RENDER: DETALLE
+  // DETALLE
   // ============================================================
   function renderDetail() {
     const container = $('#detailContainer');
@@ -252,7 +247,6 @@
       return;
     }
 
-    // --- Ficha del paciente ---
     const profile = inc.profileDni ? Store.getProfile(inc.profileDni) : null;
     const patientBlock = el('div', { className: 'detail-block' }, [
       el('h3', { textContent: 'Datos del Paciente / Socio' })
@@ -291,7 +285,22 @@
       );
     }
 
-    // --- Geolocalización ---
+    // B2B
+    if (inc.b2bEstablishmentId) {
+      const b2b = Store.getB2BById(inc.b2bEstablishmentId);
+      if (b2b) {
+        const b2bBlock = el('div', { className: 'detail-block' }, [
+          el('h3', { textContent: 'Establecimiento B2B (Área Protegida)' }),
+          kv('Nombre', b2b.name),
+          kv('Rubro', b2b.type),
+          kv('Dirección', b2b.address),
+          kv('Protocolo', b2b.protocol || '—'),
+          kv('Teléfono del referente', b2b.referencePhone || '—')
+        ]);
+        patientBlock.appendChild(b2bBlock);
+      }
+    }
+
     const geoBlock = el('div', { className: 'detail-block' }, [
       el('h3', { textContent: 'Geolocalización' })
     ]);
@@ -311,10 +320,8 @@
       geoBlock.appendChild(kv('Dirección manual', inc.manualAddress));
     }
 
-    // --- Acciones por estado ---
     const actionsBlock = buildActionsBlock(inc);
 
-    // --- Bitácora ---
     const bitacoraBlock = el('div', { className: 'detail-block' }, [
       el('h3', { textContent: 'Bitácora Cronológica' }),
       el('ul', { className: 'bitacora-list' },
@@ -346,24 +353,38 @@
   // ============================================================
   function buildActionsBlock(inc) {
     const block = el('div', { className: 'detail-actions' });
+    const activeStatesForCancel = ['RECIBIDA_SERVIDOR', 'ACEPTADA_POR_CENTRAL', 'CLASIFICADA', 'MOVIL_ASIGNADO', 'EN_CAMINO'];
 
-    const wrap = (node) => { block.appendChild(node); return block; };
+    function appendCancel() {
+      if (!activeStatesForCancel.includes(inc.status)) return;
+      block.appendChild(el('button', {
+        type: 'button', className: 'btn-action btn-danger',
+        textContent: 'Cancelar Incidente (Falsa alarma / Duplicado)',
+        onclick: () => runAction(() => {
+          const op = requireOperatorOrThrow();
+          const reason = window.prompt('Motivo de cancelación (obligatorio):');
+          if (!reason) throw new Error('Motivo de cancelación obligatorio.');
+          Store.cancelIncident(inc.id, reason, op);
+        })
+      }));
+    }
 
     try {
       switch (inc.status) {
         case 'RECIBIDA_SERVIDOR': {
-          const btn = el('button', {
+          block.appendChild(el('button', {
             type: 'button', className: 'btn-action btn-warn',
             textContent: '1. Acusar Recibo en Central',
             onclick: () => runAction(() => {
               const op = requireOperatorOrThrow();
               Store.acknowledgeIncident(inc.id, op);
             })
-          });
-          return wrap(btn);
+          }));
+          appendCancel();
+          return block;
         }
         case 'ACEPTADA_POR_CENTRAL': {
-          const form = el('div', { className: 'inline-form' }, [
+          block.appendChild(el('div', { className: 'inline-form' }, [
             el('label', {}, [
               el('span', { textContent: '2. Clasificar prioridad (Triage)' }),
               (function () {
@@ -388,12 +409,13 @@
                 Store.triageIncident(inc.id, prio, notes, op);
               })
             })
-          ]);
-          return wrap(form);
+          ]));
+          appendCancel();
+          return block;
         }
         case 'CLASIFICADA': {
           const units = Store.getFleet(inc.baseId).filter(u => u.status === 'disponible');
-          const form = el('div', { className: 'inline-form' }, [
+          block.appendChild(el('div', { className: 'inline-form' }, [
             el('label', {}, [
               el('span', { textContent: '3. Asignar móvil disponible de la base' }),
               (function () {
@@ -415,7 +437,7 @@
             el('button', {
               type: 'button', className: 'btn-action btn-ok',
               textContent: 'Asignar Móvil',
-              disabled: units.length ? null : 'disabled',
+              disabled: units.length === 0,
               onclick: () => runAction(() => {
                 const op = requireOperatorOrThrow();
                 const unitId = $('#assignUnitId').value;
@@ -424,43 +446,42 @@
                 Store.assignUnitToIncident(inc.id, unitId, crew, op);
               })
             })
-          ]);
-          return wrap(form);
+          ]));
+          appendCancel();
+          return block;
         }
         case 'MOVIL_ASIGNADO': {
-          const btn = el('button', {
-            type: 'button', className: 'btn-action btn-ok',
-            textContent: '4. Confirmar Salida — Móvil en Camino',
-            onclick: () => runAction(() => {
-              const op = requireOperatorOrThrow();
-              Store.dispatchIncidentUnit(inc.id, op);
+          block.appendChild(el('div', { className: 'inline-form' }, [
+            el('div', { className: 'warn-operador', textContent: 'Este paso notificará "Móvil en camino" al socio.' }),
+            el('button', {
+              type: 'button', className: 'btn-action btn-ok',
+              textContent: '4. Confirmar Salida — Móvil en Camino',
+              onclick: () => runAction(() => {
+                const op = requireOperatorOrThrow();
+                Store.dispatchIncidentUnit(inc.id, op);
+              })
             })
-          });
-          const warn = el('div', {
-            className: 'warn-operador',
-            textContent: 'Este paso notificará "Móvil en camino" al socio.'
-          });
-          return wrap(el('div', { className: 'inline-form' }, [warn, btn]));
+          ]));
+          appendCancel();
+          return block;
         }
         case 'EN_CAMINO': {
-          const btn = el('button', {
+          block.appendChild(el('button', {
             type: 'button', className: 'btn-action btn-ok',
             textContent: '5. Marcar Arribo en Escena (EN_ESCENA)',
             onclick: () => runAction(() => {
               const op = requireOperatorOrThrow();
               Store.markIncidentOnScene(inc.id, op);
             })
-          });
-          return wrap(btn);
+          }));
+          appendCancel();
+          return block;
         }
         case 'EN_ESCENA': {
-          const form = el('div', { className: 'inline-form' }, [
+          block.appendChild(el('div', { className: 'inline-form' }, [
             el('label', {}, [
               el('span', { textContent: 'Registrar derivación / traslado' }),
-              el('input', {
-                type: 'text', id: 'destCenter', maxlength: '120',
-                placeholder: 'Ej: Hospital San Roque Dolores'
-              })
+              el('input', { type: 'text', id: 'destCenter', maxlength: '120', placeholder: 'Ej: Hospital San Roque Dolores' })
             ]),
             el('button', {
               type: 'button', className: 'btn-action',
@@ -473,35 +494,37 @@
             }),
             el('div', { className: 'warn-operador', textContent: 'O bien cerrá directamente el incidente sin traslado:' }),
             buildCloseForm(inc)
-          ]);
-          return wrap(form);
+          ]));
+          return block;
         }
         case 'EN_TRASLADO': {
-          const form = el('div', { className: 'inline-form' }, [
+          block.appendChild(el('div', { className: 'inline-form' }, [
             el('div', { className: 'warn-operador', textContent: 'Traslado en curso hacia: ' + (inc.destinationCenter || '—') }),
             buildCloseForm(inc)
-          ]);
-          return wrap(form);
+          ]));
+          return block;
         }
         case 'CERRADA':
         case 'CANCELADA': {
-          const info = el('div', { className: 'inline-form' }, [
+          block.appendChild(el('div', { className: 'inline-form' }, [
             el('div', { className: 'warn-operador', textContent: 'Incidente finalizado. Motivo: ' + (inc.closureReason || '—') })
-          ]);
+          ]));
           if (inc.outcomeNotes) {
-            info.appendChild(el('div', { className: 'detail-block' }, [
+            block.appendChild(el('div', { className: 'detail-block' }, [
               el('h3', { textContent: 'Notas de cierre' }),
               el('div', { textContent: inc.outcomeNotes })
             ]));
           }
-          return wrap(info);
+          return block;
         }
         default: {
-          return wrap(el('div', { className: 'warn-operador', textContent: 'Estado no manejado: ' + inc.status }));
+          block.appendChild(el('div', { className: 'warn-operador', textContent: 'Estado no manejado: ' + inc.status }));
+          return block;
         }
       }
     } catch (err) {
-      return wrap(el('div', { className: 'warn-operador', textContent: 'Error: ' + err.message }));
+      block.appendChild(el('div', { className: 'warn-operador', textContent: 'Error: ' + err.message }));
+      return block;
     }
   }
 
@@ -515,7 +538,7 @@
     const reasonSel = el('select', { id: 'closeReason' });
     closeReasons.forEach(r => reasonSel.appendChild(el('option', { value: r, textContent: r })));
 
-    const wrapper = el('div', { className: 'inline-form' }, [
+    return el('div', { className: 'inline-form' }, [
       el('div', { className: 'warn-operador', textContent: 'Cierre documentado obligatorio:' }),
       el('label', {}, [el('span', { textContent: 'Motivo de cierre' }), reasonSel]),
       el('label', {}, [
@@ -534,7 +557,7 @@
       }),
       el('button', {
         type: 'button', className: 'btn-action btn-danger',
-        textContent: 'Cancelar Incidente',
+        textContent: 'Cancelar Incidente (Falsa alarma / Duplicado)',
         onclick: () => runAction(() => {
           const op = requireOperatorOrThrow();
           const reason = window.prompt('Motivo de cancelación (obligatorio):');
@@ -543,7 +566,6 @@
         })
       })
     ]);
-    return wrapper;
   }
 
   function runAction(fn) {
@@ -556,7 +578,7 @@
   }
 
   // ============================================================
-  // RENDER: FLOTA
+  // FLOTA
   // ============================================================
   function renderFleet() {
     const container = $('#fleetContainer');
@@ -597,7 +619,7 @@
             el('button', {
               type: 'button',
               textContent: 'Mantenimiento',
-              disabled: (u.status === 'asignado' || u.status === 'en_salida' || u.status === 'mantenimiento') ? 'disabled' : null,
+              disabled: (u.status === 'asignado' || u.status === 'en_salida' || u.status === 'mantenimiento'),
               onclick: () => runAction(() => {
                 const op = requireOperatorOrThrow();
                 Store.setUnitMaintenanceStatus(u.id, 'mantenimiento', op);
@@ -606,7 +628,7 @@
             el('button', {
               type: 'button',
               textContent: 'Rehabilitar',
-              disabled: u.status !== 'mantenimiento' ? 'disabled' : null,
+              disabled: (u.status !== 'mantenimiento'),
               onclick: () => runAction(() => {
                 const op = requireOperatorOrThrow();
                 Store.setUnitMaintenanceStatus(u.id, 'disponible', op);
@@ -617,7 +639,6 @@
         list.appendChild(card);
       });
       container.appendChild(list);
-
       container.appendChild(el('div', { style: 'height: 8px' }));
     });
   }
