@@ -1,0 +1,26 @@
+{
+  "name": "Emergencias 360 — MVP Demostración",
+  "short_name": "E360 MVP",
+  "description": "MVP demostración de Emergencias 360: alerta SOS y red de beneficios. No sustituye al 107/911/Bomberos.",
+  "lang": "es-AR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%23dc2626'/%3E%3Ctext x='96' y='120' font-size='72' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3ESOS%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23dc2626'/%3E%3Ctext x='256' y='320' font-size='192' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3ESOS%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
