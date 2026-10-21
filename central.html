@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Consola Operativa EMP - MVP Demostración. No conectada a despacho real." />
+  <title>Central Operativa EMP — MVP Demostración</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="central-body">
+
+  <!-- ===================== HEADER OPERATIVO ===================== -->
+  <header class="central-header" role="banner">
+    <span class="badge-central">MODO MVP DEMOSTRACIÓN — CONSOLA OPERATIVA EMP (NO CONECTADA A DESPACHO REAL)</span>
+
+    <div class="header-controls">
+      <label>Base / Alcance
+        <select id="centralBaseSelector" aria-label="Seleccionar base o alcance">
+          <option value="DOLORES">EMP Base Dolores</option>
+          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+          <option value="ALL">Todas las Bases (Supervisión EMP)</option>
+        </select>
+      </label>
+
+      <label>Operador en turno
+        <input type="text" id="operatorInput" class="operator-input"
+               placeholder="Ej: Téc. Juan Pérez" maxlength="80" autocomplete="off" />
+      </label>
+
+      <span class="alert-counter" id="alertCounter" title="Alertas pendientes de acuse">0</span>
+
+      <a href="index.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Abrir Vista Socio</a>
+    </div>
+  </header>
+
+  <!-- ===================== LAYOUT 3 COLUMNAS ===================== -->
+  <div class="central-grid">
+
+    <!-- ---------- COLUMNA 1: BANDEJA ---------- -->
+    <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
+      <h2>Bandeja de Incidentes</h2>
+      <div class="incident-filters">
+        <button type="button" class="btn-incident-filter active" data-filter="active">Activos</button>
+        <button type="button" class="btn-incident-filter" data-filter="closed">Finalizados</button>
+      </div>
+      <ul class="incident-list" id="incidentList"></ul>
+      <p class="empty-msg" id="incidentEmpty" hidden>No hay incidentes en esta vista.</p>
+    </section>
+
+    <!-- ---------- COLUMNA 2: DETALLE / DESPACHO ---------- -->
+    <section class="central-col central-col-2" aria-label="Panel de control del incidente">
+      <h2>Panel de Control y Despacho</h2>
+      <div id="detailContainer">
+        <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
+      </div>
+    </section>
+
+    <!-- ---------- COLUMNA 3: FLOTA ---------- -->
+    <section class="central-col central-col-3" aria-label="Estado de bases y flota">
+      <h2>Bases y Flota</h2>
+      <div id="fleetContainer"></div>
+    </section>
+
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/app-central.js"></script>
+</body>
+</html>
