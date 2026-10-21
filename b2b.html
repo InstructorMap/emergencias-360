@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Módulo B2B Área Protegida, Turismo y Eventos — MVP Demostración." />
+  <title>B2B Área Protegida — Emergencias 360 MVP</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="b2b-body">
+
+  <!-- ===================== HEADER B2B ===================== -->
+  <header class="b2b-header" role="banner">
+    <span class="badge-b2b">MODO MVP DEMOSTRACIÓN — MÓDULO B2B ÁREA PROTEGIDA, TURISMO Y EVENTOS</span>
+
+    <div class="header-controls">
+      <label>Base / Alcance
+        <select id="b2bBaseSelector" aria-label="Seleccionar base">
+          <option value="DOLORES">EMP Base Dolores</option>
+          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+          <option value="ALL">Todas las Bases</option>
+        </select>
+      </label>
+
+      <label>Operador / Comercial responsable
+        <input type="text" id="b2bOperatorInput" class="operator-input"
+               placeholder="Ej: Lic. María Gómez" maxlength="80" autocomplete="off" />
+      </label>
+
+      <a href="index.html" target="_blank" rel="noopener" class="btn-link">↗ Abrir Vista Socio</a>
+      <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central Operativa</a>
+      <a href="admin.html" target="_blank" rel="noopener" class="btn-link">↗ Panel Admin</a>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="b2b-main" role="main">
+
+    <!-- Alta de establecimiento / evento -->
+    <section class="b2b-card" aria-label="Alta de establecimiento B2B">
+      <h2 id="formTitle">Dar de alta un nuevo establecimiento / evento</h2>
+      <form id="b2bForm" class="b2b-form" novalidate>
+        <input type="hidden" id="b2bId" />
+
+        <label>Nombre del establecimiento / evento
+          <input type="text" id="b2bName" maxlength="120" required placeholder="Ej: Hotel Costa Azul / Fiesta Provincial" />
+        </label>
+
+        <label>Rubro
+          <select id="b2bType" required>
+            <option value="Hotel / Complejo">Hotel / Complejo</option>
+            <option value="Balneario / Camping">Balneario / Camping</option>
+            <option value="Empresa / Comercio">Empresa / Comercio</option>
+            <option value="Institución / Consultorio">Institución / Consultorio</option>
+            <option value="Evento Temporal">Evento Temporal</option>
+          </select>
+        </label>
+
+        <label>Base asignada
+          <select id="b2bBase" required>
+            <option value="DOLORES">DOLORES</option>
+            <option value="LA_COSTA">LA_COSTA</option>
+          </select>
+        </label>
+
+        <label>Estado
+          <select id="b2bStatus">
+            <option value="en_revision">En revisión</option>
+            <option value="activo">Activo</option>
+            <option value="suspendido">Suspendido</option>
+          </select>
+        </label>
+
+        <label class="full">Dirección exacta
+          <input type="text" id="b2bAddress" maxlength="160" required placeholder="Ej: Av. Costanera 1200, Santa Teresita" />
+        </label>
+
+        <label>Latitud (opcional)
+          <input type="number" id="b2bLat" step="0.000001" min="-90" max="90" placeholder="-36.5421" />
+        </label>
+
+        <label>Longitud (opcional)
+          <input type="number" id="b2bLng" step="0.000001" min="-180" max="180" placeholder="-56.6812" />
+        </label>
+
+        <label>Teléfono del referente en lugar
+          <input type="tel" id="b2bPhone" maxlength="30" placeholder="Ej: 02246-420000" />
+        </label>
+
+        <label class="full">Protocolo operativo de ingreso para la ambulancia
+          <textarea id="b2bProtocol" rows="3" maxlength="400" placeholder="Ej: Ingreso por dársena de recepción, conserjería 24hs, avisar por radio."></textarea>
+        </label>
+
+        <button type="submit" class="btn-primary" id="b2bSubmit">Crear establecimiento</button>
+        <button type="button" class="btn-secondary" id="b2bCancelEdit" hidden>Cancelar edición</button>
+        <p class="form-msg" id="b2bMsg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- Listado de establecimientos -->
+    <section class="b2b-card" aria-label="Listado de establecimientos B2B">
+      <h2>Establecimientos registrados</h2>
+      <div class="b2b-grid" id="b2bList"></div>
+      <p class="empty-msg" id="b2bEmpty" hidden>No hay establecimientos para esta base.</p>
+    </section>
+
+  </main>
+
+  <script src="js/store.js"></script>
+  <script src="js/app-b2b.js"></script>
+</body>
+</html>
