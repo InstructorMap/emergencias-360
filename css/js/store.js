@@ -1,22 +1,19 @@
 /* ============================================================
-   E360Store — Capa de abstracción de datos (MVP LOCAL)
-   Hoy: localStorage + BroadcastChannel
-   Mañana: Supabase (métodos ya preparados para ser async)
-   Incluye: ciclo completo de incidentes (Módulos 3 y 4),
-            gestión de flota, perfiles y auditoría.
+   E360Store v3 — Capa de abstracción de datos (MVP LOCAL)
+   Incluye: ciclo de incidentes, flota, perfiles, B2B Área
+   Protegida, Red de Beneficios contractual y auditoría.
    ============================================================ */
 
 (function (global) {
   'use strict';
 
-  const STORAGE_KEY = 'e360_mvp_v2';
+  const STORAGE_KEY = 'e360_mvp_v3';
   const CHANNEL_NAME = 'e360_mvp_channel';
 
   const channel = (typeof BroadcastChannel !== 'undefined')
     ? new BroadcastChannel(CHANNEL_NAME)
     : null;
 
-  // ---------- Estados de incidente ----------
   const INCIDENT_STATES = {
     RECIBIDA_SERVIDOR: 'RECIBIDA_SERVIDOR',
     ACEPTADA_POR_CENTRAL: 'ACEPTADA_POR_CENTRAL',
@@ -49,13 +46,29 @@
     MANTENIMIENTO: 'mantenimiento'
   };
 
+  const BENEFIT_STATUSES = ['propuesto', 'en_negociacion', 'activo', 'suspendido', 'vencido'];
+
+  const B2B_STATUSES = ['activo', 'en_revision', 'suspendido'];
+
   // ---------- Seed inicial ----------
   function buildSeed() {
     return {
-      version: 2,
+      version: 3,
       organizations: [
-        { id: 'org_asari', name: 'ASARI S.A.S.', role: 'platform_owner' },
-        { id: 'org_emp', name: 'EMP - Emergencias Médicas Privadas', role: 'emergency_provider' }
+        {
+          id: 'org_asari',
+          name: 'ASARI S.A.S.',
+          role: 'platform_owner',
+          lineAEnabled: true,
+          lineBEnabled: true
+        },
+        {
+          id: 'org_emp',
+          name: 'EMP - Emergencias Médicas Privadas',
+          role: 'emergency_provider',
+          lineAEnabled: true,
+          lineBEnabled: true
+        }
       ],
       bases: [
         { id: 'DOLORES', name: 'EMP Base Dolores', phone: '02245431234', orgId: 'org_emp', isActive: true },
@@ -69,39 +82,104 @@
       ],
       benefits: [
         {
+          id: 'ben_internacion_costa',
+          name: 'Empresa de Internación Domiciliaria (La Costa)',
+          category: 'Internación Domiciliaria',
+          locality: 'La Costa',
+          benefitDetail: 'Cobertura parcial en internación domiciliaria programada.',
+          agreementRef: 'Pendiente de firma',
+          validUntil: '2026-12-31',
+          status: 'en_negociacion'
+        },
+        {
+          id: 'ben_cartilla_costa',
+          name: 'Red de Cartilla de Médicos para Consultorios (La Costa)',
+          category: 'Consultorios',
+          locality: 'La Costa',
+          benefitDetail: 'Descuento en consultas de cartilla.',
+          agreementRef: 'Pendiente de firma',
+          validUntil: '2026-12-31',
+          status: 'en_negociacion'
+        },
+        {
           id: 'ben_sanatorio_dolores',
           name: 'Sanatorio Dolores',
+          category: 'Sanatorio / Clínica',
           locality: 'Dolores',
-          description: 'Convenio en negociación (no visible al socio).',
+          benefitDetail: 'Convenio en negociación (no visible al socio).',
+          agreementRef: 'Pendiente de firma',
+          validUntil: '2026-12-31',
           status: 'en_negociacion'
         },
         {
           id: 'ben_consultorios_dolores',
-          name: 'Consultorios Médicos Dolores',
+          name: 'Consultorios Médicos de Dolores (sin emergencias propias)',
+          category: 'Consultorios',
           locality: 'Dolores',
-          description: 'Convenio en negociación (no visible al socio).',
-          status: 'en_negociacion'
-        },
-        {
-          id: 'ben_red_consultorios_costa',
-          name: 'Red Consultorios La Costa',
-          locality: 'La Costa',
-          description: 'Convenio en negociación (no visible al socio).',
+          benefitDetail: 'Convenio en negociación (no visible al socio).',
+          agreementRef: 'Pendiente de firma',
+          validUntil: '2026-12-31',
           status: 'en_negociacion'
         },
         {
           id: 'ben_demo_farmacia',
-          name: '[DEMO CONVENIO ACTIVO] Farmacia Adherida',
+          name: '[DEMO CONVENIO ACTIVO] Farmacia / Óptica Adherida',
+          category: 'Farmacia / Óptica',
           locality: 'Dolores',
-          description: 'Descuento demostrativo en medicamentos de venta libre.',
+          benefitDetail: 'Descuento demostrativo en medicamentos y anteojos.',
+          agreementRef: 'DEMO-01',
+          validUntil: '2026-12-31',
           status: 'activo'
+        }
+      ],
+      b2b_establishments: [
+        {
+          id: 'b2b_hotel_costa',
+          name: 'Complejo Turístico & Hotel Costero [DEMO]',
+          type: 'Hotel / Complejo',
+          baseId: 'LA_COSTA',
+          address: 'Av. Costanera y Calle 34, Santa Teresita',
+          coords: null,
+          referencePhone: '02246-420000',
+          protocol: 'Ingreso ambulancia por dársena de recepción. Conserjería 24hs.',
+          status: 'activo',
+          createdAt: '2026-01-10T10:00:00.000Z'
         },
         {
-          id: 'ben_demo_optica',
-          name: '[DEMO CONVENIO ACTIVO] Óptica Adherida',
-          locality: 'La Costa',
-          description: 'Descuento demostrativo en anteojos recetados.',
-          status: 'activo'
+          id: 'b2b_balneario_costa',
+          name: 'Balneario Parador Sur [DEMO]',
+          type: 'Balneario / Camping',
+          baseId: 'LA_COSTA',
+          address: 'Playa y Bajada Náutica, San Clemente',
+          coords: null,
+          referencePhone: '02246-430000',
+          protocol: 'Acceso vehicular por bajada náutica. Guardavidas en puesto 2.',
+          status: 'activo',
+          createdAt: '2026-01-12T10:00:00.000Z'
+        },
+        {
+          id: 'b2b_comercio_dolores',
+          name: 'Galería Comercial Centro [DEMO]',
+          type: 'Empresa / Comercio',
+          baseId: 'DOLORES',
+          address: 'Calle Buenos Aires 450, Dolores',
+          coords: null,
+          referencePhone: '02245-440000',
+          protocol: 'Acceso libre por entrada principal.',
+          status: 'activo',
+          createdAt: '2026-01-15T10:00:00.000Z'
+        },
+        {
+          id: 'b2b_consultorio_dolores',
+          name: 'Consultorios Externos Sin Emergencia Propia [DEMO]',
+          type: 'Institución / Consultorio',
+          baseId: 'DOLORES',
+          address: 'Calle Belgrano 820, Dolores',
+          coords: null,
+          referencePhone: '02245-450000',
+          protocol: 'Prioridad de derivación por puerta lateral.',
+          status: 'en_revision',
+          createdAt: '2026-01-20T10:00:00.000Z'
         }
       ],
       profiles: {},
@@ -125,14 +203,16 @@
         return seed;
       }
       const parsed = JSON.parse(raw);
-      if (!parsed || parsed.version !== 2) {
+      if (!parsed || parsed.version !== 3) {
         const seed = buildSeed();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
         return seed;
       }
-      // Migración defensiva de context
       if (!parsed.context) parsed.context = { activeBaseId: 'DOLORES', platformMode: 'LOCAL_MVP', activeProfileDni: null };
       if (parsed.context.activeProfileDni === undefined) parsed.context.activeProfileDni = null;
+      if (!Array.isArray(parsed.b2b_establishments)) parsed.b2b_establishments = buildSeed().b2b_establishments;
+      if (!Array.isArray(parsed.benefits)) parsed.benefits = [];
+      if (!Array.isArray(parsed.audit_logs)) parsed.audit_logs = [];
       return parsed;
     } catch (e) {
       console.error('[E360Store] Error cargando estado, usando seed.', e);
@@ -167,7 +247,12 @@
     return name;
   }
 
-  // ---------- Auditoría ----------
+  function requireAdmin(adminName) {
+    const name = String(adminName || '').trim();
+    if (!name) throw new Error('Se requiere identificación del administrador.');
+    return name;
+  }
+
   function appendAudit(state, action, payload, actor) {
     state.audit_logs.unshift({
       id: uid('aud'),
@@ -176,7 +261,7 @@
       payload: payload || {},
       actor: actor || 'system'
     });
-    if (state.audit_logs.length > 1000) state.audit_logs.length = 1000;
+    if (state.audit_logs.length > 2000) state.audit_logs.length = 2000;
   }
 
   function findIncident(state, incidentId) {
@@ -210,6 +295,8 @@
     TRANSITION_ORDER,
     PRIORITIES,
     UNIT_STATUS,
+    BENEFIT_STATUSES,
+    B2B_STATUSES,
 
     // ======================= CONTEXTO =======================
     getActiveContext() {
@@ -233,16 +320,29 @@
       return true;
     },
 
+    getOrganizations() {
+      const state = loadState();
+      return state.organizations.map(o => ({ ...o }));
+    },
+
+    updateOrganizationFlags(orgId, lineA, lineB, adminName) {
+      const actor = requireAdmin(adminName);
+      const state = loadState();
+      const org = state.organizations.find(o => o.id === orgId);
+      if (!org) throw new Error('Organización no encontrada.');
+      org.lineAEnabled = !!lineA;
+      org.lineBEnabled = !!lineB;
+      appendAudit(state, 'UPDATE_ORG_FLAGS', { orgId, lineA: !!lineA, lineB: !!lineB }, actor);
+      saveState(state);
+      return { ...org };
+    },
+
     // ======================= PERFILES =======================
     saveProfile(profile) {
       const state = loadState();
       const dni = String(profile.dni || '').trim();
       if (!dni) throw new Error('DNI requerido para guardar ficha.');
-      const record = {
-        ...profile,
-        dni,
-        updatedAt: nowISO()
-      };
+      const record = { ...profile, dni, updatedAt: nowISO() };
       state.profiles[dni] = record;
       state.context.activeProfileDni = dni;
       appendAudit(state, 'SAVE_PROFILE', { dni }, 'socio_app');
@@ -264,7 +364,7 @@
       return p ? { ...p } : null;
     },
 
-    // ======================= INCIDENTES (SOCIO) =======================
+    // ======================= INCIDENTES =======================
     createSOSIncident(payload) {
       const state = loadState();
       const dni = payload.profileDni || state.context.activeProfileDni || null;
@@ -282,6 +382,7 @@
         outcomeNotes: '',
         location: payload.location || null,
         manualAddress: payload.manualAddress || '',
+        b2bEstablishmentId: payload.b2bEstablishmentId || null,
         profileDni: dni,
         notes: payload.notes || '',
         statusHistory: [
@@ -289,7 +390,7 @@
         ]
       };
       state.incidents.unshift(incident);
-      appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni }, 'socio_app');
+      appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni, b2b: incident.b2bEstablishmentId }, 'socio_app');
       saveState(state);
       return JSON.parse(JSON.stringify(incident));
     },
@@ -314,7 +415,6 @@
       return inc ? JSON.parse(JSON.stringify(inc)) : null;
     },
 
-    // ======================= FLUJO OPERATIVO CENTRAL =======================
     acknowledgeIncident(incidentId, operatorName) {
       const actor = requireOperator(operatorName);
       const state = loadState();
@@ -357,7 +457,6 @@
       if (!unit) throw new Error('Móvil no encontrado.');
       if (unit.baseId !== inc.baseId) throw new Error('El móvil no pertenece a la base del incidente.');
       if (unit.status !== UNIT_STATUS.DISPONIBLE) throw new Error('El móvil no está disponible.');
-
       unit.status = UNIT_STATUS.ASIGNADO;
       inc.assignedUnitId = unit.id;
       inc.crewNotes = String(crewNotes || '').trim();
@@ -418,13 +517,9 @@
       const notes = String(outcomeNotes || '').trim();
       if (!reason) throw new Error('El motivo de cierre es obligatorio.');
       if (!notes) throw new Error('Las notas de cierre son obligatorias.');
-
       const state = loadState();
       const inc = findIncident(state, incidentId);
-      const closable = [
-        INCIDENT_STATES.EN_ESCENA,
-        INCIDENT_STATES.EN_TRASLADO
-      ];
+      const closable = [INCIDENT_STATES.EN_ESCENA, INCIDENT_STATES.EN_TRASLADO];
       if (!closable.includes(inc.status)) {
         throw new Error('Solo se puede cerrar desde EN_ESCENA o EN_TRASLADO.');
       }
@@ -454,7 +549,6 @@
       return JSON.parse(JSON.stringify(inc));
     },
 
-    // Compatibilidad con el simulador embebido del socio (opcional)
     transitionIncidentStatus(incidentId, nextStatus) {
       return this._genericTransition(incidentId, nextStatus, 'simulador_socio');
     },
@@ -523,49 +617,16 @@
     // ======================= BENEFICIOS =======================
     getVisibleBenefits(locality) {
       const state = loadState();
+      const orgs = state.organizations;
+      const lineBAllowedByOrg = (benefit) => {
+        // Regla MVP: si alguna organización con lineBEnabled existe, se permite.
+        return orgs.some(o => o.lineBEnabled);
+      };
       return state.benefits
         .filter(b => b.status === 'activo')
-        .filter(b => !locality || b.locality === locality)
-        .map(b => ({ id: b.id, name: b.name, locality: b.locality, description: b.description }));
-    },
-
-    getAllBenefitsRaw() {
-      const state = loadState();
-      return state.benefits.map(b => ({ ...b }));
-    },
-
-    // ======================= AUDITORÍA =======================
-    getAuditLogs() {
-      const state = loadState();
-      return state.audit_logs.map(l => ({ ...l }));
-    },
-
-    // ======================= SUSCRIPCIÓN =======================
-    subscribe(callback) {
-      if (!channel) {
-        const handler = (e) => {
-          if (e.key === STORAGE_KEY) callback({ type: 'STATE_CHANGED', ts: Date.now() });
-        };
-        global.addEventListener('storage', handler);
-        return () => global.removeEventListener('storage', handler);
-      }
-      const handler = (msg) => { callback(msg.data); };
-      channel.addEventListener('message', handler);
-      return () => channel.removeEventListener('message', handler);
-    },
-
-    // ======================= UTILIDADES PRUEBA =======================
-    _resetStore() {
-      const seed = buildSeed();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
-      return seed;
-    },
-
-    _getState() {
-      return loadState();
-    }
-  };
-
-  global.E360Store = E360Store;
-})(typeof window !== 'undefined' ? window : globalThis);
+        .filter(b => {
+          const ref = String(b.agreementRef || '').trim();
+          return ref.length > 0 && ref.toLowerCase() !== 'pendiente de firma';
+        })
+        .filter(b => lineBAllowedByOrg(b))
+        .filter(b => !locality || b.locality
