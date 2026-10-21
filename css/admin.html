@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Panel Administrativo ASARI / EMP — Convenios, Organizaciones y Auditoría — MVP Demostración." />
+  <title>Panel Admin — Emergencias 360 MVP</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="admin-body">
+
+  <!-- ===================== HEADER ADMIN ===================== -->
+  <header class="admin-header" role="banner">
+    <span class="badge-admin">MODO MVP DEMOSTRACIÓN — PANEL ADMINISTRATIVO MULTITENANT & AUDITORÍA</span>
+
+    <div class="header-controls">
+      <label>Administrador responsable
+        <input type="text" id="adminInput" class="admin-input"
+               placeholder="Ej: Dirección ASARI / EMP" maxlength="80" autocomplete="off" />
+      </label>
+
+      <a href="index.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
+      <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central</a>
+      <a href="b2b.html" target="_blank" rel="noopener" class="btn-link">↗ B2B</a>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="admin-main" role="main">
+
+    <!-- ============ SECCIÓN 1: ORGANIZACIONES ============ -->
+    <section class="admin-card" aria-label="Organizaciones y aislamiento jurídico">
+      <h2>1. Organizaciones y Aislamiento Jurídico (Línea A vs. Línea B)</h2>
+      <div id="orgsContainer"></div>
+      <p class="warn-operador" style="margin-top:10px;">
+        <strong>Recordatorio legal:</strong> ASARI S.A.S. es Proveedor Tecnológico; EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. La Línea A (Emergencias) y la Línea B (Red de Beneficios) deben permanecer visual y legalmente separadas.
+      </p>
+    </section>
+
+    <!-- ============ SECCIÓN 2: GESTOR CONTRACTUAL ============ -->
+    <section class="admin-card" aria-label="Gestor contractual de la Red de Beneficios">
+      <h2>2. Gestor Contractual de la Red de Beneficios en Salud</h2>
+      <p class="aviso-comercial">
+        <strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (index.html). En cualquier otro estado permanece oculto.</strong>
+      </p>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="benefitsTable">
+          <thead>
+            <tr>
+              <th>Prestador</th>
+              <th>Categoría / Localidad</th>
+              <th>Estado</th>
+              <th>N° Convenio / Respaldo</th>
+              <th>Vigencia</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="benefitsTbody"></tbody>
+        </table>
+      </div>
+      <p class="form-msg" id="adminMsg" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- ============ SECCIÓN 3: AUDITORÍA ============ -->
+    <section class="admin-card" aria-label="Registro inmutable de auditoría">
+      <h2>3. Registro Inmutable de Auditoría</h2>
+      <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+        <button type="button" id="btnExportAudit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">
+          ⬇ Exportar Auditoría (JSON)
+        </button>
+        <button type="button" id="btnResetDemo" style="background:var(--color-primary); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">
+          ♻ Reiniciar Demo (Reset Total)
+        </button>
+      </div>
+      <ul class="audit-list" id="auditList"></ul>
+    </section>
+
+  </main>
+
+  <script src="js/store.js"></script>
+  <script src="js/app-admin.js"></script>
+</body>
+</html>
