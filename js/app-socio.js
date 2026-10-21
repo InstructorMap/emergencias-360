@@ -1,6 +1,7 @@
 /* ============================================================
    app-socio.js — Controlador de index.html
    Manejo SOS, GPS, ficha, beneficios y sincronización en vivo.
+   Soporta el ciclo completo de estados de la Central Operativa.
    ============================================================ */
 
 (function () {
@@ -12,7 +13,6 @@
     return;
   }
 
-  // ---------- Helpers DOM ----------
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -36,9 +36,8 @@
     return node;
   }
 
-  // ---------- Estado local ----------
   let currentIncident = null;
-  let currentLocation = null;      // { lat, lng, accuracy }
+  let currentLocation = null;
   let manualAddress = '';
   let activeLocality = 'Dolores';
 
@@ -157,7 +156,7 @@
   }
 
   // ============================================================
-  // SOS — pulsación mantenida 1.5s
+  // SOS
   // ============================================================
   const HOLD_MS = 1500;
   let holdTimer = null;
@@ -214,7 +213,6 @@
     btn.addEventListener('mouseleave', () => cancelHold(false));
     btn.addEventListener('touchcancel', () => cancelHold(false));
 
-    // Accesibilidad teclado: Enter/Espacio inician y sueltan
     btn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -230,25 +228,24 @@
   }
 
   function fireSOS() {
-    // Regla innegociable: estado inicial NUNCA "ambulancia en camino"
-    const profile = Store.getProfile($('#fDni')?.value || '');
+    const activeProfile = Store.getActiveProfile();
+    const profileDni = activeProfile ? activeProfile.dni : null;
 
     const incident = Store.createSOSIncident({
       location: currentLocation,
       manualAddress: manualAddress,
-      profileDni: profile ? profile.dni : null,
+      profileDni: profileDni,
       notes: ''
     });
 
     currentIncident = incident;
     renderIncident(incident);
     setProgress(100);
-    // Pequeño delay para mostrar barra completa, luego reset
     setTimeout(() => { setProgress(0); sosFired = false; }, 400);
   }
 
   // ============================================================
-  // RENDER DE INCIDENTE
+  // RENDER DE INCIDENTE (con nuevos estados)
   // ============================================================
   const STATE_LABELS = {
     RECIBIDA_SERVIDOR: {
@@ -256,7 +253,11 @@
       color: 'amber'
     },
     ACEPTADA_POR_CENTRAL: {
-      text: 'Central Operativa confirmó recepción. Asignando recurso.',
+      text: 'Central Operativa confirmó recepción. Evaluando la situación.',
+      color: 'blue'
+    },
+    CLASIFICADA: {
+      text: 'Incidente clasificado por Central. Asignando recurso.',
       color: 'blue'
     },
     MOVIL_ASIGNADO: {
@@ -265,6 +266,18 @@
     },
     EN_CAMINO: {
       text: 'Móvil en camino. Mantené la calma y la línea disponible.',
+      color: 'green'
+    },
+    EN_ESCENA: {
+      text: 'El móvil arribó al lugar. El personal está asistiendo.',
+      color: 'green'
+    },
+    EN_TRASLADO: {
+      text: 'Traslado en curso hacia un centro asistencial.',
+      color: 'green'
+    },
+    CERRADA: {
+      text: 'Incidente cerrado por la Central Operativa.',
       color: 'green'
     },
     CANCELADA: {
@@ -276,8 +289,12 @@
   const TIMELINE_STEPS = [
     { key: 'RECIBIDA_SERVIDOR', label: 'Enviada / Recibida por servidor' },
     { key: 'ACEPTADA_POR_CENTRAL', label: 'Aceptada por Central' },
+    { key: 'CLASIFICADA', label: 'Clasificada / Triage' },
     { key: 'MOVIL_ASIGNADO', label: 'Móvil asignado' },
-    { key: 'EN_CAMINO', label: 'En camino' }
+    { key: 'EN_CAMINO', label: 'Móvil en camino' },
+    { key: 'EN_ESCENA', label: 'Móvil en escena' },
+    { key: 'EN_TRASLADO', label: 'En traslado' },
+    { key: 'CERRADA', label: 'Incidente cerrado' }
   ];
 
   function renderIncident(incident) {
@@ -303,7 +320,6 @@
   }
 
   function initIncidentSubscription() {
-    // Cargar último incidente si existe
     const latest = Store.getLatestIncident();
     if (latest) {
       currentIncident = latest;
@@ -326,8 +342,10 @@
   function loadProfileIntoForm() {
     const dniInput = $('#fDni');
     if (!dniInput) return;
-    const profile = Store.getProfile(dniInput.value);
+    const typedDni = dniInput.value.trim();
+    const profile = typedDni ? Store.getProfile(typedDni) : Store.getActiveProfile();
     if (!profile) return;
+    if (!typedDni) dniInput.value = profile.dni || '';
     $('#fNombre').value = profile.nombre || '';
     $('#fTelefono').value = profile.telefono || '';
     $('#fGrupo').value = profile.grupoSanguineo || '';
@@ -341,7 +359,6 @@
     const msg = $('#fichaMsg');
     if (!form) return;
 
-    // Autocargar ficha si hay DNI guardado en sesión
     const dniInput = $('#fDni');
     dniInput.addEventListener('blur', loadProfileIntoForm);
 
@@ -385,7 +402,7 @@
   }
 
   // ============================================================
-  // BENEFICIOS (Línea B)
+  // BENEFICIOS
   // ============================================================
   function renderBenefits(locality) {
     const list = $('#benefitsList');
@@ -431,7 +448,6 @@
     const panel = $('#testPanel');
     if (!tools || !toggle || !panel) return;
 
-    // Solo visible en modo LOCAL_MVP
     const ctx = Store.getActiveContext();
     if (ctx.platformMode !== 'LOCAL_MVP') return;
     tools.hidden = false;
@@ -452,6 +468,7 @@
         const map = {
           recibir: 'ACEPTADA_POR_CENTRAL',
           aceptar: 'ACEPTADA_POR_CENTRAL',
+          clasificar: 'CLASIFICADA',
           asignar: 'MOVIL_ASIGNADO',
           camino: 'EN_CAMINO'
         };
@@ -501,5 +518,15 @@
     initBenefitsFilter();
     initTestTools();
     initServiceWorker();
+
+    // Precarga del perfil activo (H-02)
+    const activeProfile = Store.getActiveProfile();
+    if (activeProfile) {
+      const dniInput = $('#fDni');
+      if (dniInput && !dniInput.value) {
+        dniInput.value = activeProfile.dni || '';
+      }
+      loadProfileIntoForm();
+    }
   });
 })();
