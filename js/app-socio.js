@@ -1,7 +1,7 @@
 /* ============================================================
    app-socio.js — Controlador de index.html
-   Manejo SOS, GPS, ficha, beneficios y sincronización en vivo.
-   Soporta el ciclo completo de estados de la Central Operativa.
+   Manejo SOS, GPS, ficha, beneficios, Área Protegida (B2B)
+   y sincronización en vivo con la Central Operativa.
    ============================================================ */
 
 (function () {
@@ -20,18 +20,19 @@
     const node = document.createElement(tag);
     if (attrs) {
       Object.keys(attrs).forEach((k) => {
-        if (k === 'className') node.className = attrs[k];
-        else if (k === 'textContent') node.textContent = attrs[k];
-        else if (k.startsWith('on') && typeof attrs[k] === 'function') {
-          node.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
-        } else {
-          node.setAttribute(k, attrs[k]);
-        }
+        const val = attrs[k];
+        if (val === null || val === undefined || val === false) return;
+        if (val === true) { node.setAttribute(k, ''); return; }
+        if (k === 'className') { node.className = val; return; }
+        if (k === 'textContent') { node.textContent = val; return; }
+        if (k === 'onclick' && typeof val === 'function') { node.addEventListener('click', val); return; }
+        node.setAttribute(k, val);
       });
     }
     (children || []).forEach((c) => {
+      if (c === null || c === undefined) return;
       if (typeof c === 'string') node.appendChild(document.createTextNode(c));
-      else if (c) node.appendChild(c);
+      else node.appendChild(c);
     });
     return node;
   }
@@ -40,6 +41,7 @@
   let currentLocation = null;
   let manualAddress = '';
   let activeLocality = 'Dolores';
+  let b2bContext = null;   // Establecimiento B2B cargado por QR
 
   // ============================================================
   // TABS
@@ -111,6 +113,59 @@
   function updateBasePhone(phone) {
     const btn = $('#btnCallBase');
     if (btn) btn.setAttribute('href', 'tel:' + phone);
+  }
+
+  // ============================================================
+  // B2B — Área Protegida por QR (?b2b=ID)
+  // ============================================================
+  function initB2BFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const b2bId = params.get('b2b');
+    if (!b2bId) return;
+
+    const est = Store.getB2BById(b2bId);
+    if (!est) {
+      console.warn('[app-socio] B2B no encontrado:', b2bId);
+      return;
+    }
+    b2bContext = est;
+
+    // Seleccionar base operativa correspondiente
+    if (est.baseId && est.baseId !== Store.getActiveContext().activeBaseId) {
+      Store.setActiveBase(est.baseId);
+      const sel = $('#baseSelector');
+      if (sel) sel.value = est.baseId;
+      const ctx = Store.getActiveContext();
+      updateBasePhone(ctx.base.phone);
+    }
+
+    // Precargar dirección manual
+    const manualInput = $('#manualDir');
+    const manualFallback = $('#manualFallback');
+    if (manualInput && manualFallback) {
+      manualInput.value = est.name + ' — ' + est.address;
+      manualAddress = manualInput.value.trim();
+      manualFallback.hidden = false;
+    }
+
+    // Aviso destacado
+    const banner = $('#b2bBanner');
+    if (banner) {
+      banner.hidden = false;
+      banner.innerHTML = '';
+      const strong = document.createElement('strong');
+      strong.textContent = '📍 Área Protegida Detectada por QR: ' + est.name;
+      const info = document.createElement('div');
+      info.textContent = est.address + ' · Base ' + est.baseId + ' · Rubro: ' + est.type;
+      banner.appendChild(strong);
+      banner.appendChild(info);
+      if (est.protocol) {
+        const proto = document.createElement('div');
+        proto.className = 'b2b-proto';
+        proto.textContent = 'Protocolo de ingreso: ' + est.protocol;
+        banner.appendChild(proto);
+      }
+    }
   }
 
   // ============================================================
@@ -235,7 +290,8 @@
       location: currentLocation,
       manualAddress: manualAddress,
       profileDni: profileDni,
-      notes: ''
+      b2bEstablishmentId: b2bContext ? b2bContext.id : null,
+      notes: b2bContext ? ('Ingreso B2B: ' + b2bContext.name) : ''
     });
 
     currentIncident = incident;
@@ -245,45 +301,18 @@
   }
 
   // ============================================================
-  // RENDER DE INCIDENTE (con nuevos estados)
+  // RENDER DE INCIDENTE
   // ============================================================
   const STATE_LABELS = {
-    RECIBIDA_SERVIDOR: {
-      text: 'Alerta emitida. Aguardando confirmación de un operador de central.',
-      color: 'amber'
-    },
-    ACEPTADA_POR_CENTRAL: {
-      text: 'Central Operativa confirmó recepción. Evaluando la situación.',
-      color: 'blue'
-    },
-    CLASIFICADA: {
-      text: 'Incidente clasificado por Central. Asignando recurso.',
-      color: 'blue'
-    },
-    MOVIL_ASIGNADO: {
-      text: 'Móvil asignado. Preparando salida.',
-      color: 'green'
-    },
-    EN_CAMINO: {
-      text: 'Móvil en camino. Mantené la calma y la línea disponible.',
-      color: 'green'
-    },
-    EN_ESCENA: {
-      text: 'El móvil arribó al lugar. El personal está asistiendo.',
-      color: 'green'
-    },
-    EN_TRASLADO: {
-      text: 'Traslado en curso hacia un centro asistencial.',
-      color: 'green'
-    },
-    CERRADA: {
-      text: 'Incidente cerrado por la Central Operativa.',
-      color: 'green'
-    },
-    CANCELADA: {
-      text: 'Incidente cancelado.',
-      color: 'red'
-    }
+    RECIBIDA_SERVIDOR: { text: 'Alerta emitida. Aguardando confirmación de un operador de central.', color: 'amber' },
+    ACEPTADA_POR_CENTRAL: { text: 'Central Operativa confirmó recepción. Evaluando la situación.', color: 'blue' },
+    CLASIFICADA: { text: 'Incidente clasificado por Central. Asignando recurso.', color: 'blue' },
+    MOVIL_ASIGNADO: { text: 'Móvil asignado. Preparando salida.', color: 'green' },
+    EN_CAMINO: { text: 'Móvil en camino. Mantené la calma y la línea disponible.', color: 'green' },
+    EN_ESCENA: { text: 'El móvil arribó al lugar. El personal está asistiendo.', color: 'green' },
+    EN_TRASLADO: { text: 'Traslado en curso hacia un centro asistencial.', color: 'green' },
+    CERRADA: { text: 'Incidente cerrado por la Central Operativa.', color: 'green' },
+    CANCELADA: { text: 'Incidente cancelado.', color: 'red' }
   };
 
   const TIMELINE_STEPS = [
@@ -333,6 +362,7 @@
         currentIncident = fresh;
         renderIncident(fresh);
       }
+      renderBenefits(activeLocality);
     });
   }
 
@@ -420,8 +450,9 @@
     items.forEach((b) => {
       const card = el('li', { className: 'benefit-card' }, [
         el('h3', { textContent: b.name }),
-        el('p', { textContent: 'Localidad: ' + b.locality }),
-        el('p', { className: 'benefit-desc', textContent: b.description })
+        el('p', { textContent: 'Categoría: ' + (b.category || '—') + ' · Localidad: ' + b.locality }),
+        el('p', { className: 'benefit-desc', textContent: b.benefitDetail || '' }),
+        el('p', { textContent: 'Convenio: ' + b.agreementRef + (b.validUntil ? ' · Vigencia: ' + b.validUntil : '') })
       ]);
       list.appendChild(card);
     });
@@ -467,7 +498,6 @@
         const sim = btn.dataset.sim;
         const map = {
           recibir: 'ACEPTADA_POR_CENTRAL',
-          aceptar: 'ACEPTADA_POR_CENTRAL',
           clasificar: 'CLASIFICADA',
           asignar: 'MOVIL_ASIGNADO',
           camino: 'EN_CAMINO'
@@ -483,13 +513,6 @@
         }
       });
     });
-
-    const openCentral = $('#btnOpenCentral');
-    if (openCentral) {
-      openCentral.addEventListener('click', () => {
-        window.open('central.html', '_blank');
-      });
-    }
   }
 
   // ============================================================
@@ -518,8 +541,8 @@
     initBenefitsFilter();
     initTestTools();
     initServiceWorker();
+    initB2BFromQuery();
 
-    // Precarga del perfil activo (H-02)
     const activeProfile = Store.getActiveProfile();
     if (activeProfile) {
       const dniInput = $('#fDni');
