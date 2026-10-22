@@ -1,71 +1,49 @@
 /* ============================================================
-   E360Store v3 — Capa de abstracción de datos (MVP LOCAL)
-   Incluye: ciclo de incidentes, flota, perfiles, B2B Área
-   Protegida, Red de Beneficios contractual y auditoría.
+   E360Store v3.1 — Capa de abstracción de datos (MVP LOCAL)
+   Consume E360Config (constantes) y E360StateMachine (reglas).
+   API pública intacta respecto a v3 → los app-*.js no cambian.
    ============================================================ */
 
 (function (global) {
   'use strict';
 
-  const STORAGE_KEY = 'e360_mvp_v3';
-  const CHANNEL_NAME = 'e360_mvp_channel';
+  const C = global.E360Config;
+  const SM = global.E360StateMachine;
+  if (!C || !SM) {
+    console.error('[E360Store] Faltan config.js y/o state-machine.js. Cargalos ANTES de store.js.');
+    return;
+  }
+
+  const STORAGE_KEY = C.STORAGE_KEY;
+  const STORAGE_VERSION = C.STORAGE_VERSION;
+  const CHANNEL_NAME = C.CHANNEL_NAME;
+  const INCIDENT_STATES = C.INCIDENT_STATES;
+  const TRANSITION_ORDER = C.TRANSITION_ORDER;
+  const PRIORITIES = C.PRIORITIES;
+  const UNIT_STATUS = C.UNIT_STATUS;
+  const BENEFIT_STATUSES = C.BENEFIT_STATUSES;
+  const B2B_STATUSES = C.B2B_STATUSES;
 
   const channel = (typeof BroadcastChannel !== 'undefined')
     ? new BroadcastChannel(CHANNEL_NAME)
     : null;
 
-  const INCIDENT_STATES = {
-    RECIBIDA_SERVIDOR: 'RECIBIDA_SERVIDOR',
-    ACEPTADA_POR_CENTRAL: 'ACEPTADA_POR_CENTRAL',
-    CLASIFICADA: 'CLASIFICADA',
-    MOVIL_ASIGNADO: 'MOVIL_ASIGNADO',
-    EN_CAMINO: 'EN_CAMINO',
-    EN_ESCENA: 'EN_ESCENA',
-    EN_TRASLADO: 'EN_TRASLADO',
-    CERRADA: 'CERRADA',
-    CANCELADA: 'CANCELADA'
-  };
-
-  const TRANSITION_ORDER = [
-    INCIDENT_STATES.RECIBIDA_SERVIDOR,
-    INCIDENT_STATES.ACEPTADA_POR_CENTRAL,
-    INCIDENT_STATES.CLASIFICADA,
-    INCIDENT_STATES.MOVIL_ASIGNADO,
-    INCIDENT_STATES.EN_CAMINO,
-    INCIDENT_STATES.EN_ESCENA,
-    INCIDENT_STATES.EN_TRASLADO,
-    INCIDENT_STATES.CERRADA
-  ];
-
-  const PRIORITIES = ['ROJO', 'AMARILLO', 'VERDE'];
-
-  const UNIT_STATUS = {
-    DISPONIBLE: 'disponible',
-    ASIGNADO: 'asignado',
-    EN_SALIDA: 'en_salida',
-    MANTENIMIENTO: 'mantenimiento'
-  };
-
-  const BENEFIT_STATUSES = ['propuesto', 'en_negociacion', 'activo', 'suspendido', 'vencido'];
-
-  const B2B_STATUSES = ['activo', 'en_revision', 'suspendido'];
-
   // ---------- Seed inicial ----------
   function buildSeed() {
     return {
-      version: 3,
+      version: STORAGE_VERSION,
       organizations: [
         {
           id: 'org_asari',
           name: 'ASARI S.A.S.',
-          role: 'platform_owner',
+          role: C.ROLES.PLATFORM_OWNER,
           lineAEnabled: true,
           lineBEnabled: true
         },
         {
           id: 'org_emp',
           name: 'EMP - Emergencias Médicas Privadas',
-          role: 'emergency_provider',
+          role: C.ROLES.EMERGENCY_PROVIDER,
           lineAEnabled: true,
           lineBEnabled: true
         }
@@ -187,7 +165,7 @@
       audit_logs: [],
       context: {
         activeBaseId: 'DOLORES',
-        platformMode: 'LOCAL_MVP',
+        platformMode: C.MODE,
         activeProfileDni: null
       }
     };
@@ -203,12 +181,12 @@
         return seed;
       }
       const parsed = JSON.parse(raw);
-      if (!parsed || parsed.version !== 3) {
+      if (!parsed || parsed.version !== STORAGE_VERSION) {
         const seed = buildSeed();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
         return seed;
       }
-      if (!parsed.context) parsed.context = { activeBaseId: 'DOLORES', platformMode: 'LOCAL_MVP', activeProfileDni: null };
+      if (!parsed.context) parsed.context = { activeBaseId: 'DOLORES', platformMode: C.MODE, activeProfileDni: null };
       if (parsed.context.activeProfileDni === undefined) parsed.context.activeProfileDni = null;
       if (!Array.isArray(parsed.b2b_establishments)) parsed.b2b_establishments = buildSeed().b2b_establishments;
       if (!Array.isArray(parsed.benefits)) parsed.benefits = [];
@@ -237,9 +215,7 @@
     return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   }
 
-  function nowISO() {
-    return new Date().toISOString();
-  }
+  function nowISO() { return new Date().toISOString(); }
 
   function requireOperator(operatorName) {
     const name = String(operatorName || '').trim();
@@ -261,7 +237,9 @@
       payload: payload || {},
       actor: actor || 'system'
     });
-    if (state.audit_logs.length > 2000) state.audit_logs.length = 2000;
+    if (state.audit_logs.length > C.AUDIT_MAX_ENTRIES) {
+      state.audit_logs.length = C.AUDIT_MAX_ENTRIES;
+    }
   }
 
   function findIncident(state, incidentId) {
@@ -291,6 +269,7 @@
   // ---------- API pública ----------
   const E360Store = {
 
+    // Constantes re-expuestas (compatibilidad con v3)
     INCIDENT_STATES,
     TRANSITION_ORDER,
     PRIORITIES,
@@ -415,6 +394,15 @@
       return inc ? JSON.parse(JSON.stringify(inc)) : null;
     },
 
+    // Helpers de solo lectura para la UI
+    canTransitionIncident(fromStatus, toStatus) {
+      return SM.canTransitionIncident(fromStatus, toStatus);
+    },
+
+    getAllowedNextStatesIncident(currentStatus) {
+      return SM.getAllowedNextStatesIncident(currentStatus);
+    },
+
     acknowledgeIncident(incidentId, operatorName) {
       const actor = requireOperator(operatorName);
       const state = loadState();
@@ -422,6 +410,8 @@
       if (inc.status !== INCIDENT_STATES.RECIBIDA_SERVIDOR) {
         throw new Error('Solo se puede acusar recibo de incidentes en RECIBIDA_SERVIDOR.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.ACEPTADA_POR_CENTRAL);
+      if (!check.ok) throw new Error(check.reason);
       pushStatus(inc, INCIDENT_STATES.ACEPTADA_POR_CENTRAL, actor, 'Acuse de recibo por operador.');
       appendAudit(state, 'ACK_INCIDENT', { incidentId, operatorName: actor }, actor);
       saveState(state);
@@ -430,7 +420,7 @@
 
     triageIncident(incidentId, priority, clinicalNotes, operatorName) {
       const actor = requireOperator(operatorName);
-      if (!PRIORITIES.includes(priority)) {
+      if (PRIORITIES.indexOf(priority) === -1) {
         throw new Error('Prioridad inválida. Debe ser ROJO, AMARILLO o VERDE.');
       }
       const state = loadState();
@@ -438,6 +428,8 @@
       if (inc.status !== INCIDENT_STATES.ACEPTADA_POR_CENTRAL) {
         throw new Error('El incidente debe estar en ACEPTADA_POR_CENTRAL para clasificar.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CLASIFICADA);
+      if (!check.ok) throw new Error(check.reason);
       inc.priority = priority;
       inc.clinicalNotes = String(clinicalNotes || '').trim();
       pushStatus(inc, INCIDENT_STATES.CLASIFICADA, actor, 'Prioridad ' + priority + '.');
@@ -453,6 +445,8 @@
       if (inc.status !== INCIDENT_STATES.CLASIFICADA) {
         throw new Error('El incidente debe estar CLASIFICADA para asignar móvil.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.MOVIL_ASIGNADO);
+      if (!check.ok) throw new Error(check.reason);
       const unit = state.moviles.find(m => m.id === unitId);
       if (!unit) throw new Error('Móvil no encontrado.');
       if (unit.baseId !== inc.baseId) throw new Error('El móvil no pertenece a la base del incidente.');
@@ -473,6 +467,8 @@
       if (inc.status !== INCIDENT_STATES.MOVIL_ASIGNADO) {
         throw new Error('El incidente debe estar MOVIL_ASIGNADO para despachar.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_CAMINO);
+      if (!check.ok) throw new Error(check.reason);
       const unit = state.moviles.find(m => m.id === inc.assignedUnitId);
       if (!unit) throw new Error('Móvil asignado no encontrado.');
       unit.status = UNIT_STATUS.EN_SALIDA;
@@ -489,6 +485,8 @@
       if (inc.status !== INCIDENT_STATES.EN_CAMINO) {
         throw new Error('El incidente debe estar EN_CAMINO para marcar arribo.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_ESCENA);
+      if (!check.ok) throw new Error(check.reason);
       pushStatus(inc, INCIDENT_STATES.EN_ESCENA, actor, 'Móvil arribó al lugar.');
       appendAudit(state, 'ON_SCENE', { incidentId, operatorName: actor }, actor);
       saveState(state);
@@ -504,6 +502,8 @@
       if (inc.status !== INCIDENT_STATES.EN_ESCENA) {
         throw new Error('El incidente debe estar EN_ESCENA para registrar traslado.');
       }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_TRASLADO);
+      if (!check.ok) throw new Error(check.reason);
       inc.destinationCenter = dest;
       pushStatus(inc, INCIDENT_STATES.EN_TRASLADO, actor, 'Derivación a ' + dest + '.');
       appendAudit(state, 'IN_TRANSIT', { incidentId, destinationCenter: dest, operatorName: actor }, actor);
@@ -519,10 +519,8 @@
       if (!notes) throw new Error('Las notas de cierre son obligatorias.');
       const state = loadState();
       const inc = findIncident(state, incidentId);
-      const closable = [INCIDENT_STATES.EN_ESCENA, INCIDENT_STATES.EN_TRASLADO];
-      if (!closable.includes(inc.status)) {
-        throw new Error('Solo se puede cerrar desde EN_ESCENA o EN_TRASLADO.');
-      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CERRADA);
+      if (!check.ok) throw new Error(check.reason);
       inc.closureReason = reason;
       inc.outcomeNotes = notes;
       pushStatus(inc, INCIDENT_STATES.CERRADA, actor, 'Cierre: ' + reason);
@@ -538,9 +536,8 @@
       if (!reason) throw new Error('El motivo de cancelación es obligatorio.');
       const state = loadState();
       const inc = findIncident(state, incidentId);
-      if (inc.status === INCIDENT_STATES.CERRADA || inc.status === INCIDENT_STATES.CANCELADA) {
-        throw new Error('El incidente ya está finalizado.');
-      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CANCELADA);
+      if (!check.ok) throw new Error(check.reason);
       inc.closureReason = reason;
       pushStatus(inc, INCIDENT_STATES.CANCELADA, actor, 'Cancelación: ' + reason);
       releaseUnitIfAny(state, inc);
@@ -556,15 +553,13 @@
     _genericTransition(incidentId, nextStatus, actor) {
       const state = loadState();
       const inc = findIncident(state, incidentId);
-      const currentIdx = TRANSITION_ORDER.indexOf(inc.status);
-      const nextIdx = TRANSITION_ORDER.indexOf(nextStatus);
+      const check = SM.canTransitionIncident(inc.status, nextStatus);
+      if (!check.ok) throw new Error(check.reason);
       if (nextStatus === INCIDENT_STATES.CANCELADA) {
         inc.closureReason = 'Cancelado desde simulador.';
         pushStatus(inc, INCIDENT_STATES.CANCELADA, actor, 'Cancelación simulada.');
         releaseUnitIfAny(state, inc);
       } else {
-        if (nextIdx === -1) throw new Error('Estado destino inválido: ' + nextStatus);
-        if (nextIdx !== currentIdx + 1) throw new Error('Transición no permitida.');
         pushStatus(inc, nextStatus, actor, 'Simulación de transición.');
       }
       appendAudit(state, 'SIM_TRANSITION', { incidentId, nextStatus }, actor);
@@ -588,15 +583,11 @@
 
     setUnitMaintenanceStatus(unitId, newStatus, operatorName) {
       const actor = requireOperator(operatorName);
-      if (![UNIT_STATUS.DISPONIBLE, UNIT_STATUS.MANTENIMIENTO].includes(newStatus)) {
-        throw new Error('Estado de móvil no permitido.');
-      }
       const state = loadState();
       const unit = state.moviles.find(m => m.id === unitId);
       if (!unit) throw new Error('Móvil no encontrado.');
-      if ([UNIT_STATUS.ASIGNADO, UNIT_STATUS.EN_SALIDA].includes(unit.status)) {
-        throw new Error('No se puede cambiar el estado de un móvil asignado o en salida.');
-      }
+      const check = SM.canChangeUnitStatus(unit.status, newStatus);
+      if (!check.ok) throw new Error(check.reason);
       unit.status = newStatus;
       appendAudit(state, 'SET_UNIT_STATUS', { unitId, newStatus, operatorName: actor }, actor);
       saveState(state);
@@ -608,6 +599,8 @@
       const state = loadState();
       const base = state.bases.find(b => b.id === baseId);
       if (!base) throw new Error('Base no encontrada.');
+      const check = SM.canToggleBaseOperationalStatus(base);
+      if (!check.ok) throw new Error(check.reason);
       base.isActive = !!isActive;
       appendAudit(state, 'TOGGLE_BASE_STATUS', { baseId, isActive: !!isActive, operatorName: actor }, actor);
       saveState(state);
@@ -617,18 +610,10 @@
     // ======================= BENEFICIOS =======================
     getVisibleBenefits(locality) {
       const state = loadState();
-      const orgs = state.organizations;
-      const lineBAllowedByOrg = (benefit) => {
-        // Regla MVP: si alguna organización con lineBEnabled existe, se permite.
-        return orgs.some(o => o.lineBEnabled);
-      };
+      const lineBAllowedByOrg = () => state.organizations.some(o => o.lineBEnabled);
       return state.benefits
-        .filter(b => b.status === 'activo')
-        .filter(b => {
-          const ref = String(b.agreementRef || '').trim();
-          return ref.length > 0 && ref.toLowerCase() !== 'pendiente de firma';
-        })
-        .filter(b => lineBAllowedByOrg(b))
+        .filter(b => SM.isBenefitVisibleToSocio(b))
+        .filter(b => lineBAllowedByOrg())
         .filter(b => !locality || b.locality === locality)
         .map(b => ({
           id: b.id,
@@ -649,18 +634,14 @@
 
     updateBenefitStatus(benefitId, newStatus, agreementRef, validUntil, adminName) {
       const actor = requireAdmin(adminName);
-      if (!BENEFIT_STATUSES.includes(newStatus)) {
-        throw new Error('Estado de convenio inválido: ' + newStatus);
-      }
-      const ref = String(agreementRef || '').trim();
-      if (newStatus === 'activo' && (!ref || ref.toLowerCase() === 'pendiente de firma')) {
-        throw new Error('Para activar el convenio se requiere N° de Convenio / Respaldo Documental.');
-      }
       const state = loadState();
       const benefit = state.benefits.find(b => b.id === benefitId);
       if (!benefit) throw new Error('Prestador no encontrado.');
+      const check = SM.canTransitionBenefit(benefit.status, newStatus, agreementRef);
+      if (!check.ok) throw new Error(check.reason);
       const prevStatus = benefit.status;
       benefit.status = newStatus;
+      const ref = String(agreementRef || '').trim();
       if (ref) benefit.agreementRef = ref;
       if (validUntil) benefit.validUntil = validUntil;
       appendAudit(state, 'UPDATE_BENEFIT_STATUS', {
@@ -675,7 +656,7 @@
       return { ...benefit };
     },
 
-    // ======================= B2B (Módulo 5) =======================
+    // ======================= B2B =======================
     getB2BEstablishments(baseId) {
       const state = loadState();
       const list = baseId && baseId !== 'ALL'
@@ -699,7 +680,7 @@
       if (!name || !type || !baseId || !address) {
         throw new Error('Completá nombre, rubro, base asignada y dirección.');
       }
-      if (!['DOLORES', 'LA_COSTA'].includes(baseId)) {
+      if (['DOLORES', 'LA_COSTA'].indexOf(baseId) === -1) {
         throw new Error('Base asignada inválida.');
       }
       const state = loadState();
@@ -713,7 +694,7 @@
         coords: data.coords || null,
         referencePhone: String(data.referencePhone || '').trim(),
         protocol: String(data.protocol || '').trim(),
-        status: B2B_STATUSES.includes(data.status) ? data.status : 'en_revision',
+        status: B2B_STATUSES.indexOf(data.status) !== -1 ? data.status : 'en_revision',
         createdAt: isNew ? nowISO() : (data.createdAt || nowISO())
       };
       if (isNew) {
@@ -734,12 +715,11 @@
 
     toggleB2BStatus(id, newStatus, actorName) {
       const actor = requireAdmin(actorName);
-      if (!B2B_STATUSES.includes(newStatus)) {
-        throw new Error('Estado B2B inválido: ' + newStatus);
-      }
       const state = loadState();
       const est = state.b2b_establishments.find(e => e.id === id);
       if (!est) throw new Error('Establecimiento B2B no encontrado.');
+      const check = SM.canTransitionB2B(est.status, newStatus);
+      if (!check.ok) throw new Error(check.reason);
       const prev = est.status;
       est.status = newStatus;
       appendAudit(state, 'TOGGLE_B2B_STATUS', { b2bId: id, from: prev, to: newStatus }, actor);
