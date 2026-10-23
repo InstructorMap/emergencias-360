@@ -4,41 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#3D5CA4" />
-  <meta name="description" content="Emergencias 360 — EMP Emergencias Médicas Privadas. Alerta SOS y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos." />
+  <meta name="description" content="Emergencias 360 — EMP Emergencias Médicas Privadas. Alerta SOS, carnet digital y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos." />
   <title>Emergencias 360 — EMP Emergencias Médicas Privadas</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
-  <!-- ===================== HEADER ===================== -->
   <header class="app-header" role="banner">
-
-    <!-- Isologo EMP SVG inline -->
     <a class="emp-brand" href="index.html" aria-label="EMP - Emergencias Médicas Privadas">
       <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
         <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
-              stroke="#FB0100" stroke-width="2.6" fill="none"
-              stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span class="emp-brand-text">
         <span class="emp-brand-name">EMP</span>
         <span class="emp-brand-claim">Emergencias Médicas Privadas las 24 Hs</span>
       </span>
     </a>
+    <div id="planBadgeSlot" class="plan-badge-slot" aria-live="polite"></div>
 
     <div class="banner-legal" id="bannerLegal" style="margin-top:10px;">
       <div class="banner-row">
         <span class="badge-mvp">MODO MVP DEMOSTRACIÓN (ALMACENAMIENTO LOCAL)</span>
-        <button type="button" class="btn-toggle-banner" id="btnToggleBanner"
-                aria-expanded="false" aria-controls="bannerDetalle">Ver aviso legal</button>
+        <button type="button" class="btn-toggle-banner" id="btnToggleBanner" aria-expanded="false" aria-controls="bannerDetalle">Ver aviso legal</button>
       </div>
       <div class="banner-detalle" id="bannerDetalle" hidden>
-        <p><strong>ASARI S.A.S.</strong> es el <em>Proveedor Tecnológico</em> de la plataforma Emergencias 360.
-           <strong>EMP - Emergencias Médicas Privadas</strong> es el <em>Prestador Operativo</em> en Dolores y Partido de La Costa.</p>
-        <p class="aviso-critico">⚠️ Esta aplicación <strong>NO sustituye</strong> a los servicios públicos de emergencia:
-           llamá al <strong>107</strong> (SAME), <strong>911</strong> (Policía) o <strong>100</strong> (Bomberos) ante una urgencia real.</p>
+        <p><strong>ASARI S.A.S.</strong> es el <em>Proveedor Tecnológico</em> de la plataforma Emergencias 360. <strong>EMP - Emergencias Médicas Privadas</strong> es el <em>Prestador Operativo</em> en Dolores y Partido de La Costa.</p>
+        <p class="aviso-critico">⚠️ Esta aplicación <strong>NO sustituye</strong> a los servicios públicos de emergencia: llamá al <strong>107</strong> (SAME), <strong>911</strong> (Policía) o <strong>100</strong> (Bomberos) ante una urgencia real.</p>
       </div>
     </div>
 
@@ -57,24 +50,19 @@
     </div>
   </header>
 
-  <!-- ===================== MAIN ===================== -->
   <main class="app-main" role="main">
 
-    <!-- ============ TAB 1: EMERGENCIA SOS ============ -->
+    <!-- TAB 1: SOS -->
     <section class="tab-panel" id="tab-sos" data-tab="sos" role="tabpanel" aria-labelledby="nav-sos">
       <h1 class="panel-title">Emergencia SOS <span class="tag-linea-a">Línea A</span></h1>
-
       <div class="b2b-banner" id="b2bBanner" hidden></div>
-
       <div class="sos-zone">
-        <button type="button" id="btnSOS" class="btn-sos"
-                aria-label="Mantener presionado 1.5 segundos para emitir alerta SOS">
+        <button type="button" id="btnSOS" class="btn-sos" aria-label="Mantener presionado 1.5 segundos para emitir alerta SOS">
           <span class="sos-progress" id="sosProgress" aria-hidden="true"></span>
           <span class="sos-label">SOS</span>
           <span class="sos-hint">Mantené presionado 1.5s</span>
         </button>
       </div>
-
       <div class="gps-panel" id="gpsPanel">
         <div class="gps-status" id="gpsStatus" aria-live="polite">GPS: sin capturar</div>
         <button type="button" class="btn-secondary" id="btnGps">Capturar mi ubicación</button>
@@ -83,21 +71,16 @@
           <input type="text" id="manualDir" maxlength="160" placeholder="Ej: J. Vucetich 88, Dolores" />
         </div>
       </div>
-
       <div class="incident-panel" id="incidentPanel" hidden>
         <h2 class="incident-title">Estado del incidente</h2>
         <div class="incident-state" id="incidentState" aria-live="assertive">—</div>
         <ol class="timeline" id="timeline"></ol>
-
         <div class="eta-block" id="etaBlock" hidden>
           <div class="eta-main" id="etaMain">—</div>
           <div class="eta-source" id="etaSource"></div>
-          <div class="eta-disclaimer">
-            Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).
-          </div>
+          <div class="eta-disclaimer">Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).</div>
         </div>
       </div>
-
       <div class="call-actions">
         <a href="tel:107" class="btn-call btn-call-107">📞 Llamar 107 (SAME)</a>
         <a href="tel:911" class="btn-call btn-call-911">📞 Llamar 911 (Policía)</a>
@@ -105,21 +88,14 @@
       </div>
     </section>
 
-    <!-- ============ TAB 2: MI FICHA ============ -->
+    <!-- TAB 2: MI FICHA + CARNET -->
     <section class="tab-panel" id="tab-ficha" data-tab="ficha" role="tabpanel" aria-labelledby="nav-ficha" hidden>
       <h1 class="panel-title">Mi Ficha de Emergencia <span class="tag-modulo">Módulo 1</span></h1>
       <p class="privacy-note">Minimización de datos: solo pedimos lo indispensable para una urgencia.</p>
-
       <form id="formFicha" class="ficha-form" novalidate>
-        <label>Nombre completo
-          <input type="text" name="nombre" id="fNombre" required maxlength="80" autocomplete="name" />
-        </label>
-        <label>DNI
-          <input type="text" name="dni" id="fDni" required maxlength="12" inputmode="numeric" />
-        </label>
-        <label>Teléfono
-          <input type="tel" name="telefono" id="fTelefono" required maxlength="20" inputmode="tel" />
-        </label>
+        <label>Nombre completo<input type="text" name="nombre" id="fNombre" required maxlength="80" autocomplete="name" /></label>
+        <label>DNI<input type="text" name="dni" id="fDni" required maxlength="12" inputmode="numeric" /></label>
+        <label>Teléfono<input type="tel" name="telefono" id="fTelefono" required maxlength="20" inputmode="tel" /></label>
         <label>Grupo sanguíneo
           <select name="grupoSanguineo" id="fGrupo">
             <option value="">No sé / Prefiero no decir</option>
@@ -129,15 +105,9 @@
             <option value="AB+">AB+</option><option value="AB-">AB-</option>
           </select>
         </label>
-        <label>Alergias críticas
-          <textarea name="alergias" id="fAlergias" rows="2" maxlength="200" placeholder="Ej: penicilina, látex"></textarea>
-        </label>
-        <label>Patologías relevantes para urgencia
-          <textarea name="patologias" id="fPatologias" rows="2" maxlength="200" placeholder="Ej: diabetes, cardiopatía"></textarea>
-        </label>
-        <label>Contacto de emergencia
-          <input type="text" name="contacto" id="fContacto" maxlength="80" placeholder="Nombre y teléfono" />
-        </label>
+        <label>Alergias críticas<textarea name="alergias" id="fAlergias" rows="2" maxlength="200" placeholder="Ej: penicilina, látex"></textarea></label>
+        <label>Patologías relevantes para urgencia<textarea name="patologias" id="fPatologias" rows="2" maxlength="200" placeholder="Ej: diabetes, cardiopatía"></textarea></label>
+        <label>Contacto de emergencia<input type="text" name="contacto" id="fContacto" maxlength="80" placeholder="Nombre y teléfono" /></label>
         <label class="checkbox-consent">
           <input type="checkbox" id="fConsent" required />
           <span>Doy mi <strong>Consentimiento Informado</strong> para el tratamiento de estos datos con fines de emergencia.</span>
@@ -146,27 +116,31 @@
         <p class="form-msg" id="fichaMsg" role="status" aria-live="polite"></p>
       </form>
 
-      <!-- Bloque de servicios tercerizados (se renderiza desde app-socio.js) -->
+      <div class="carnet-block" id="carnetBlock" hidden></div>
       <div class="external-services-block" id="externalServicesBlock" hidden></div>
     </section>
 
-    <!-- ============ TAB 3: RED DE BENEFICIOS ============ -->
+    <!-- TAB 3: BENEFICIOS -->
     <section class="tab-panel" id="tab-beneficios" data-tab="beneficios" role="tabpanel" aria-labelledby="nav-beneficios" hidden>
       <h1 class="panel-title">Red de Beneficios <span class="tag-linea-b">Línea B</span></h1>
       <p class="aviso-comercial"><strong>Programa comercial de descuentos.</strong> No constituye obra social, medicina prepaga ni seguro médico. Sujetos a cartilla y convenio vigente.</p>
-
+      <p class="plan-benefits-hint" id="planBenefitsHint" hidden></p>
       <div class="filtro-localidad" role="group" aria-label="Filtrar por localidad">
         <button type="button" class="btn-filter active" data-loc="Dolores">Dolores</button>
         <button type="button" class="btn-filter" data-loc="La Costa">Partido de La Costa</button>
       </div>
-
       <ul class="benefits-list" id="benefitsList" aria-live="polite"></ul>
-      <p class="empty-msg" id="benefitsEmpty" hidden>No hay convenios activos en esta localidad por el momento.</p>
+      <p class="empty-msg" id="benefitsEmpty" hidden>No hay convenios activos para tu plan en esta localidad por el momento.</p>
+    </section>
+
+    <!-- TAB 4: PAGOS -->
+    <section class="tab-panel" id="tab-pagos" data-tab="pagos" role="tabpanel" aria-labelledby="nav-pagos" hidden>
+      <h1 class="panel-title">Pagos y Estado del Plan <span class="tag-modulo">Cuenta</span></h1>
+      <div id="pagosContainer"></div>
     </section>
 
   </main>
 
-  <!-- ===================== FOOTER SELLO ASARI ===================== -->
   <footer class="asari-footer" role="contentinfo">
     <div class="asari-logo">ASARI S.A.S.</div>
     <div class="asari-line">
@@ -176,24 +150,15 @@
     </div>
   </footer>
 
-  <!-- ===================== NAVEGACIÓN INFERIOR ===================== -->
   <nav class="bottom-nav" role="tablist" aria-label="Navegación principal">
-    <button class="nav-btn active" id="nav-sos" role="tab" aria-selected="true" data-target="sos" aria-controls="tab-sos">
-      <span class="nav-icon">🚨</span><span class="nav-text">SOS</span>
-    </button>
-    <button class="nav-btn" id="nav-ficha" role="tab" aria-selected="false" data-target="ficha" aria-controls="tab-ficha">
-      <span class="nav-icon">📋</span><span class="nav-text">Mi Ficha</span>
-    </button>
-    <button class="nav-btn" id="nav-beneficios" role="tab" aria-selected="false" data-target="beneficios" aria-controls="tab-beneficios">
-      <span class="nav-icon">🏷️</span><span class="nav-text">Beneficios</span>
-    </button>
+    <button class="nav-btn active" id="nav-sos" role="tab" aria-selected="true" data-target="sos" aria-controls="tab-sos"><span class="nav-icon">🚨</span><span class="nav-text">SOS</span></button>
+    <button class="nav-btn" id="nav-ficha" role="tab" aria-selected="false" data-target="ficha" aria-controls="tab-ficha"><span class="nav-icon">📋</span><span class="nav-text">Mi Ficha</span></button>
+    <button class="nav-btn" id="nav-beneficios" role="tab" aria-selected="false" data-target="beneficios" aria-controls="tab-beneficios"><span class="nav-icon">🏷️</span><span class="nav-text">Beneficios</span></button>
+    <button class="nav-btn" id="nav-pagos" role="tab" aria-selected="false" data-target="pagos" aria-controls="tab-pagos"><span class="nav-icon">💳</span><span class="nav-text">Pagos</span></button>
   </nav>
 
-  <!-- ===================== HERRAMIENTAS MVP ===================== -->
   <div class="test-tools" id="testTools" hidden>
-    <button type="button" class="btn-test-toggle" id="btnTestToggle" aria-expanded="false" aria-controls="testPanel">
-      🧪 Herramientas MVP
-    </button>
+    <button type="button" class="btn-test-toggle" id="btnTestToggle" aria-expanded="false" aria-controls="testPanel">🧪 Herramientas MVP</button>
     <div class="test-panel" id="testPanel" hidden>
       <p class="test-title">Simulador Central Operativa</p>
       <button type="button" class="btn-test" data-sim="recibir">Simular: Central acusa recibo</button>
@@ -210,6 +175,7 @@
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/qr.js"></script>
   <script src="js/app-socio.js"></script>
 </body>
 </html>
