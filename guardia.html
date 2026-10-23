@@ -3,22 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#3D5CA4" />
   <meta name="description" content="Guardia Móvil EMP — Operación de ambulancia en calle. MVP Demostración." />
   <title>Guardia Móvil EMP — Emergencias 360 MVP</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body class="guardia-body">
+<body class="guardia-body theme-dark">
 
   <!-- ===================== HEADER ===================== -->
   <header class="guardia-header" role="banner">
-    <span class="badge-guardia">MODO MVP DEMOSTRACIÓN — GUARDIA MÓVIL EMP (NO CONECTADA A DESPACHO REAL)</span>
+
+    <a class="emp-brand" href="guardia.html" aria-label="EMP - Guardia Móvil">
+      <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
+              stroke="#FB0100" stroke-width="2.6" fill="none"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="emp-brand-text">
+        <span class="emp-brand-name">Guardia Móvil EMP</span>
+        <span class="emp-brand-claim">Emergencias Médicas Privadas las 24 Hs</span>
+      </span>
+    </a>
+
+    <span class="badge-guardia">MODO MVP DEMOSTRACIÓN — NO CONECTADA A DESPACHO REAL</span>
 
     <div class="header-controls">
       <label>Base
         <select id="guardiaBaseSelector" aria-label="Seleccionar base">
-          <option value="DOLORES">EMP Base Dolores</option>
-          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+          <option value="DOLORES">EMP Sede Dolores</option>
+          <option value="LA_COSTA">EMP Sucursal Santa Teresita (La Costa)</option>
         </select>
       </label>
 
@@ -38,35 +52,35 @@
   <!-- ===================== MAIN ===================== -->
   <main class="guardia-main" role="main">
 
-    <!-- Estado de la unidad -->
     <div class="guardia-unit-status" id="unitStatus" aria-live="polite">
       <span class="unit-status-text">Seleccioná base, móvil y completá tu nombre.</span>
     </div>
 
-    <!-- Sin incidente -->
     <div class="guardia-empty" id="noIncidentPanel">
       <h2>📻 Sin incidente asignado</h2>
       <p>Mantené esta pantalla abierta. Cuando la Central Operativa te asigne un incidente vas a escuchar una alerta sonora y sentir la vibración del dispositivo.</p>
       <p class="guardia-hint">Si el navegador lo permite, aceptá las notificaciones para recibir el aviso incluso con la pestaña en segundo plano.</p>
     </div>
 
-    <!-- Incidente activo (se llena dinámicamente) -->
     <div id="activeIncidentContainer" hidden></div>
 
-    <!-- Historial reciente -->
     <section class="guardia-history-section" aria-label="Historial reciente">
       <h2>Historial reciente de esta unidad</h2>
       <ul class="guardia-history-list" id="historyList"></ul>
       <p class="guardia-hint" id="historyEmpty">Sin incidentes cerrados recientes.</p>
     </section>
 
-    <!-- Nota legal -->
-    <p class="guardia-legal">
-      <strong>ASARI S.A.S.</strong> es Proveedor Tecnológico; <strong>EMP - Emergencias Médicas Privadas</strong> es Prestador Operativo.
-      Esta app <strong>NO sustituye</strong> al 107 / 911 / Bomberos.
-    </p>
-
   </main>
+
+  <!-- ===================== FOOTER SELLO ASARI ===================== -->
+  <footer class="asari-footer" role="contentinfo">
+    <div class="asari-logo">ASARI S.A.S.</div>
+    <div class="asari-line">
+      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
+      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
+      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+    </div>
+  </footer>
 
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
