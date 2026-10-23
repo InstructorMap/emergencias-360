@@ -3,17 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="Emergencias 360 - MVP Demostración. Alerta SOS y red de beneficios en salud." />
-  <title>Emergencias 360 — MVP Demostración</title>
+  <meta name="theme-color" content="#3D5CA4" />
+  <meta name="description" content="Emergencias 360 — EMP Emergencias Médicas Privadas. Alerta SOS y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos." />
+  <title>Emergencias 360 — EMP Emergencias Médicas Privadas</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
-  <!-- ===================== BANNER LEGAL / SANITARIO ===================== -->
+  <!-- ===================== HEADER ===================== -->
   <header class="app-header" role="banner">
-    <div class="banner-legal" id="bannerLegal">
+
+    <!-- Isologo EMP SVG inline -->
+    <a class="emp-brand" href="index.html" aria-label="EMP - Emergencias Médicas Privadas">
+      <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
+              stroke="#FB0100" stroke-width="2.6" fill="none"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="emp-brand-text">
+        <span class="emp-brand-name">EMP</span>
+        <span class="emp-brand-claim">Emergencias Médicas Privadas las 24 Hs</span>
+      </span>
+    </a>
+
+    <div class="banner-legal" id="bannerLegal" style="margin-top:10px;">
       <div class="banner-row">
         <span class="badge-mvp">MODO MVP DEMOSTRACIÓN (ALMACENAMIENTO LOCAL)</span>
         <button type="button" class="btn-toggle-banner" id="btnToggleBanner"
@@ -23,7 +38,7 @@
         <p><strong>ASARI S.A.S.</strong> es el <em>Proveedor Tecnológico</em> de la plataforma Emergencias 360.
            <strong>EMP - Emergencias Médicas Privadas</strong> es el <em>Prestador Operativo</em> en Dolores y Partido de La Costa.</p>
         <p class="aviso-critico">⚠️ Esta aplicación <strong>NO sustituye</strong> a los servicios públicos de emergencia:
-           llamá al <strong>107</strong> (SAME), <strong>911</strong> (Policía) o <strong>Bomberos</strong> ante una urgencia real.</p>
+           llamá al <strong>107</strong> (SAME), <strong>911</strong> (Policía) o <strong>100</strong> (Bomberos) ante una urgencia real.</p>
       </div>
     </div>
 
@@ -35,14 +50,14 @@
       <label class="base-selector">
         <span class="sr-only">Base operativa actual</span>
         <select id="baseSelector" aria-label="Seleccionar base operativa">
-          <option value="DOLORES">EMP Base Dolores</option>
-          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+          <option value="DOLORES">EMP Sede Dolores</option>
+          <option value="LA_COSTA">EMP Sucursal Santa Teresita (La Costa)</option>
         </select>
       </label>
     </div>
   </header>
 
-  <!-- ===================== CONTENIDO PRINCIPAL ===================== -->
+  <!-- ===================== MAIN ===================== -->
   <main class="app-main" role="main">
 
     <!-- ============ TAB 1: EMERGENCIA SOS ============ -->
@@ -65,7 +80,7 @@
         <button type="button" class="btn-secondary" id="btnGps">Capturar mi ubicación</button>
         <div class="manual-fallback" id="manualFallback" hidden>
           <label for="manualDir">No pudimos obtener tu GPS. Escribí tu dirección o referencia:</label>
-          <input type="text" id="manualDir" maxlength="160" placeholder="Ej: Av. Belgrano 123, Dolores" />
+          <input type="text" id="manualDir" maxlength="160" placeholder="Ej: J. Vucetich 88, Dolores" />
         </div>
       </div>
 
@@ -74,7 +89,6 @@
         <div class="incident-state" id="incidentState" aria-live="assertive">—</div>
         <ol class="timeline" id="timeline"></ol>
 
-        <!-- ===== Bloque ETA (con H-01) ===== -->
         <div class="eta-block" id="etaBlock" hidden>
           <div class="eta-main" id="etaMain">—</div>
           <div class="eta-source" id="etaSource"></div>
@@ -86,8 +100,8 @@
 
       <div class="call-actions">
         <a href="tel:107" class="btn-call btn-call-107">📞 Llamar 107 (SAME)</a>
-        <a href="tel:911" class="btn-call btn-call-911">📞 Llamar 911</a>
-        <a href="tel:02245431234" class="btn-call btn-call-base" id="btnCallBase">📞 Base local (contingencia)</a>
+        <a href="tel:911" class="btn-call btn-call-911">📞 Llamar 911 (Policía)</a>
+        <a href="tel:2245444600" class="btn-call btn-call-base" id="btnCallBase">📞 Base EMP Dolores (contingencia)</a>
       </div>
     </section>
 
@@ -131,12 +145,15 @@
         <button type="submit" class="btn-primary">Guardar ficha</button>
         <p class="form-msg" id="fichaMsg" role="status" aria-live="polite"></p>
       </form>
+
+      <!-- Bloque de servicios tercerizados (se renderiza desde app-socio.js) -->
+      <div class="external-services-block" id="externalServicesBlock" hidden></div>
     </section>
 
     <!-- ============ TAB 3: RED DE BENEFICIOS ============ -->
     <section class="tab-panel" id="tab-beneficios" data-tab="beneficios" role="tabpanel" aria-labelledby="nav-beneficios" hidden>
       <h1 class="panel-title">Red de Beneficios <span class="tag-linea-b">Línea B</span></h1>
-      <p class="aviso-comercial"><strong>Programa comercial de descuentos.</strong> No constituye obra social, medicina prepaga ni seguro médico.</p>
+      <p class="aviso-comercial"><strong>Programa comercial de descuentos.</strong> No constituye obra social, medicina prepaga ni seguro médico. Sujetos a cartilla y convenio vigente.</p>
 
       <div class="filtro-localidad" role="group" aria-label="Filtrar por localidad">
         <button type="button" class="btn-filter active" data-loc="Dolores">Dolores</button>
@@ -148,6 +165,16 @@
     </section>
 
   </main>
+
+  <!-- ===================== FOOTER SELLO ASARI ===================== -->
+  <footer class="asari-footer" role="contentinfo">
+    <div class="asari-logo">ASARI S.A.S.</div>
+    <div class="asari-line">
+      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
+      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
+      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+    </div>
+  </footer>
 
   <!-- ===================== NAVEGACIÓN INFERIOR ===================== -->
   <nav class="bottom-nav" role="tablist" aria-label="Navegación principal">
