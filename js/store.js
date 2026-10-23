@@ -1,7 +1,9 @@
 /* ============================================================
-   E360Store v5 — Capa de abstracción de datos (MVP LOCAL)
-   v5: plan del socio + N° socio correlativo + carnet QR + pagos.
-   API pública intacta respecto a v4 → los app-*.js no se rompen.
+   E360Store v6 — Capa de abstracción de datos (MVP LOCAL)
+   v6: agrega pulsera QR/NFC + botón domiciliario + métodos de
+       guardia (getActiveIncidentForUnit, guardiaDispatch, etc.)
+       + requestSupportFromCrew nativo.
+   API pública intacta respecto a v5 → los app-*.js no se rompen.
    ============================================================ */
 
 (function (global) {
@@ -24,6 +26,10 @@
   const BENEFIT_STATUSES = C.BENEFIT_STATUSES;
   const B2B_STATUSES = C.B2B_STATUSES;
 
+  // Defaults de pulsera (si config.js no los define, no rompe)
+  const PULSERA_DEFAULTS = C.PULSERA_DEFAULTS || { pulseraStatus: 'inactivo', homeCoords: null, homeAddress: '' };
+  const PULSERA_STATUSES = C.PULSERA_STATUSES || ['activo', 'inactivo'];
+
   const channel = (typeof BroadcastChannel !== 'undefined')
     ? new BroadcastChannel(CHANNEL_NAME) : null;
 
@@ -37,7 +43,6 @@
     if (global.crypto && typeof global.crypto.randomUUID === 'function') {
       return global.crypto.randomUUID();
     }
-    // fallback
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -100,14 +105,13 @@
     };
   }
 
-  // ---------- Migración v4 → v5 ----------
+  // ---------- Migración v3/v4/v5 → v6 ----------
   function migrateIfNeeded(parsed) {
     if (!parsed || typeof parsed !== 'object') return buildSeed();
     if (parsed.version === STORAGE_VERSION) return parsed;
 
-    if (parsed.version === 4 || parsed.version === 3) {
+    if (parsed.version === 5 || parsed.version === 4 || parsed.version === 3) {
       const seed = buildSeed();
-      // Bases reales
       parsed.bases = seed.bases.map((nb) => {
         const prev = (parsed.bases || []).find(b => b.id === nb.id);
         return prev ? Object.assign({}, nb, { isActive: prev.isActive !== false }) : nb;
@@ -124,21 +128,18 @@
       parsed.external_services = parsed.external_services || {
         medicoVirtualUrl:'', seguroViajeroUrl:'', updatedAt:null, updatedBy:null
       };
-      // Benefits: agregar plans si falta
       parsed.benefits = (parsed.benefits || []).map((b) => {
         if (Array.isArray(b.plans)) return b;
-        // Default: farmacia para todos, resto Oro/Platino
         const cat = String(b.category || '').toLowerCase();
         let plans = ['ORO','PLATINO'];
         if (cat.indexOf('farmacia') !== -1 || cat.indexOf('óptica') !== -1 || cat.indexOf('optica') !== -1) plans = C.PLAN_IDS.slice();
         if (cat.indexOf('consultorio') !== -1) plans = ['PLATA','ORO','PLATINO'];
         return Object.assign({}, b, { plans });
       });
-      // Contador socio
       if (typeof parsed.socioCounter !== 'number') parsed.socioCounter = 0;
-      // Payment config
       parsed.payment_config = parsed.payment_config || JSON.parse(JSON.stringify(C.PAYMENT_DEFAULTS));
-      // Profiles: agregar plan/carnet a los existentes (sin número, se asigna al próximo save)
+
+      // v5 → v6: agregar campos de pulsera y domicilio a perfiles existentes
       Object.keys(parsed.profiles || {}).forEach((dni) => {
         const p = parsed.profiles[dni];
         if (!p.plan) p.plan = C.DEFAULT_PLAN;
@@ -146,6 +147,10 @@
         if (!p.carnetStatus) p.carnetStatus = 'activo';
         if (!p.carnetValidUntil) p.carnetValidUntil = null;
         if (!p.socioNumber) p.socioNumber = null;
+        if (p.pulseraToken === undefined) p.pulseraToken = null;
+        if (p.pulseraStatus === undefined) p.pulseraStatus = PULSERA_DEFAULTS.pulseraStatus;
+        if (p.homeCoords === undefined) p.homeCoords = null;
+        if (p.homeAddress === undefined) p.homeAddress = '';
       });
       parsed.version = STORAGE_VERSION;
       return parsed;
@@ -234,12 +239,22 @@
     return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
   }
 
+  // Verifica que el incidente esté asignado al móvil y que el crew exista
+  function requireCrewForIncident(state, incidentId, unitId, crewName) {
+    const crew = String(crewName || '').trim();
+    if (!crew) throw new Error('Se requiere identificación del personal de guardia.');
+    const inc = findIncident(state, incidentId);
+    if (inc.assignedUnitId !== unitId) throw new Error('El incidente no está asignado a tu móvil.');
+    return { inc, crew };
+  }
+
   // ---------- API pública ----------
   const E360Store = {
 
     INCIDENT_STATES, TRANSITION_ORDER, PRIORITIES, UNIT_STATUS, BENEFIT_STATUSES, B2B_STATUSES,
     PLAN_IDS: C.PLAN_IDS,
     PLANS: C.PLANS,
+    PULSERA_STATUSES,
 
     // ======================= CONTEXTO =======================
     getActiveContext() {
@@ -289,6 +304,13 @@
       let carnetStatus = existing ? existing.carnetStatus : 'activo';
       let carnetValidUntil = existing ? existing.carnetValidUntil : null;
       let plan = existing && existing.plan ? existing.plan : (profile.plan || C.DEFAULT_PLAN);
+      let pulseraToken = existing ? existing.pulseraToken : null;
+      let pulseraStatus = existing ? existing.pulseraStatus : PULSERA_DEFAULTS.pulseraStatus;
+      let homeCoords = existing ? existing.homeCoords : null;
+      let homeAddress = existing ? existing.homeAddress : '';
+
+      if (C.PLAN_IDS.indexOf(plan) === -1) plan = C.DEFAULT_PLAN;
+      const planDef = C.PLANS[plan] || {};
 
       if (isNew) {
         state.socioCounter = (state.socioCounter || 0) + 1;
@@ -296,9 +318,25 @@
         carnetToken = uuidv4();
         carnetValidUntil = addMonthsISO(nowISO(), C.CARNET_VALIDITY_MONTHS);
         carnetStatus = 'activo';
+        if (planDef.hasPulsera) {
+          pulseraToken = uuidv4();
+          pulseraStatus = 'activo';
+        }
+      } else {
+        // Si el plan cambió a ORO/PLATINO y no tenía pulseraToken, generarlo
+        if (planDef.hasPulsera && !pulseraToken) {
+          pulseraToken = uuidv4();
+          pulseraStatus = 'activo';
+        }
+        // Si el plan bajó a BRONCE/PLATA, desactivar pulsera (no borrar token)
+        if (!planDef.hasPulsera && pulseraStatus === 'activo') {
+          pulseraStatus = 'inactivo';
+        }
       }
 
-      if (C.PLAN_IDS.indexOf(plan) === -1) plan = C.DEFAULT_PLAN;
+      // homeCoords/homeAddress: solo se actualizan si vienen en el payload
+      if (profile.homeCoords !== undefined) homeCoords = profile.homeCoords;
+      if (profile.homeAddress !== undefined) homeAddress = profile.homeAddress;
 
       const record = Object.assign({}, profile, {
         dni,
@@ -307,12 +345,16 @@
         carnetToken,
         carnetStatus,
         carnetValidUntil,
+        pulseraToken,
+        pulseraStatus,
+        homeCoords,
+        homeAddress,
         updatedAt: nowISO()
       });
-      delete record.planField; // no usar
+      delete record.planField;
       state.profiles[dni] = record;
       state.context.activeProfileDni = dni;
-      appendAudit(state, isNew ? 'CREATE_PROFILE' : 'SAVE_PROFILE', { dni, socioNumber, plan }, 'socio_app');
+      appendAudit(state, isNew ? 'CREATE_PROFILE' : 'SAVE_PROFILE', { dni, socioNumber, plan, pulseraStatus }, 'socio_app');
       saveState(state);
       return { ...record };
     },
@@ -339,7 +381,6 @@
       if (!dni) return null;
       const p = state.profiles[dni];
       const effective = calcCarnetStatus(p);
-      // Vista pública: minimización de datos, sin alergias/patologías
       return {
         socioNumber: p.socioNumber || null,
         nombre: p.nombre || '—',
@@ -352,6 +393,89 @@
       };
     },
 
+    // ======================= PULSERA SOS =======================
+    getProfileByPulseraToken(token) {
+      const t = String(token || '').trim();
+      if (!t) return null;
+      const state = loadState();
+      const dni = Object.keys(state.profiles).find(k => state.profiles[k].pulseraToken === t);
+      if (!dni) return null;
+      const p = state.profiles[dni];
+      const planDef = C.PLANS[p.plan] || {};
+      // Si el plan no incluye pulsera, o está inactiva/suspendida, no es válida para emergencia
+      const effectivePulseraStatus = (p.pulseraStatus === 'activo' && planDef.hasPulsera) ? 'activo' : 'inactivo';
+      return {
+        dni: p.dni,
+        socioNumber: p.socioNumber || null,
+        nombre: p.nombre || '—',
+        plan: p.plan || C.DEFAULT_PLAN,
+        planLabel: planDef.label || p.plan,
+        pulseraStatus: effectivePulseraStatus,
+        telefono: p.telefono || '',
+        grupoSanguineo: p.grupoSanguineo || '',
+        alergias: p.alergias || '',
+        patologias: p.patologias || '',
+        contacto: p.contacto || '',
+        // Datos clínicos: SÍ se exponen en ?pulsera= (es emergencia real)
+        homeCoords: p.homeCoords || null,
+        homeAddress: p.homeAddress || ''
+      };
+    },
+
+    setPulseraStatus(dni, status, adminName) {
+      const actor = requireAdmin(adminName);
+      if (PULSERA_STATUSES.indexOf(status) === -1) throw new Error('Estado de pulsera inválido.');
+      const state = loadState();
+      const key = String(dni || '').trim();
+      const p = state.profiles[key];
+      if (!p) throw new Error('Socio no encontrado.');
+      const planDef = C.PLANS[p.plan] || {};
+      if (status === 'activo' && !planDef.hasPulsera) {
+        throw new Error('El plan actual no incluye pulsera SOS. Cambiá el plan a ORO o PLATINO primero.');
+      }
+      p.pulseraStatus = status;
+      if (status === 'activo' && !p.pulseraToken) p.pulseraToken = uuidv4();
+      p.updatedAt = nowISO();
+      appendAudit(state, 'SET_PULSERA_STATUS', { dni: key, status, actor }, actor);
+      saveState(state);
+      return { ...p };
+    },
+
+    regeneratePulseraToken(dni, adminName) {
+      const actor = requireAdmin(adminName);
+      const state = loadState();
+      const key = String(dni || '').trim();
+      const p = state.profiles[key];
+      if (!p) throw new Error('Socio no encontrado.');
+      const planDef = C.PLANS[p.plan] || {};
+      if (!planDef.hasPulsera) throw new Error('El plan actual no incluye pulsera SOS.');
+      p.pulseraToken = uuidv4();
+      p.pulseraStatus = 'activo';
+      p.updatedAt = nowISO();
+      appendAudit(state, 'REGENERATE_PULSERA_TOKEN', { dni: key, actor }, actor);
+      saveState(state);
+      return { ...p };
+    },
+
+    setHomeCoords(dni, coords, address, adminName) {
+      const actor = requireAdmin(adminName);
+      const state = loadState();
+      const key = String(dni || '').trim();
+      const p = state.profiles[key];
+      if (!p) throw new Error('Socio no encontrado.');
+      const planDef = C.PLANS[p.plan] || {};
+      if (!planDef.hasHomeButton) throw new Error('El plan actual no incluye botón domiciliario (solo PLATINO).');
+      if (coords && (typeof coords.lat !== 'number' || typeof coords.lng !== 'number')) {
+        throw new Error('Coordenadas inválidas.');
+      }
+      p.homeCoords = coords || null;
+      if (address !== undefined) p.homeAddress = String(address || '').trim();
+      p.updatedAt = nowISO();
+      appendAudit(state, 'SET_HOME_COORDS', { dni: key, hasCoords: !!coords, actor }, actor);
+      saveState(state);
+      return { ...p };
+    },
+
     setProfilePlan(dni, plan, adminName) {
       const actor = requireAdmin(adminName);
       if (C.PLAN_IDS.indexOf(plan) === -1) throw new Error('Plan inválido.');
@@ -360,7 +484,18 @@
       const p = state.profiles[key];
       if (!p) throw new Error('Socio no encontrado.');
       const prev = p.plan;
+      const planDef = C.PLANS[plan] || {};
       p.plan = plan;
+      // Ajustar pulsera según el nuevo plan
+      if (planDef.hasPulsera) {
+        if (!p.pulseraToken) p.pulseraToken = uuidv4();
+        p.pulseraStatus = 'activo';
+      } else {
+        p.pulseraStatus = 'inactivo';
+      }
+      if (!planDef.hasHomeButton) {
+        p.homeCoords = null;
+      }
       p.updatedAt = nowISO();
       appendAudit(state, 'SET_PROFILE_PLAN', { dni: key, from: prev, to: plan, actor }, actor);
       saveState(state);
@@ -412,10 +547,12 @@
         location: payload.location || null, manualAddress: payload.manualAddress || '',
         b2bEstablishmentId: payload.b2bEstablishmentId || null,
         profileDni: dni, notes: payload.notes || '',
-        statusHistory: [{ status: INCIDENT_STATES.RECIBIDA_SERVIDOR, ts: nowISO(), actor: 'socio_app', detail: 'Alerta emitida por el socio.' }]
+        source: payload.source || 'socio_app',
+        pulseraToken: payload.pulseraToken || null,
+        statusHistory: [{ status: INCIDENT_STATES.RECIBIDA_SERVIDOR, ts: nowISO(), actor: payload.source || 'socio_app', detail: payload.detail || 'Alerta emitida.' }]
       };
       state.incidents.unshift(incident);
-      appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni, b2b: incident.b2bEstablishmentId }, 'socio_app');
+      appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni, b2b: incident.b2bEstablishmentId, source: incident.source }, payload.source || 'socio_app');
       saveState(state);
       return JSON.parse(JSON.stringify(incident));
     },
@@ -623,6 +760,128 @@
       return { ...base };
     },
 
+    // ======================= GUARDIA (métodos que faltaban en v5) =======================
+    getActiveIncidentForUnit(unitId) {
+      const state = loadState();
+      const closed = ['CERRADA', 'CANCELADA'];
+      const inc = state.incidents.find(i => i.assignedUnitId === unitId && closed.indexOf(i.status) === -1);
+      return inc ? JSON.parse(JSON.stringify(inc)) : null;
+    },
+
+    updateCrewPosition(incidentId, coords, crewName) {
+      const crew = String(crewName || '').trim();
+      if (!crew) throw new Error('Se requiere identificación del personal de guardia.');
+      const lat = Number(coords && coords.lat);
+      const lng = Number(coords && coords.lng);
+      if (!isFinite(lat) || !isFinite(lng)) throw new Error('Coordenadas inválidas.');
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.EN_CAMINO && inc.status !== INCIDENT_STATES.EN_ESCENA) {
+        throw new Error('Solo se puede actualizar GPS en EN_CAMINO o EN_ESCENA.');
+      }
+      inc.unitLocation = {
+        lat, lng,
+        accuracy: Number(coords.accuracy) || 0,
+        ts: nowISO(),
+        actor: crew
+      };
+      // No auditar cada update (ruido); solo guardar
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    guardiaDispatchIncident(incidentId, unitId, crewName) {
+      const state = loadState();
+      const { inc, crew } = requireCrewForIncident(state, incidentId, unitId, crewName);
+      if (inc.status !== INCIDENT_STATES.MOVIL_ASIGNADO) throw new Error('El incidente debe estar MOVIL_ASIGNADO.');
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_CAMINO);
+      if (!check.ok) throw new Error(check.reason);
+      const unit = state.moviles.find(m => m.id === unitId);
+      if (!unit) throw new Error('Móvil no encontrado.');
+      unit.status = UNIT_STATUS.EN_SALIDA;
+      pushStatus(inc, INCIDENT_STATES.EN_CAMINO, crew, 'Salida confirmada por guardia (móvil ' + unit.unit + ').');
+      appendAudit(state, 'GUARDIA_DISPATCH', { incidentId, unitId, crewName: crew }, crew);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    guardiaMarkOnScene(incidentId, unitId, crewName) {
+      const state = loadState();
+      const { inc, crew } = requireCrewForIncident(state, incidentId, unitId, crewName);
+      if (inc.status !== INCIDENT_STATES.EN_CAMINO) throw new Error('El incidente debe estar EN_CAMINO.');
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_ESCENA);
+      if (!check.ok) throw new Error(check.reason);
+      pushStatus(inc, INCIDENT_STATES.EN_ESCENA, crew, 'Arribo a escena confirmado por guardia.');
+      appendAudit(state, 'GUARDIA_ON_SCENE', { incidentId, unitId, crewName: crew }, crew);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    guardiaMarkInTransit(incidentId, unitId, destinationCenter, crewName) {
+      const dest = String(destinationCenter || '').trim();
+      if (!dest) throw new Error('Indicá el centro receptor.');
+      const state = loadState();
+      const { inc, crew } = requireCrewForIncident(state, incidentId, unitId, crewName);
+      if (inc.status !== INCIDENT_STATES.EN_ESCENA) throw new Error('El incidente debe estar EN_ESCENA.');
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_TRASLADO);
+      if (!check.ok) throw new Error(check.reason);
+      inc.destinationCenter = dest;
+      pushStatus(inc, INCIDENT_STATES.EN_TRASLADO, crew, 'Traslado iniciado por guardia hacia ' + dest + '.');
+      appendAudit(state, 'GUARDIA_IN_TRANSIT', { incidentId, unitId, destinationCenter: dest, crewName: crew }, crew);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    guardiaCloseIncident(incidentId, unitId, closureReason, outcomeNotes, crewName) {
+      const reason = String(closureReason || '').trim();
+      const notes = String(outcomeNotes || '').trim();
+      if (!reason) throw new Error('El motivo de cierre es obligatorio.');
+      if (!notes) throw new Error('Las notas de cierre son obligatorias.');
+      const state = loadState();
+      const { inc, crew } = requireCrewForIncident(state, incidentId, unitId, crewName);
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CERRADA);
+      if (!check.ok) throw new Error(check.reason);
+      inc.closureReason = reason;
+      inc.outcomeNotes = notes;
+      pushStatus(inc, INCIDENT_STATES.CERRADA, crew, 'Cierre por guardia: ' + reason);
+      releaseUnitIfAny(state, inc);
+      appendAudit(state, 'GUARDIA_CLOSE', { incidentId, unitId, closureReason: reason, crewName: crew }, crew);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    getGuardiaHistory(unitId, limit) {
+      const state = loadState();
+      const n = Math.max(1, Number(limit) || 10);
+      const closed = ['CERRADA', 'CANCELADA'];
+      return state.incidents
+        .filter(i => i.assignedUnitId === unitId && closed.indexOf(i.status) !== -1)
+        .slice(0, n)
+        .map(i => JSON.parse(JSON.stringify(i)));
+    },
+
+    requestSupportFromCrew(incidentId, unitId, supportType, notes, crewName) {
+      const state = loadState();
+      const { inc, crew } = requireCrewForIncident(state, incidentId, unitId, crewName);
+      const type = String(supportType || '').trim();
+      if (!type) throw new Error('Seleccioná un tipo de apoyo.');
+      if (inc.status !== INCIDENT_STATES.EN_CAMINO && inc.status !== INCIDENT_STATES.EN_ESCENA) {
+        throw new Error('Solo se puede solicitar apoyo en EN_CAMINO o EN_ESCENA.');
+      }
+      const ts = nowISO();
+      inc.supportRequests = inc.supportRequests || [];
+      inc.supportRequests.push({ ts, type, notes: notes || '', requestedBy: crew });
+      inc.statusHistory.push({
+        status: inc.status,
+        ts,
+        actor: crew,
+        detail: 'Solicitud de apoyo: ' + type + (notes ? ' — ' + notes : '')
+      });
+      appendAudit(state, 'REQUEST_SUPPORT', { incidentId, unitId, supportType: type, notes: notes || '' }, crew);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
     // ======================= BENEFICIOS =======================
     getVisibleBenefits(locality, dni) {
       const state = loadState();
@@ -756,7 +1015,6 @@
       const actor = requireAdmin(adminName);
       const state = loadState();
       const cuotas = Object.assign({ BRONCE:'', PLATA:'', ORO:'', PLATINO:'' }, payload.cuotas || {});
-      // sanitizar cuotas: string numérico o vacío
       Object.keys(cuotas).forEach((k) => {
         const v = String(cuotas[k] || '').trim();
         if (v && !/^\d+(\.\d{1,2})?$/.test(v)) throw new Error('Cuota ' + k + ' inválida (número o vacío).');
@@ -806,7 +1064,6 @@
 
     _getState() { return loadState(); },
 
-    // helpers expuestos para UI (solo lectura)
     calcCarnetStatus(dniOrProfile) {
       if (typeof dniOrProfile === 'string') {
         const p = this.getProfile(dniOrProfile);
