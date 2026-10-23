@@ -1,6 +1,7 @@
 /* ============================================================
    config.js — Constantes y modo de la plataforma Emergencias 360
-   Identidad EMP + Sello ASARI + Planes + Carnet + Pagos.
+   Identidad EMP + Sello ASARI + Planes + Carnet + Pagos + Pulsera.
+   v6: agrega PULSERA_DEFAULTS / PULSERA_STATUSES y bump a v6.
    Cargado ANTES de state-machine.js, store.js y app-*.js.
    ============================================================ */
 
@@ -10,8 +11,8 @@
   const CONFIG = {
     MODE: 'LOCAL_MVP',
 
-    STORAGE_KEY: 'e360_mvp_v5',
-    STORAGE_VERSION: 5,
+    STORAGE_KEY: 'e360_mvp_v6',
+    STORAGE_VERSION: 6,
     CHANNEL_NAME: 'e360_mvp_channel',
 
     SOS_HOLD_MS: 1500,
@@ -92,6 +93,16 @@
     CARNET_VALIDITY_MONTHS: 12,
     CARNET_STATUSES: ['activo','vencido','suspendido'],
     CARNET_WARN_DAYS: 15,
+
+    // -------- PULSERA SOS / BOTÓN DOMICILIARIO --------
+    // La pulsera solo la habilita PLATINO (PLANS[x].hasPulsera)
+    // El botón domiciliario solo lo habilita PLATINO (PLANS[x].hasHomeButton)
+    PULSERA_DEFAULTS: {
+      pulseraStatus: 'inactivo',
+      homeCoords: null,
+      homeAddress: ''
+    },
+    PULSERA_STATUSES: ['activo', 'inactivo'],
 
     // -------- PAGOS (placeholder Mercado Pago) --------
     PAYMENT_DEFAULTS: {
