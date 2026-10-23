@@ -1,23 +1,23 @@
 {
-  "name": "Emergencias 360 — MVP Demostración",
-  "short_name": "E360 MVP",
-  "description": "MVP demostración de Emergencias 360: alerta SOS y red de beneficios. No sustituye al 107/911/Bomberos.",
+  "name": "Emergencias 360 — EMP Emergencias Médicas Privadas",
+  "short_name": "EMP 360",
+  "description": "Emergencias 360 — Alerta SOS y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos.",
   "lang": "es-AR",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#F8FAFC",
+  "theme_color": "#3D5CA4",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%23dc2626'/%3E%3Ctext x='96' y='120' font-size='72' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3ESOS%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%233D5CA4'/%3E%3Cpath d='M28 104 h32 l10 -22 l14 44 l12 -30 l8 12 h60' stroke='%23FB0100' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ctext x='96' y='160' font-size='38' text-anchor='middle' fill='white' font-family='Montserrat,sans-serif' font-weight='800'%3EEMP%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23dc2626'/%3E%3Ctext x='256' y='320' font-size='192' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3ESOS%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%233D5CA4'/%3E%3Cpath d='M74 276 h84 l26 -58 l38 116 l32 -80 l22 32 h162' stroke='%23FB0100' stroke-width='18' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ctext x='256' y='420' font-size='100' text-anchor='middle' fill='white' font-family='Montserrat,sans-serif' font-weight='800'%3EEMP%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
