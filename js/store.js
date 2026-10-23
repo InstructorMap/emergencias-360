@@ -1,8 +1,9 @@
 /* ============================================================
-   E360Store v6 — Capa de abstracción de datos (MVP LOCAL)
-   v6: agrega pulsera QR/NFC + botón domiciliario + métodos de
-       guardia (getActiveIncidentForUnit, guardiaDispatch, etc.)
+   E360Store v6.1 — Capa de abstracción de datos (MVP LOCAL)
+   v6: pulsera QR/NFC + botón domiciliario + métodos de guardia
        + requestSupportFromCrew nativo.
+   v6.1: agrega createSOSPulseraIncident(payload) que envuelve
+         createSOSIncident() con source:'pulsera' + validación.
    API pública intacta respecto a v5 → los app-*.js no se rompen.
    ============================================================ */
 
@@ -139,7 +140,6 @@
       if (typeof parsed.socioCounter !== 'number') parsed.socioCounter = 0;
       parsed.payment_config = parsed.payment_config || JSON.parse(JSON.stringify(C.PAYMENT_DEFAULTS));
 
-      // v5 → v6: agregar campos de pulsera y domicilio a perfiles existentes
       Object.keys(parsed.profiles || {}).forEach((dni) => {
         const p = parsed.profiles[dni];
         if (!p.plan) p.plan = C.DEFAULT_PLAN;
@@ -239,7 +239,6 @@
     return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
   }
 
-  // Verifica que el incidente esté asignado al móvil y que el crew exista
   function requireCrewForIncident(state, incidentId, unitId, crewName) {
     const crew = String(crewName || '').trim();
     if (!crew) throw new Error('Se requiere identificación del personal de guardia.');
@@ -323,18 +322,15 @@
           pulseraStatus = 'activo';
         }
       } else {
-        // Si el plan cambió a ORO/PLATINO y no tenía pulseraToken, generarlo
         if (planDef.hasPulsera && !pulseraToken) {
           pulseraToken = uuidv4();
           pulseraStatus = 'activo';
         }
-        // Si el plan bajó a BRONCE/PLATA, desactivar pulsera (no borrar token)
         if (!planDef.hasPulsera && pulseraStatus === 'activo') {
           pulseraStatus = 'inactivo';
         }
       }
 
-      // homeCoords/homeAddress: solo se actualizan si vienen en el payload
       if (profile.homeCoords !== undefined) homeCoords = profile.homeCoords;
       if (profile.homeAddress !== undefined) homeAddress = profile.homeAddress;
 
@@ -402,7 +398,6 @@
       if (!dni) return null;
       const p = state.profiles[dni];
       const planDef = C.PLANS[p.plan] || {};
-      // Si el plan no incluye pulsera, o está inactiva/suspendida, no es válida para emergencia
       const effectivePulseraStatus = (p.pulseraStatus === 'activo' && planDef.hasPulsera) ? 'activo' : 'inactivo';
       return {
         dni: p.dni,
@@ -416,7 +411,6 @@
         alergias: p.alergias || '',
         patologias: p.patologias || '',
         contacto: p.contacto || '',
-        // Datos clínicos: SÍ se exponen en ?pulsera= (es emergencia real)
         homeCoords: p.homeCoords || null,
         homeAddress: p.homeAddress || ''
       };
@@ -486,7 +480,6 @@
       const prev = p.plan;
       const planDef = C.PLANS[plan] || {};
       p.plan = plan;
-      // Ajustar pulsera según el nuevo plan
       if (planDef.hasPulsera) {
         if (!p.pulseraToken) p.pulseraToken = uuidv4();
         p.pulseraStatus = 'activo';
@@ -555,6 +548,32 @@
       appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni, b2b: incident.b2bEstablishmentId, source: incident.source }, payload.source || 'socio_app');
       saveState(state);
       return JSON.parse(JSON.stringify(incident));
+    },
+
+    // ========== NUEVO v6.1: Alerta de pulsera SOS ==========
+    createSOSPulseraIncident(payload) {
+      const token = String(payload && payload.pulseraToken || '').trim();
+      if (!token) throw new Error('Token de pulsera requerido.');
+      const profile = this.getProfileByPulseraToken(token);
+      if (!profile) throw new Error('Pulsera no registrada.');
+      if (profile.pulseraStatus !== 'activo') throw new Error('La pulsera no está activa. Contactá a administración.');
+
+      // Preferimos coords del que escanea (GPS del teléfono);
+      // si no hay, fallback a homeCoords pre-validadas del socio.
+      const gps = payload.location || null;
+      const fallback = profile.homeCoords || null;
+      const location = gps || (fallback ? { lat: fallback.lat, lng: fallback.lng, accuracy: fallback.accuracy || 0, source: 'homeCoords' } : null);
+
+      return this.createSOSIncident({
+        profileDni: profile.dni,
+        location,
+        manualAddress: payload.manualAddress || profile.homeAddress || '',
+        b2bEstablishmentId: payload.b2bEstablishmentId || null,
+        notes: payload.notes || 'Alerta emitida por pulsera SOS.',
+        source: 'pulsera',
+        pulseraToken: token,
+        detail: 'Alerta emitida por pulsera SOS. Escaneada desde: ' + (gps ? 'GPS del dispositivo' : 'coordenadas de domicilio')
+      });
     },
 
     getLatestIncident() {
@@ -760,7 +779,7 @@
       return { ...base };
     },
 
-    // ======================= GUARDIA (métodos que faltaban en v5) =======================
+    // ======================= GUARDIA =======================
     getActiveIncidentForUnit(unitId) {
       const state = loadState();
       const closed = ['CERRADA', 'CANCELADA'];
@@ -785,7 +804,6 @@
         ts: nowISO(),
         actor: crew
       };
-      // No auditar cada update (ruido); solo guardar
       saveState(state);
       return JSON.parse(JSON.stringify(inc));
     },
