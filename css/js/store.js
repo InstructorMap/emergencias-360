@@ -496,4 +496,408 @@
       return JSON.parse(JSON.stringify(inc));
     },
 
-    tri
+    triageIncident(incidentId, priority, clinicalNotes, operatorName) {
+      const actor = requireOperator(operatorName);
+      if (PRIORITIES.indexOf(priority) === -1) {
+        throw new Error('Prioridad inválida. Debe ser ROJO, AMARILLO o VERDE.');
+      }
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.ACEPTADA_POR_CENTRAL) {
+        throw new Error('El incidente debe estar en ACEPTADA_POR_CENTRAL para clasificar.');
+      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CLASIFICADA);
+      if (!check.ok) throw new Error(check.reason);
+      inc.priority = priority;
+      inc.clinicalNotes = String(clinicalNotes || '').trim();
+      pushStatus(inc, INCIDENT_STATES.CLASIFICADA, actor, 'Prioridad ' + priority + '.');
+      appendAudit(state, 'TRIAGE_INCIDENT', { incidentId, priority, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    assignUnitToIncident(incidentId, unitId, crewNotes, operatorName) {
+      const actor = requireOperator(operatorName);
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.CLASIFICADA) {
+        throw new Error('El incidente debe estar CLASIFICADA para asignar móvil.');
+      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.MOVIL_ASIGNADO);
+      if (!check.ok) throw new Error(check.reason);
+      const unit = state.moviles.find(m => m.id === unitId);
+      if (!unit) throw new Error('Móvil no encontrado.');
+      if (unit.baseId !== inc.baseId) throw new Error('El móvil no pertenece a la base del incidente.');
+      if (unit.status !== UNIT_STATUS.DISPONIBLE) throw new Error('El móvil no está disponible.');
+      unit.status = UNIT_STATUS.ASIGNADO;
+      inc.assignedUnitId = unit.id;
+      inc.crewNotes = String(crewNotes || '').trim();
+      pushStatus(inc, INCIDENT_STATES.MOVIL_ASIGNADO, actor, 'Móvil ' + unit.unit + ' asignado.');
+      appendAudit(state, 'ASSIGN_UNIT', { incidentId, unitId, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    dispatchIncidentUnit(incidentId, operatorName) {
+      const actor = requireOperator(operatorName);
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.MOVIL_ASIGNADO) {
+        throw new Error('El incidente debe estar MOVIL_ASIGNADO para despachar.');
+      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_CAMINO);
+      if (!check.ok) throw new Error(check.reason);
+      const unit = state.moviles.find(m => m.id === inc.assignedUnitId);
+      if (!unit) throw new Error('Móvil asignado no encontrado.');
+      unit.status = UNIT_STATUS.EN_SALIDA;
+      pushStatus(inc, INCIDENT_STATES.EN_CAMINO, actor, 'Móvil ' + unit.unit + ' despachado.');
+      appendAudit(state, 'DISPATCH_INCIDENT', { incidentId, unitId: unit.id, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    markIncidentOnScene(incidentId, operatorName) {
+      const actor = requireOperator(operatorName);
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.EN_CAMINO) {
+        throw new Error('El incidente debe estar EN_CAMINO para marcar arribo.');
+      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_ESCENA);
+      if (!check.ok) throw new Error(check.reason);
+      pushStatus(inc, INCIDENT_STATES.EN_ESCENA, actor, 'Móvil arribó al lugar.');
+      appendAudit(state, 'ON_SCENE', { incidentId, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    markIncidentInTransit(incidentId, destinationCenter, operatorName) {
+      const actor = requireOperator(operatorName);
+      const dest = String(destinationCenter || '').trim();
+      if (!dest) throw new Error('Indicá el centro receptor para registrar el traslado.');
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      if (inc.status !== INCIDENT_STATES.EN_ESCENA) {
+        throw new Error('El incidente debe estar EN_ESCENA para registrar traslado.');
+      }
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.EN_TRASLADO);
+      if (!check.ok) throw new Error(check.reason);
+      inc.destinationCenter = dest;
+      pushStatus(inc, INCIDENT_STATES.EN_TRASLADO, actor, 'Derivación a ' + dest + '.');
+      appendAudit(state, 'IN_TRANSIT', { incidentId, destinationCenter: dest, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    closeIncident(incidentId, closureReason, outcomeNotes, operatorName) {
+      const actor = requireOperator(operatorName);
+      const reason = String(closureReason || '').trim();
+      const notes = String(outcomeNotes || '').trim();
+      if (!reason) throw new Error('El motivo de cierre es obligatorio.');
+      if (!notes) throw new Error('Las notas de cierre son obligatorias.');
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CERRADA);
+      if (!check.ok) throw new Error(check.reason);
+      inc.closureReason = reason;
+      inc.outcomeNotes = notes;
+      pushStatus(inc, INCIDENT_STATES.CERRADA, actor, 'Cierre: ' + reason);
+      releaseUnitIfAny(state, inc);
+      appendAudit(state, 'CLOSE_INCIDENT', { incidentId, closureReason: reason, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    cancelIncident(incidentId, cancelReason, operatorName) {
+      const actor = requireOperator(operatorName);
+      const reason = String(cancelReason || '').trim();
+      if (!reason) throw new Error('El motivo de cancelación es obligatorio.');
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      const check = SM.canTransitionIncident(inc.status, INCIDENT_STATES.CANCELADA);
+      if (!check.ok) throw new Error(check.reason);
+      inc.closureReason = reason;
+      pushStatus(inc, INCIDENT_STATES.CANCELADA, actor, 'Cancelación: ' + reason);
+      releaseUnitIfAny(state, inc);
+      appendAudit(state, 'CANCEL_INCIDENT', { incidentId, cancelReason: reason, operatorName: actor }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    transitionIncidentStatus(incidentId, nextStatus) {
+      return this._genericTransition(incidentId, nextStatus, 'simulador_socio');
+    },
+
+    _genericTransition(incidentId, nextStatus, actor) {
+      const state = loadState();
+      const inc = findIncident(state, incidentId);
+      const check = SM.canTransitionIncident(inc.status, nextStatus);
+      if (!check.ok) throw new Error(check.reason);
+      if (nextStatus === INCIDENT_STATES.CANCELADA) {
+        inc.closureReason = 'Cancelado desde simulador.';
+        pushStatus(inc, INCIDENT_STATES.CANCELADA, actor, 'Cancelación simulada.');
+        releaseUnitIfAny(state, inc);
+      } else {
+        pushStatus(inc, nextStatus, actor, 'Simulación de transición.');
+      }
+      appendAudit(state, 'SIM_TRANSITION', { incidentId, nextStatus }, actor);
+      saveState(state);
+      return JSON.parse(JSON.stringify(inc));
+    },
+
+    // ======================= FLOTA =======================
+    getFleet(baseId) {
+      const state = loadState();
+      const list = baseId && baseId !== 'ALL'
+        ? state.moviles.filter(m => m.baseId === baseId)
+        : state.moviles.slice();
+      return list.map(m => ({ ...m }));
+    },
+
+    getBases() {
+      const state = loadState();
+      return state.bases.map(b => ({ ...b }));
+    },
+
+    setUnitMaintenanceStatus(unitId, newStatus, operatorName) {
+      const actor = requireOperator(operatorName);
+      const state = loadState();
+      const unit = state.moviles.find(m => m.id === unitId);
+      if (!unit) throw new Error('Móvil no encontrado.');
+      const check = SM.canChangeUnitStatus(unit.status, newStatus);
+      if (!check.ok) throw new Error(check.reason);
+      unit.status = newStatus;
+      appendAudit(state, 'SET_UNIT_STATUS', { unitId, newStatus, operatorName: actor }, actor);
+      saveState(state);
+      return { ...unit };
+    },
+
+    toggleBaseOperationalStatus(baseId, isActive, operatorName) {
+      const actor = requireOperator(operatorName);
+      const state = loadState();
+      const base = state.bases.find(b => b.id === baseId);
+      if (!base) throw new Error('Base no encontrada.');
+      const check = SM.canToggleBaseOperationalStatus(base);
+      if (!check.ok) throw new Error(check.reason);
+      base.isActive = !!isActive;
+      appendAudit(state, 'TOGGLE_BASE_STATUS', { baseId, isActive: !!isActive, operatorName: actor }, actor);
+      saveState(state);
+      return { ...base };
+    },
+
+    // ======================= BENEFICIOS =======================
+    getVisibleBenefits(locality) {
+      const state = loadState();
+      const lineBAllowedByOrg = () => state.organizations.some(o => o.lineBEnabled);
+      return state.benefits
+        .filter(b => SM.isBenefitVisibleToSocio(b))
+        .filter(b => lineBAllowedByOrg())
+        .filter(b => !locality || b.locality === locality)
+        .map(b => ({
+          id: b.id,
+          name: b.name,
+          category: b.category,
+          locality: b.locality,
+          benefitDetail: b.benefitDetail,
+          agreementRef: b.agreementRef,
+          validUntil: b.validUntil,
+          status: b.status
+        }));
+    },
+
+    getAllBenefitsRaw() {
+      const state = loadState();
+      return state.benefits.map(b => ({ ...b }));
+    },
+
+    updateBenefitStatus(benefitId, newStatus, agreementRef, validUntil, adminName) {
+      const actor = requireAdmin(adminName);
+      const state = loadState();
+      const benefit = state.benefits.find(b => b.id === benefitId);
+      if (!benefit) throw new Error('Prestador no encontrado.');
+      const check = SM.canTransitionBenefit(benefit.status, newStatus, agreementRef);
+      if (!check.ok) throw new Error(check.reason);
+      const prevStatus = benefit.status;
+      benefit.status = newStatus;
+      const ref = String(agreementRef || '').trim();
+      if (ref) benefit.agreementRef = ref;
+      if (validUntil) benefit.validUntil = validUntil;
+      appendAudit(state, 'UPDATE_BENEFIT_STATUS', {
+        benefitId,
+        from: prevStatus,
+        to: newStatus,
+        agreementRef: benefit.agreementRef,
+        validUntil: benefit.validUntil,
+        adminName: actor
+      }, actor);
+      saveState(state);
+      return { ...benefit };
+    },
+
+    // ======================= B2B =======================
+    getB2BEstablishments(baseId) {
+      const state = loadState();
+      const list = baseId && baseId !== 'ALL'
+        ? state.b2b_establishments.filter(e => e.baseId === baseId)
+        : state.b2b_establishments.slice();
+      return list.map(e => ({ ...e }));
+    },
+
+    getB2BById(id) {
+      const state = loadState();
+      const est = state.b2b_establishments.find(e => e.id === id);
+      return est ? { ...est } : null;
+    },
+
+    saveB2BEstablishment(data, actorName) {
+      const actor = requireAdmin(actorName);
+      const name = String(data.name || '').trim();
+      const type = String(data.type || '').trim();
+      const baseId = String(data.baseId || '').trim();
+      const address = String(data.address || '').trim();
+      if (!name || !type || !baseId || !address) {
+        throw new Error('Completá nombre, rubro, base asignada y dirección.');
+      }
+      if (['DOLORES', 'LA_COSTA'].indexOf(baseId) === -1) {
+        throw new Error('Base asignada inválida.');
+      }
+      const state = loadState();
+      const isNew = !data.id;
+      const tipo = C.UNIT_TYPES.indexOf(data.tipoUnidadRequerida) !== -1
+        ? data.tipoUnidadRequerida : 'COMUN';
+      const record = {
+        id: data.id || uid('b2b'),
+        name,
+        type,
+        baseId,
+        address,
+        coords: data.coords || null,
+        referencePhone: String(data.referencePhone || '').trim(),
+        protocol: String(data.protocol || '').trim(),
+        tipoUnidadRequerida: tipo,
+        status: B2B_STATUSES.indexOf(data.status) !== -1 ? data.status : 'en_revision',
+        createdAt: isNew ? nowISO() : (data.createdAt || nowISO())
+      };
+      if (isNew) {
+        state.b2b_establishments.push(record);
+      } else {
+        const idx = state.b2b_establishments.findIndex(e => e.id === record.id);
+        if (idx === -1) throw new Error('Establecimiento B2B no encontrado.');
+        state.b2b_establishments[idx] = record;
+      }
+      appendAudit(state, isNew ? 'CREATE_B2B_ESTABLISHMENT' : 'UPDATE_B2B_ESTABLISHMENT', {
+        b2bId: record.id,
+        name: record.name,
+        baseId: record.baseId,
+        tipoUnidadRequerida: tipo
+      }, actor);
+      saveState(state);
+      return { ...record };
+    },
+
+    toggleB2BStatus(id, newStatus, actorName) {
+      const actor = requireAdmin(actorName);
+      const state = loadState();
+      const est = state.b2b_establishments.find(e => e.id === id);
+      if (!est) throw new Error('Establecimiento B2B no encontrado.');
+      const check = SM.canTransitionB2B(est.status, newStatus);
+      if (!check.ok) throw new Error(check.reason);
+      const prev = est.status;
+      est.status = newStatus;
+      appendAudit(state, 'TOGGLE_B2B_STATUS', { b2bId: id, from: prev, to: newStatus }, actor);
+      saveState(state);
+      return { ...est };
+    },
+
+    // ======================= SERVICIOS TERCERIZADOS =======================
+    getExternalServicesConfig() {
+      const state = loadState();
+      const cfg = state.external_services || {};
+      return {
+        medicoVirtualUrl: cfg.medicoVirtualUrl || '',
+        seguroViajeroUrl: cfg.seguroViajeroUrl || '',
+        updatedAt: cfg.updatedAt || null,
+        updatedBy: cfg.updatedBy || null
+      };
+    },
+
+    setExternalServicesConfig(payload, adminName) {
+      const actor = requireAdmin(adminName);
+      const state = loadState();
+      const medico = String(payload && payload.medicoVirtualUrl || '').trim();
+      const seguro = String(payload && payload.seguroViajeroUrl || '').trim();
+      // Validación básica de URL (http/https) si hay valor
+      const isUrl = (s) => {
+        if (!s) return true;
+        try {
+          const u = new URL(s);
+          return u.protocol === 'http:' || u.protocol === 'https:';
+        } catch (_) { return false; }
+      };
+      if (!isUrl(medico)) throw new Error('URL de Médico Virtual inválida (debe ser http/https).');
+      if (!isUrl(seguro)) throw new Error('URL de Seguro al Viajero inválida (debe ser http/https).');
+      state.external_services = {
+        medicoVirtualUrl: medico,
+        seguroViajeroUrl: seguro,
+        updatedAt: nowISO(),
+        updatedBy: actor
+      };
+      appendAudit(state, 'UPDATE_EXTERNAL_SERVICES', {
+        medicoVirtualUrl: medico,
+        seguroViajeroUrl: seguro
+      }, actor);
+      saveState(state);
+      return this.getExternalServicesConfig();
+    },
+
+    // ======================= ADMIN / RESET =======================
+    clearAndResetDemo(adminName) {
+      const actor = requireAdmin(adminName);
+      const seed = buildSeed();
+      seed.audit_logs.unshift({
+        id: uid('aud'),
+        ts: nowISO(),
+        action: 'CLEAR_AND_RESET_DEMO',
+        payload: {},
+        actor
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return seed;
+    },
+
+    // ======================= AUDITORÍA =======================
+    getAuditLogs() {
+      const state = loadState();
+      return state.audit_logs.map(l => ({ ...l }));
+    },
+
+    // ======================= SUSCRIPCIÓN =======================
+    subscribe(callback) {
+      if (!channel) {
+        const handler = (e) => {
+          if (e.key === STORAGE_KEY) callback({ type: 'STATE_CHANGED', ts: Date.now() });
+        };
+        global.addEventListener('storage', handler);
+        return () => global.removeEventListener('storage', handler);
+      }
+      const handler = (msg) => { callback(msg.data); };
+      channel.addEventListener('message', handler);
+      return () => channel.removeEventListener('message', handler);
+    },
+
+    // ======================= UTILIDADES =======================
+    _resetStore() {
+      const seed = buildSeed();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return seed;
+    },
+
+    _getState() {
+      return loadState();
+    }
+  };
+
+  global.E360Store = E360Store;
+})(typeof window !== 'undefined' ? window : globalThis);
