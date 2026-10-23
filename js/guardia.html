@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Guardia Móvil EMP — Operación de ambulancia en calle. MVP Demostración." />
+  <title>Guardia Móvil EMP — Emergencias 360 MVP</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="guardia-body">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="guardia-header" role="banner">
+    <span class="badge-guardia">MODO MVP DEMOSTRACIÓN — GUARDIA MÓVIL EMP (NO CONECTADA A DESPACHO REAL)</span>
+
+    <div class="header-controls">
+      <label>Base
+        <select id="guardiaBaseSelector" aria-label="Seleccionar base">
+          <option value="DOLORES">EMP Base Dolores</option>
+          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+        </select>
+      </label>
+
+      <label>Móvil
+        <select id="guardiaUnitSelector" aria-label="Seleccionar móvil">
+          <!-- Se llena dinámicamente según la base -->
+        </select>
+      </label>
+
+      <label>Personal de guardia
+        <input type="text" id="guardiaNameInput" class="operator-input"
+               placeholder="Ej: Enf. Ana Ruiz" maxlength="80" autocomplete="off" />
+      </label>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="guardia-main" role="main">
+
+    <!-- Estado de la unidad -->
+    <div class="guardia-unit-status" id="unitStatus" aria-live="polite">
+      <span class="unit-status-text">Seleccioná base, móvil y completá tu nombre.</span>
+    </div>
+
+    <!-- Sin incidente -->
+    <div class="guardia-empty" id="noIncidentPanel">
+      <h2>📻 Sin incidente asignado</h2>
+      <p>Mantené esta pantalla abierta. Cuando la Central Operativa te asigne un incidente vas a escuchar una alerta sonora y sentir la vibración del dispositivo.</p>
+      <p class="guardia-hint">Si el navegador lo permite, aceptá las notificaciones para recibir el aviso incluso con la pestaña en segundo plano.</p>
+    </div>
+
+    <!-- Incidente activo (se llena dinámicamente) -->
+    <div id="activeIncidentContainer" hidden></div>
+
+    <!-- Historial reciente -->
+    <section class="guardia-history-section" aria-label="Historial reciente">
+      <h2>Historial reciente de esta unidad</h2>
+      <ul class="guardia-history-list" id="historyList"></ul>
+      <p class="guardia-hint" id="historyEmpty">Sin incidentes cerrados recientes.</p>
+    </section>
+
+    <!-- Nota legal -->
+    <p class="guardia-legal">
+      <strong>ASARI S.A.S.</strong> es Proveedor Tecnológico; <strong>EMP - Emergencias Médicas Privadas</strong> es Prestador Operativo.
+      Esta app <strong>NO sustituye</strong> al 107 / 911 / Bomberos.
+    </p>
+
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/state-machine.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app-guardia.js"></script>
+</body>
+</html>
