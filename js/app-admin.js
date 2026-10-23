@@ -1,6 +1,7 @@
 /* ============================================================
-   app-admin.js — Controlador de admin.html (Módulos 6, 8 y 10)
-   Organizaciones, gestor contractual de prestadores y auditoría.
+   app-admin.js — Controlador de admin.html
+   Organizaciones, gestor contractual de prestadores, auditoría
+   y configuración de servicios tercerizados (Médico Virtual / Seguro al viajero).
    ============================================================ */
 
 (function () {
@@ -301,11 +302,93 @@
         showMsg('Demo reiniciada al estado inicial.', false);
         renderOrganizations();
         renderBenefitsTable();
+        renderExternalServicesForm();
         renderAudit();
       } catch (err) {
         showMsg('Error: ' + err.message, true);
       }
     });
+  }
+
+  // ============================================================
+  // SECCIÓN 4: SERVICIOS TERCERIZADOS
+  // ============================================================
+  function renderExternalServicesForm() {
+    const cfg = Store.getExternalServicesConfig();
+    const medicoInput = $('#extMedicoVirtualUrl');
+    const seguroInput = $('#extSeguroViajeroUrl');
+    const statusEl = $('#extServicesStatus');
+    if (!medicoInput || !seguroInput) return;
+
+    // No pisar mientras el usuario escribe: solo rellenar si el input no tiene foco
+    if (document.activeElement !== medicoInput) medicoInput.value = cfg.medicoVirtualUrl || '';
+    if (document.activeElement !== seguroInput) seguroInput.value = cfg.seguroViajeroUrl || '';
+
+    if (statusEl) {
+      if (cfg.updatedAt) {
+        statusEl.textContent = 'Última actualización: ' + fmtDateTime(cfg.updatedAt) + ' · por ' + (cfg.updatedBy || '—');
+        statusEl.style.color = 'var(--color-text-dim)';
+      } else {
+        statusEl.textContent = 'Sin configurar todavía. Los enlaces se mostrarán en la Ficha del Socio cuando estén cargados.';
+        statusEl.style.color = 'var(--color-text-soft)';
+      }
+    }
+  }
+
+  function initExternalServicesForm() {
+    const form = $('#extServicesForm');
+    const msg = $('#extServicesMsg');
+    if (!form) return;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      msg.style.color = '';
+
+      const admin = requireAdmin();
+      if (!admin) {
+        msg.style.color = 'var(--color-red)';
+        msg.textContent = 'Ingresá tu nombre de administrador en la cabecera antes de operar.';
+        return;
+      }
+
+      const medicoVirtualUrl = $('#extMedicoVirtualUrl').value.trim();
+      const seguroViajeroUrl = $('#extSeguroViajeroUrl').value.trim();
+
+      try {
+        Store.setExternalServicesConfig({ medicoVirtualUrl, seguroViajeroUrl }, admin);
+        msg.style.color = 'var(--color-green)';
+        msg.textContent = 'Servicios tercerizados actualizados.';
+        renderExternalServicesForm();
+        renderAudit();
+      } catch (err) {
+        msg.style.color = 'var(--color-red)';
+        msg.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    // Botón "limpiar" (opcional)
+    const btnClear = $('#extServicesClear');
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        const admin = requireAdmin();
+        if (!admin) {
+          msg.style.color = 'var(--color-red)';
+          msg.textContent = 'Ingresá tu nombre de administrador en la cabecera antes de operar.';
+          return;
+        }
+        try {
+          Store.setExternalServicesConfig({ medicoVirtualUrl: '', seguroViajeroUrl: '' }, admin);
+          msg.style.color = 'var(--color-green)';
+          msg.textContent = 'URLs de servicios tercerizados limpiadas.';
+          renderExternalServicesForm();
+          renderAudit();
+        } catch (err) {
+          msg.style.color = 'var(--color-red)';
+          msg.textContent = 'Error: ' + err.message;
+        }
+      });
+    }
   }
 
   // ============================================================
@@ -316,6 +399,7 @@
       if (!msg || msg.type !== 'STATE_CHANGED') return;
       renderOrganizations();
       renderBenefitsTable();
+      renderExternalServicesForm();
       renderAudit();
     });
   }
@@ -327,6 +411,8 @@
     initAdminInput();
     renderOrganizations();
     renderBenefitsTable();
+    renderExternalServicesForm();
+    initExternalServicesForm();
     renderAudit();
     initExportAudit();
     initResetDemo();
