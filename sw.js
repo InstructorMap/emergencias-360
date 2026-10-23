@@ -1,11 +1,12 @@
 /* ============================================================
-   sw.js — Service Worker MVP v4
+   sw.js — Service Worker MVP v5
+   Identidad EMP + Sello ASARI.
    - Shell estático en whitelist explícita
-   - NUNCA cachea estados SOS ni llamadas a Supabase
-   - Fallback contingencia telefónica 107/911
+   - NUNCA cachea estados SOS ni llamadas dinámicas
+   - Fallback contingencia telefónica 107/911/100
    ============================================================ */
 
-const CACHE_NAME = 'e360-mvp-v4';
+const CACHE_NAME = 'e360-mvp-v5';
 
 const ASSETS = [
   './',
@@ -105,23 +106,30 @@ function offlineFallback() {
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#3D5CA4">
 <title>Emergencias 360 — Sin conexión</title>
 <style>
   html,body{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0f172a;color:#f1f5f9;font-family:system-ui,sans-serif;
+  body{background:#F8FAFC;color:#0F172A;
+       font-family:'Poppins',system-ui,sans-serif;
        display:flex;flex-direction:column;align-items:center;justify-content:center;
        min-height:100vh;padding:24px;text-align:center;gap:16px}
-  h1{font-size:1.3rem;color:#f59e0b;margin:0}
+  h1{font-size:1.3rem;color:#3D5CA4;margin:0;font-family:'Montserrat',sans-serif}
+  h1 span{color:#FB0100}
   a{display:block;width:100%;max-width:320px;padding:16px;border-radius:12px;
     text-decoration:none;font-weight:700;color:#fff;font-size:1rem}
-  .c107{background:#dc2626}.c911{background:#1d4ed8}
-  p{font-size:.85rem;color:#cbd5e1;max-width:360px;margin:0}
+  .c107{background:#FB0100}.c911{background:#0B3C78}.c100{background:#740821}
+  p{font-size:.85rem;color:#4A5568;max-width:360px;margin:0}
+  .brand{font-family:'Montserrat',sans-serif;font-weight:900;font-size:1.1rem;letter-spacing:.08em;color:#3D5CA4}
+  .legal{font-size:.68rem;color:#64748B;margin-top:8px}
 </style></head><body>
+  <div class="brand">EMP <span style="color:#FB0100">—</span> EMERGENCIAS MÉDICAS PRIVADAS</div>
   <h1>Sin conexión</h1>
   <p>No pudimos cargar la app. Ante una urgencia real, llamá directamente:</p>
   <a class="c107" href="tel:107">📞 107 (SAME)</a>
   <a class="c911" href="tel:911">📞 911 (Policía)</a>
-  <p>Bomberos: 100 — Esta app no sustituye a los servicios públicos de emergencia.</p>
+  <a class="c100" href="tel:100">📞 100 (Bomberos)</a>
+  <p class="legal">Tecnología provista por ASARI S.A.S. — Proveedor Tecnológico. EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. Esta app NO sustituye al 107 / 911 / Bomberos.</p>
 </body></html>`;
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
