@@ -1,12 +1,14 @@
 /* ============================================================
-   sw.js — Service Worker MVP v5
+   sw.js — Service Worker MVP v6
    Identidad EMP + Sello ASARI.
    - Shell estático en whitelist explícita
    - NUNCA cachea estados SOS ni llamadas dinámicas
    - Fallback contingencia telefónica 107/911/100
+   - v6: bump de CACHE_NAME para invalidar caché de v5
+     (necesario para que el navegador sirva el healthcheck.js nuevo)
    ============================================================ */
 
-const CACHE_NAME = 'e360-mvp-v5';
+const CACHE_NAME = 'e360-mvp-v6';
 
 const ASSETS = [
   './',
@@ -19,11 +21,13 @@ const ASSETS = [
   './js/config.js',
   './js/state-machine.js',
   './js/store.js',
+  './js/qr.js',
   './js/app-socio.js',
   './js/app-central.js',
   './js/app-guardia.js',
   './js/app-b2b.js',
   './js/app-admin.js',
+  './js/healthcheck.js',
   './manifest.json'
 ];
 
