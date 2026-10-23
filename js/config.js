@@ -1,6 +1,7 @@
 /* ============================================================
    config.js — Constantes y modo de la plataforma Emergencias 360
-   Cargado ANTES de state-machine.js y store.js en los 4 HTML.
+   Identidad EMP + Sello ASARI. Datos operativos reales.
+   Cargado ANTES de state-machine.js y store.js en los 6 HTML.
    ============================================================ */
 
 (function (global) {
@@ -9,12 +10,12 @@
   const CONFIG = {
     // -------- Modo de la plataforma --------
     // 'LOCAL_MVP'      -> localStorage + BroadcastChannel (hoy)
-    // 'SUPABASE_LIVE'  -> Supabase (futuro, Entrega 4)
+    // 'SUPABASE_LIVE'  -> Supabase (futuro)
     MODE: 'LOCAL_MVP',
 
     // -------- Persistencia local --------
-    STORAGE_KEY: 'e360_mvp_v3',
-    STORAGE_VERSION: 3,
+    STORAGE_KEY: 'e360_mvp_v4',
+    STORAGE_VERSION: 4,
     CHANNEL_NAME: 'e360_mvp_channel',
 
     // -------- Timeouts y ergonomía --------
@@ -23,10 +24,58 @@
     GPS_MAX_AGE_MS: 30000,
     AUDIT_MAX_ENTRIES: 2000,
 
-    // -------- Catálogos --------
+    // -------- Marca oficial EMP --------
+    BRAND: {
+      NAME: 'EMP - Emergencias Médicas Privadas',
+      SHORT: 'EMP',
+      CLAIM: 'Más de 16 años brindando atención médica profesional. Emergencias Médicas Privadas las 24 Horas.',
+      ASARI_LEGAL: 'Tecnología provista por ASARI S.A.S. — Proveedor Tecnológico. EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. Esta app NO sustituye al 107 / 911 / Bomberos.',
+      PALETTE: {
+        BLUE: '#3D5CA4',
+        BLUE_DARK: '#0B3C78',
+        BLUE_DEEP: '#1D4ED8',
+        RED: '#FB0100',
+        RED_DARK: '#DC2626',
+        RED_ROSE: '#E11D48',
+        BURGUNDY: '#740821',
+        BLACK: '#000000',
+        WHITE: '#FFFFFF',
+        OFFWHITE: '#F8FAFC',
+        GRAY: '#ACA3A1'
+      }
+    },
+
+    // -------- Teléfonos de emergencia pública (fijos) --------
+    EMERGENCY_PHONES: {
+      SAME_107: '107',
+      POLICE_911: '911',
+      FIRE_100: '100'
+    },
+
+    // -------- Bases y datos operativos REALES --------
+    // Dolores: J. Vucetich 88, Local 1
+    // La Costa: Sucursal Santa Teresita — Partido de La Costa
     BASES: {
-      DOLORES: { id: 'DOLORES', name: 'EMP Base Dolores', phone: '02245431234' },
-      LA_COSTA: { id: 'LA_COSTA', name: 'EMP Base Partido de La Costa', phone: '02246421234' }
+      DOLORES: {
+        id: 'DOLORES',
+        name: 'EMP Sede Dolores',
+        address: 'J. Vucetich 88, Local 1 — Dolores',
+        phone: '2245-444600',         // emergencias
+        phoneAlt: '2245-444601',      // emergencias (alternativo)
+        adminPhone: '2245-444602',    // administración
+        whatsapp: '2245-406323',
+        orgId: 'org_emp'
+      },
+      LA_COSTA: {
+        id: 'LA_COSTA',
+        name: 'EMP Sucursal Santa Teresita',
+        address: 'Santa Teresita — Partido de La Costa',
+        phone: '2246-529000',         // emergencias
+        phoneAlt: null,
+        adminPhone: '2246-526777',    // administración
+        whatsapp: '2245-406323',
+        orgId: 'org_emp'
+      }
     },
 
     INCIDENT_STATES: {
@@ -41,7 +90,6 @@
       CANCELADA: 'CANCELADA'
     },
 
-    // Orden lineal de avance (sin ramificaciones). CANCELADA es terminal paralela.
     TRANSITION_ORDER: [
       'RECIBIDA_SERVIDOR',
       'ACEPTADA_POR_CENTRAL',
@@ -53,7 +101,6 @@
       'CERRADA'
     ],
 
-    // Estados desde los que se permite cancelar (sin exigir cerrar)
     CANCELABLE_FROM: [
       'RECIBIDA_SERVIDOR',
       'ACEPTADA_POR_CENTRAL',
@@ -62,7 +109,6 @@
       'EN_CAMINO'
     ],
 
-    // Estados desde los que se permite cerrar (exige motivo + notas)
     CLOSABLE_FROM: ['EN_ESCENA', 'EN_TRASLADO'],
 
     PRIORITIES: ['ROJO', 'AMARILLO', 'VERDE'],
@@ -74,17 +120,34 @@
       MANTENIMIENTO: 'mantenimiento'
     },
 
+    // Tipos de unidad (Etapa E los usará por establecimiento B2B)
+    UNIT_TYPES: ['UTIM', 'PEDIATRICA_CON_INCUBADORA', 'TRASLADO_PROGRAMADO', 'COMUN'],
+
     BENEFIT_STATUSES: ['propuesto', 'en_negociacion', 'activo', 'suspendido', 'vencido'],
 
-    // Estados de prestador desde los que NO se puede saltar directo a "activo"
     BENEFIT_STATUSES_REQUIRING_REF: ['activo'],
 
     B2B_STATUSES: ['activo', 'en_revision', 'suspendido'],
 
-    // -------- Supabase (placeholder para Entrega 4) --------
+    // -------- Servicios tercerizados (Médico Virtual / Seguro al viajero) --------
+    // Las URLs se configuran desde el Panel Admin y se persisten en el store.
+    // Estos son los defaults; el store guarda el valor efectivo.
+    EXTERNAL_SERVICES_DEFAULTS: {
+      medicoVirtualUrl: '',
+      seguroViajeroUrl: ''
+    },
+
+    EXTERNAL_SERVICES_LABELS: {
+      medicoVirtual: 'Médico Virtual (5 especialistas, 24/365)',
+      seguroViajero: 'Seguro al Viajero'
+    },
+
+    EXTERNAL_SERVICES_DISCLAIMER: 'Servicios prestados por terceros. No son operados ni garantizados por ASARI S.A.S. ni por EMP - Emergencias Médicas Privadas.',
+
+    // -------- Supabase (placeholder para Etapa F) --------
     SUPABASE: {
-      URL: '',        // se completará cuando se conecte Supabase
-      ANON_KEY: '',   // ídem
+      URL: '',
+      ANON_KEY: '',
       TABLES: {
         ORGANIZATIONS: 'organizations',
         BASES: 'bases',
@@ -93,27 +156,35 @@
         B2B_ESTABLISHMENTS: 'b2b_establishments',
         PROFILES: 'profiles',
         INCIDENTS: 'incidents',
-        AUDIT_LOGS: 'audit_logs'
+        AUDIT_LOGS: 'audit_logs',
+        EXTERNAL_SERVICES: 'external_services'
       }
     },
 
-    // -------- Roles --------
     ROLES: {
       PLATFORM_OWNER: 'platform_owner',
       EMERGENCY_PROVIDER: 'emergency_provider'
     }
   };
 
-  // Congelado para evitar mutaciones accidentales en runtime
   Object.freeze(CONFIG);
+  Object.freeze(CONFIG.BRAND);
+  Object.freeze(CONFIG.BRAND.PALETTE);
+  Object.freeze(CONFIG.EMERGENCY_PHONES);
+  Object.freeze(CONFIG.BASES);
+  Object.freeze(CONFIG.BASES.DOLORES);
+  Object.freeze(CONFIG.BASES.LA_COSTA);
   Object.freeze(CONFIG.INCIDENT_STATES);
   Object.freeze(CONFIG.TRANSITION_ORDER);
   Object.freeze(CONFIG.CANCELABLE_FROM);
   Object.freeze(CONFIG.CLOSABLE_FROM);
   Object.freeze(CONFIG.PRIORITIES);
   Object.freeze(CONFIG.UNIT_STATUS);
+  Object.freeze(CONFIG.UNIT_TYPES);
   Object.freeze(CONFIG.BENEFIT_STATUSES);
   Object.freeze(CONFIG.B2B_STATUSES);
+  Object.freeze(CONFIG.EXTERNAL_SERVICES_DEFAULTS);
+  Object.freeze(CONFIG.EXTERNAL_SERVICES_LABELS);
   Object.freeze(CONFIG.ROLES);
   Object.freeze(CONFIG.SUPABASE);
 
