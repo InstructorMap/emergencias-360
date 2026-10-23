@@ -70,9 +70,12 @@
     if (path === 'central.html') {
       return Object.assign({}, baseCommon, {
         expectedVersion: 6,
+        // NOTA: 'detailEmpty' NO se chequea porque app-central.js hace
+        // container.innerHTML = '' en renderDetail() y lo reemplaza
+        // por un div sin id. Es un falso positivo del healthcheck.
         requiredIds: [
           'centralBaseSelector', 'operatorInput', 'alertCounter',
-          'incidentList', 'incidentEmpty', 'detailContainer', 'detailEmpty',
+          'incidentList', 'incidentEmpty', 'detailContainer',
           'fleetContainer'
         ],
         assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-central.js', 'css/styles.css']
