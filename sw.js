@@ -1,18 +1,17 @@
 /* ============================================================
-   sw.js — Service Worker MVP (política estricta)
-   - SOLO cachea el shell estático (whitelist ASSETS).
-   - NUNCA cachea estados SOS ni llamadas dinámicas (Supabase futuro).
-   - Navegación: network-first con fallback a index.html cacheado.
-   - Fallback final: página de contingencia telefónica (107/911).
+   sw.js — Service Worker MVP v4
+   - Shell estático en whitelist explícita
+   - NUNCA cachea estados SOS ni llamadas a Supabase
+   - Fallback contingencia telefónica 107/911
    ============================================================ */
 
-const CACHE_NAME = 'e360-mvp-shell-v2';
+const CACHE_NAME = 'e360-mvp-v4';
 
-// WHITELIST explícita: solo el shell estático. Nada más.
 const ASSETS = [
   './',
   './index.html',
   './central.html',
+  './guardia.html',
   './b2b.html',
   './admin.html',
   './css/styles.css',
@@ -21,14 +20,14 @@ const ASSETS = [
   './js/store.js',
   './js/app-socio.js',
   './js/app-central.js',
+  './js/app-guardia.js',
   './js/app-b2b.js',
   './js/app-admin.js',
   './manifest.json'
 ];
 
-// Orígenes externos que NUNCA deben pasar por cache (Supabase futuro, etc.)
 const BYPASS_ORIGINS = [
-  // Cuando se conecte Supabase, agregar acá el host:
+  // Agregar acá el host de Supabase cuando se conecte:
   // 'https://<project>.supabase.co'
 ];
 
@@ -47,7 +46,6 @@ function shouldBypass(url) {
   return BYPASS_ORIGINS.some(origin => url.href.startsWith(origin));
 }
 
-// ---------- INSTALL ----------
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -56,18 +54,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ---------- ACTIVATE ----------
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      )
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 
-// ---------- FETCH ----------
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -75,13 +69,11 @@ self.addEventListener('fetch', (event) => {
   let url;
   try { url = new URL(req.url); } catch (_) { return; }
 
-  // 1) Bypass absoluto: nada dinámico se cachea
   if (shouldBypass(url)) {
     event.respondWith(fetch(req));
     return;
   }
 
-  // 2) Navegación: network-first con fallback a index.html cacheado
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).catch(() =>
@@ -91,7 +83,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3) Shell estático: cache-first (solo si matchea whitelist)
   if (isShellAsset(url)) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -107,11 +98,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4) Cualquier otro GET: network-only (no se cachea)
   event.respondWith(fetch(req));
 });
 
-// ---------- OFFLINE FALLBACK ----------
 function offlineFallback() {
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
