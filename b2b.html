@@ -9,25 +9,18 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="b2b-body">
-
-  <!-- ===================== HEADER ===================== -->
   <header class="b2b-header" role="banner">
-
     <a class="emp-brand" href="b2b.html" aria-label="EMP - Módulo B2B">
       <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
         <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
-              stroke="#FB0100" stroke-width="2.6" fill="none"
-              stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span class="emp-brand-text">
         <span class="emp-brand-name">B2B Área Protegida</span>
         <span class="emp-brand-claim">Turismo · Eventos · Comercios</span>
       </span>
     </a>
-
     <span class="badge-b2b">MODO MVP DEMOSTRACIÓN — MÓDULO B2B</span>
-
     <div class="header-controls">
       <label>Base / Alcance
         <select id="b2bBaseSelector" aria-label="Seleccionar base">
@@ -36,30 +29,19 @@
           <option value="ALL">Todas las Bases</option>
         </select>
       </label>
-
-      <label>Operador / Comercial responsable
-        <input type="text" id="b2bOperatorInput" class="operator-input"
-               placeholder="Ej: Lic. María Gómez" maxlength="80" autocomplete="off" />
-      </label>
-
+      <label>Operador / Comercial responsable<input type="text" id="b2bOperatorInput" class="operator-input" placeholder="Ej: Lic. María Gómez" maxlength="80" autocomplete="off" /></label>
       <a href="index.html" target="_blank" rel="noopener" class="btn-link">↗ Abrir Vista Socio</a>
       <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central Operativa</a>
       <a href="admin.html" target="_blank" rel="noopener" class="btn-link">↗ Panel Admin</a>
     </div>
   </header>
 
-  <!-- ===================== MAIN ===================== -->
   <main class="b2b-main" role="main">
-
     <section class="b2b-card" aria-label="Alta de establecimiento B2B">
       <h2 id="formTitle">Dar de alta un nuevo establecimiento / evento</h2>
       <form id="b2bForm" class="b2b-form" novalidate>
         <input type="hidden" id="b2bId" />
-
-        <label>Nombre del establecimiento / evento
-          <input type="text" id="b2bName" maxlength="120" required placeholder="Ej: Hotel Costa Azul / Fiesta Provincial" />
-        </label>
-
+        <label>Nombre del establecimiento / evento<input type="text" id="b2bName" maxlength="120" required placeholder="Ej: Hotel Costa Azul / Fiesta Provincial" /></label>
         <label>Rubro
           <select id="b2bType" required>
             <option value="Hotel / Complejo">Hotel / Complejo</option>
@@ -69,14 +51,12 @@
             <option value="Evento Temporal">Evento Temporal</option>
           </select>
         </label>
-
         <label>Base asignada
           <select id="b2bBase" required>
             <option value="DOLORES">DOLORES</option>
             <option value="LA_COSTA">LA_COSTA</option>
           </select>
         </label>
-
         <label>Estado
           <select id="b2bStatus">
             <option value="en_revision">En revisión</option>
@@ -84,42 +64,23 @@
             <option value="suspendido">Suspendido</option>
           </select>
         </label>
-
-        <label>Dirección exacta
-          <input type="text" id="b2bAddress" maxlength="160" required placeholder="Ej: Av. Costanera 1200, Santa Teresita" />
-        </label>
-
-        <label>Latitud (opcional)
-          <input type="number" id="b2bLat" step="0.000001" min="-90" max="90" placeholder="-36.5421" />
-        </label>
-
-        <label>Longitud (opcional)
-          <input type="number" id="b2bLng" step="0.000001" min="-180" max="180" placeholder="-56.6812" />
-        </label>
-
-        <label>Teléfono del referente en lugar
-          <input type="tel" id="b2bPhone" maxlength="30" placeholder="Ej: 02246-420000" />
-        </label>
-
-        <label class="full">Protocolo operativo de ingreso para la ambulancia
-          <textarea id="b2bProtocol" rows="3" maxlength="400" placeholder="Ej: Ingreso por dársena de recepción, conserjería 24hs, avisar por radio."></textarea>
-        </label>
-
+        <label>Dirección exacta<input type="text" id="b2bAddress" maxlength="160" required placeholder="Ej: Av. Costanera 1200, Santa Teresita" /></label>
+        <label>Latitud (opcional)<input type="number" id="b2bLat" step="0.000001" min="-90" max="90" placeholder="-36.5421" /></label>
+        <label>Longitud (opcional)<input type="number" id="b2bLng" step="0.000001" min="-180" max="180" placeholder="-56.6812" /></label>
+        <label>Teléfono del referente en lugar<input type="tel" id="b2bPhone" maxlength="30" placeholder="Ej: 02246-420000" /></label>
+        <label class="full">Protocolo operativo de ingreso para la ambulancia<textarea id="b2bProtocol" rows="3" maxlength="400" placeholder="Ej: Ingreso por dársena de recepción, conserjería 24hs."></textarea></label>
         <button type="submit" class="btn-primary" id="b2bSubmit">Crear establecimiento</button>
         <button type="button" class="btn-secondary" id="b2bCancelEdit" hidden>Cancelar edición</button>
         <p class="form-msg" id="b2bMsg" role="status" aria-live="polite"></p>
       </form>
     </section>
-
     <section class="b2b-card" aria-label="Listado de establecimientos B2B">
       <h2>Establecimientos registrados</h2>
       <div class="b2b-grid" id="b2bList"></div>
       <p class="empty-msg" id="b2bEmpty" hidden>No hay establecimientos para esta base.</p>
     </section>
-
   </main>
 
-  <!-- ===================== FOOTER SELLO ASARI ===================== -->
   <footer class="asari-footer" role="contentinfo">
     <div class="asari-logo">ASARI S.A.S.</div>
     <div class="asari-line">
