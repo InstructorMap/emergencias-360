@@ -1,7 +1,7 @@
 /* ============================================================
    app-socio.js — Controlador de index.html
    Manejo SOS, GPS, ficha, beneficios, Área Protegida (B2B)
-   y sincronización en vivo con la Central Operativa.
+   y servicios tercerizados (Médico Virtual / Seguro al viajero).
    ============================================================ */
 
 (function () {
@@ -12,6 +12,8 @@
     console.error('[app-socio] E360Store no disponible.');
     return;
   }
+
+  const C = window.E360Config;
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -41,7 +43,7 @@
   let currentLocation = null;
   let manualAddress = '';
   let activeLocality = 'Dolores';
-  let b2bContext = null;   // Establecimiento B2B cargado por QR
+  let b2bContext = null;
 
   // ============================================================
   // TABS
@@ -61,7 +63,7 @@
           p.hidden = !show;
         });
         if (target === 'beneficios') renderBenefits(activeLocality);
-        if (target === 'ficha') loadProfileIntoForm();
+        if (target === 'ficha') { loadProfileIntoForm(); renderExternalServices(); }
       });
     });
   }
@@ -112,7 +114,7 @@
 
   function updateBasePhone(phone) {
     const btn = $('#btnCallBase');
-    if (btn) btn.setAttribute('href', 'tel:' + phone);
+    if (btn && phone) btn.setAttribute('href', 'tel:' + String(phone).replace(/[^0-9+]/g, ''));
   }
 
   // ============================================================
@@ -130,7 +132,6 @@
     }
     b2bContext = est;
 
-    // Seleccionar base operativa correspondiente
     if (est.baseId && est.baseId !== Store.getActiveContext().activeBaseId) {
       Store.setActiveBase(est.baseId);
       const sel = $('#baseSelector');
@@ -139,7 +140,6 @@
       updateBasePhone(ctx.base.phone);
     }
 
-    // Precargar dirección manual
     const manualInput = $('#manualDir');
     const manualFallback = $('#manualFallback');
     if (manualInput && manualFallback) {
@@ -148,7 +148,6 @@
       manualFallback.hidden = false;
     }
 
-    // Aviso destacado
     const banner = $('#b2bBanner');
     if (banner) {
       banner.hidden = false;
@@ -164,6 +163,12 @@
         proto.className = 'b2b-proto';
         proto.textContent = 'Protocolo de ingreso: ' + est.protocol;
         banner.appendChild(proto);
+      }
+      if (est.tipoUnidadRequerida) {
+        const tipo = document.createElement('div');
+        tipo.className = 'b2b-proto';
+        tipo.textContent = 'Tipo de unidad sugerida: ' + est.tipoUnidadRequerida;
+        banner.appendChild(tipo);
       }
     }
   }
@@ -201,7 +206,7 @@
           status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.';
           fallback.hidden = false;
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: C.GPS_TIMEOUT_MS, maximumAge: C.GPS_MAX_AGE_MS }
       );
     });
 
@@ -213,7 +218,7 @@
   // ============================================================
   // SOS
   // ============================================================
-  const HOLD_MS = 1500;
+  const HOLD_MS = C.SOS_HOLD_MS;
   let holdTimer = null;
   let holdStart = 0;
   let holdRAF = null;
@@ -363,6 +368,7 @@
         renderIncident(fresh);
       }
       renderBenefits(activeLocality);
+      renderExternalServices();
     });
   }
 
@@ -424,11 +430,65 @@
         });
         msg.style.color = 'var(--color-green)';
         msg.textContent = 'Ficha guardada correctamente.';
+        renderExternalServices();
       } catch (err) {
         msg.style.color = 'var(--color-red)';
         msg.textContent = 'Error al guardar: ' + err.message;
       }
     });
+  }
+
+  // ============================================================
+  // SERVICIOS TERCERIZADOS (Médico Virtual / Seguro al viajero)
+  // En esta entrega se muestran siempre que haya URL configurada.
+  // En la Entrega 2 (planes) se gatean por plan ORO/PLATINO.
+  // ============================================================
+  function renderExternalServices() {
+    const container = $('#externalServicesBlock');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const cfg = Store.getExternalServicesConfig();
+    const labels = C.EXTERNAL_SERVICES_LABELS || {};
+    const disclaimer = C.EXTERNAL_SERVICES_DISCLAIMER || '';
+
+    const title = el('h3', { textContent: 'Servicios Tercerizados' });
+    container.appendChild(title);
+
+    const rows = [
+      { key: 'medicoVirtual', url: cfg.medicoVirtualUrl, label: labels.medicoVirtual || 'Médico Virtual' },
+      { key: 'seguroViajero', url: cfg.seguroViajeroUrl, label: labels.seguroViajero || 'Seguro al Viajero' }
+    ];
+
+    rows.forEach((r) => {
+      const row = el('div', { className: 'ext-row' }, [
+        el('span', { className: 'ext-label', textContent: r.label })
+      ]);
+      if (r.url) {
+        row.appendChild(el('a', {
+          className: 'ext-link',
+          href: r.url,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          textContent: 'Abrir ↗'
+        }));
+      } else {
+        row.appendChild(el('span', {
+          className: 'ext-pending',
+          textContent: '— Servicio no configurado —'
+        }));
+      }
+      container.appendChild(row);
+    });
+
+    if (disclaimer) {
+      container.appendChild(el('div', {
+        className: 'ext-disclaimer',
+        textContent: disclaimer
+      }));
+    }
+
+    container.hidden = false;
   }
 
   // ============================================================
@@ -542,6 +602,7 @@
     initTestTools();
     initServiceWorker();
     initB2BFromQuery();
+    renderExternalServices();
 
     const activeProfile = Store.getActiveProfile();
     if (activeProfile) {
