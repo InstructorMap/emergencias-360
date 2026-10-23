@@ -3,22 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#3D5CA4" />
   <meta name="description" content="Consola Operativa EMP - MVP Demostración. No conectada a despacho real." />
   <title>Central Operativa EMP — MVP Demostración</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body class="central-body">
+<body class="central-body theme-dark">
 
-  <!-- ===================== HEADER OPERATIVO ===================== -->
+  <!-- ===================== HEADER ===================== -->
   <header class="central-header" role="banner">
-    <span class="badge-central">MODO MVP DEMOSTRACIÓN — CONSOLA OPERATIVA EMP (NO CONECTADA A DESPACHO REAL)</span>
+
+    <a class="emp-brand" href="central.html" aria-label="EMP - Central Operativa">
+      <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
+              stroke="#FB0100" stroke-width="2.6" fill="none"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="emp-brand-text">
+        <span class="emp-brand-name">Consola Operativa EMP</span>
+        <span class="emp-brand-claim">Emergencias Médicas Privadas las 24 Hs</span>
+      </span>
+    </a>
+
+    <span class="badge-central">MODO MVP DEMOSTRACIÓN — NO CONECTADA A DESPACHO REAL</span>
 
     <div class="header-controls">
       <label>Base / Alcance
         <select id="centralBaseSelector" aria-label="Seleccionar base o alcance">
-          <option value="DOLORES">EMP Base Dolores</option>
-          <option value="LA_COSTA">EMP Base Partido de La Costa</option>
+          <option value="DOLORES">EMP Sede Dolores</option>
+          <option value="LA_COSTA">EMP Sucursal Santa Teresita (La Costa)</option>
           <option value="ALL">Todas las Bases (Supervisión EMP)</option>
         </select>
       </label>
@@ -37,7 +51,6 @@
   <!-- ===================== LAYOUT 3 COLUMNAS ===================== -->
   <div class="central-grid">
 
-    <!-- ---------- COLUMNA 1: BANDEJA ---------- -->
     <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
       <h2>Bandeja de Incidentes</h2>
       <div class="incident-filters">
@@ -48,7 +61,6 @@
       <p class="empty-msg" id="incidentEmpty" hidden>No hay incidentes en esta vista.</p>
     </section>
 
-    <!-- ---------- COLUMNA 2: DETALLE / DESPACHO ---------- -->
     <section class="central-col central-col-2" aria-label="Panel de control del incidente">
       <h2>Panel de Control y Despacho</h2>
       <div id="detailContainer">
@@ -56,13 +68,22 @@
       </div>
     </section>
 
-    <!-- ---------- COLUMNA 3: FLOTA ---------- -->
     <section class="central-col central-col-3" aria-label="Estado de bases y flota">
       <h2>Bases y Flota</h2>
       <div id="fleetContainer"></div>
     </section>
 
   </div>
+
+  <!-- ===================== FOOTER SELLO ASARI ===================== -->
+  <footer class="asari-footer" role="contentinfo">
+    <div class="asari-logo">ASARI S.A.S.</div>
+    <div class="asari-line">
+      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
+      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
+      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+    </div>
+  </footer>
 
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
