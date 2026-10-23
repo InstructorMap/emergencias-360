@@ -2,6 +2,8 @@
    app-socio.js — Controlador de index.html
    SOS, GPS, ficha, beneficios, B2B, servicios tercerizados,
    carnet digital (QR + N° socio), tab Pagos y verificación ?carnet=.
+   Fix defensivo: no aborta el boot si falta E360QR; log detallado
+   si falta E360Store o E360Config.
    ============================================================ */
 
 (function () {
@@ -9,8 +11,17 @@
 
   const Store = window.E360Store;
   const C = window.E360Config;
-  const QR = window.E360QR;
-  if (!Store) { console.error('[app-socio] E360Store no disponible.'); return; }
+  const QR = window.E360QR || null;
+
+  if (!Store || !C) {
+    console.error('[app-socio] Faltan dependencias core.', {
+      E360Config: typeof window.E360Config,
+      E360StateMachine: typeof window.E360StateMachine,
+      E360Store: typeof window.E360Store,
+      E360QR: typeof window.E360QR
+    });
+    return;
+  }
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -53,7 +64,6 @@
     const token = new URLSearchParams(window.location.search).get('carnet');
     const data = token ? Store.getProfileByCarnetToken(token) : null;
 
-    // Ocultar todo lo normal, mostrar panel de verificación
     document.body.classList.add('carnet-verify-mode');
     const main = document.querySelector('.app-main');
     const nav = document.querySelector('.bottom-nav');
@@ -64,7 +74,6 @@
     if (nav) nav.hidden = true;
     if (tools) tools.hidden = true;
 
-    // Limpiar header y dejar solo isologo + título
     if (header) {
       header.innerHTML = '';
       const brand = document.createElement('a');
@@ -518,6 +527,9 @@
       el('div', { className: 'carnet-body' }, [
         el('div', { className: 'carnet-qr' }, [
           (function () {
+            if (!QR || typeof QR.toSvg !== 'function') {
+              return el('div', { className: 'carnet-qr-fallback', textContent: 'QR no disponible (falta js/qr.js)' });
+            }
             try {
               const div = document.createElement('div');
               div.innerHTML = QR.toSvg(buildCarnetUrl(profile), 180);
@@ -596,11 +608,18 @@
       ctx.fillText('Emergencias Médicas Privadas', 140, 55);
       ctx.fillStyle = '#FB0100';
       ctx.fillRect(0, 90, W, 6);
-      // QR
-      const qrCanvas = document.createElement('canvas');
-      QR.toCanvas(qrCanvas, buildCarnetUrl(profile), 240);
-      ctx.drawImage(qrCanvas, 32, 130, 240, 240);
-      // Datos
+
+      // QR (guard defensivo)
+      if (QR && typeof QR.toCanvas === 'function') {
+        const qrCanvas = document.createElement('canvas');
+        QR.toCanvas(qrCanvas, buildCarnetUrl(profile), 240);
+        ctx.drawImage(qrCanvas, 32, 130, 240, 240);
+      } else {
+        ctx.fillStyle = '#DC2626';
+        ctx.font = '600 14px Poppins, sans-serif';
+        ctx.fillText('QR no disponible', 60, 260);
+      }
+
       const meta = carnetStatusMeta(profile);
       const plan = C.PLANS[profile.plan] || { label: profile.plan };
       const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
@@ -742,7 +761,6 @@
     const days = Store.daysToExpire(profile);
     const cuota = (cfg.cuotas && cfg.cuotas[profile.plan]) || '';
 
-    // Estado del plan
     const card = el('div', { className: 'pagos-card' }, [
       el('h2', { textContent: 'Estado de tu Plan' }),
       el('div', { className: 'pagos-row' }, [
@@ -774,7 +792,6 @@
     ].filter(Boolean));
     container.appendChild(card);
 
-    // Botón de pago
     const payCard = el('div', { className: 'pagos-card' }, [
       el('h2', { textContent: 'Pagar cuota' })
     ]);
@@ -798,7 +815,6 @@
     }
     container.appendChild(payCard);
 
-    // Prestaciones del plan
     const benefitsCard = el('div', { className: 'pagos-card' }, [
       el('h2', { textContent: 'Prestaciones incluidas en tu plan' })
     ]);
