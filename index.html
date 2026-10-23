@@ -45,7 +45,7 @@
   <!-- ===================== CONTENIDO PRINCIPAL ===================== -->
   <main class="app-main" role="main">
 
-    <!-- ============ TAB 1: EMERGENCIA SOS (LÍNEA A) ============ -->
+    <!-- ============ TAB 1: EMERGENCIA SOS ============ -->
     <section class="tab-panel" id="tab-sos" data-tab="sos" role="tabpanel" aria-labelledby="nav-sos">
       <h1 class="panel-title">Emergencia SOS <span class="tag-linea-a">Línea A</span></h1>
 
@@ -73,6 +73,15 @@
         <h2 class="incident-title">Estado del incidente</h2>
         <div class="incident-state" id="incidentState" aria-live="assertive">—</div>
         <ol class="timeline" id="timeline"></ol>
+
+        <!-- ===== Bloque ETA (con H-01) ===== -->
+        <div class="eta-block" id="etaBlock" hidden>
+          <div class="eta-main" id="etaMain">—</div>
+          <div class="eta-source" id="etaSource"></div>
+          <div class="eta-disclaimer">
+            Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).
+          </div>
+        </div>
       </div>
 
       <div class="call-actions">
@@ -153,7 +162,7 @@
     </button>
   </nav>
 
-  <!-- ===================== HERRAMIENTAS DE PRUEBA MVP ===================== -->
+  <!-- ===================== HERRAMIENTAS MVP ===================== -->
   <div class="test-tools" id="testTools" hidden>
     <button type="button" class="btn-test-toggle" id="btnTestToggle" aria-expanded="false" aria-controls="testPanel">
       🧪 Herramientas MVP
@@ -165,6 +174,7 @@
       <button type="button" class="btn-test" data-sim="asignar">Simular: Móvil asignado</button>
       <button type="button" class="btn-test" data-sim="camino">Simular: Móvil en camino</button>
       <a class="btn-test" href="central.html" target="_blank" rel="noopener">↗ Abrir Central Operativa</a>
+      <a class="btn-test" href="guardia.html" target="_blank" rel="noopener">↗ Abrir Guardia Móvil</a>
       <a class="btn-test" href="b2b.html" target="_blank" rel="noopener">↗ Abrir Módulo B2B</a>
       <a class="btn-test" href="admin.html" target="_blank" rel="noopener">↗ Abrir Panel Admin</a>
     </div>
