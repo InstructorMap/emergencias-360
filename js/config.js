@@ -1,7 +1,7 @@
 /* ============================================================
    config.js — Constantes y modo de la plataforma Emergencias 360
-   Identidad EMP + Sello ASARI + Planes + Carnet + Pagos + Pulsera.
-   v6: agrega PULSERA_DEFAULTS / PULSERA_STATUSES y bump a v6.
+   v6.1: agrega PULSERA_QR_MAX_BYTES, HOME_BUTTON_RADIUS_M,
+         PULSERA_TOKEN_PREFIX. Sin cambios de API.
    Cargado ANTES de state-machine.js, store.js y app-*.js.
    ============================================================ */
 
@@ -81,7 +81,7 @@
     PLANS: {
       BRONCE:  { id:'BRONCE',  label:'Bronce',  order:1, pharmacyDiscount:20, hasRemis:false, hasApp:false, hasTravel:false, hasVirtualDoc:false, hasPulsera:false, hasHomeButton:false },
       PLATA:   { id:'PLATA',   label:'Plata',   order:2, pharmacyDiscount:20, hasRemis:true,  hasApp:false, hasTravel:false, hasVirtualDoc:false, hasPulsera:false, hasHomeButton:false },
-      ORO:     { id:'ORO',     label:'Oro',     order:3, pharmacyDiscount:50, hasRemis:true,  hasApp:true,  hasTravel:true,  hasVirtualDoc:true,  hasPulsera:false, hasHomeButton:false },
+      ORO:     { id:'ORO',     label:'Oro',     order:3, pharmacyDiscount:50, hasRemis:true,  hasApp:true,  hasTravel:true,  hasVirtualDoc:true,  hasPulsera:true,  hasHomeButton:false },
       PLATINO: { id:'PLATINO', label:'Platino', order:4, pharmacyDiscount:50, hasRemis:true,  hasApp:true,  hasTravel:true,  hasVirtualDoc:true,  hasPulsera:true,  hasHomeButton:true }
     },
     PLAN_IDS: ['BRONCE','PLATA','ORO','PLATINO'],
@@ -95,14 +95,11 @@
     CARNET_WARN_DAYS: 15,
 
     // -------- PULSERA SOS / BOTÓN DOMICILIARIO --------
-    // La pulsera solo la habilita PLATINO (PLANS[x].hasPulsera)
-    // El botón domiciliario solo lo habilita PLATINO (PLANS[x].hasHomeButton)
-    PULSERA_DEFAULTS: {
-      pulseraStatus: 'inactivo',
-      homeCoords: null,
-      homeAddress: ''
-    },
-    PULSERA_STATUSES: ['activo', 'inactivo'],
+    PULSERA_STATUSES: ['activo','inactivo'],
+    PULSERA_DEFAULTS: { pulseraStatus:'inactivo', homeCoords:null, homeAddress:'' },
+    PULSERA_QR_MAX_BYTES: 76,        // límite QR v4 nivel L modo byte
+    PULSERA_TOKEN_PREFIX: '',        // vacío = UUID v4 puro (coherente con carnetToken)
+    HOME_BUTTON_RADIUS_M: 150,       // tolerancia GPS al validar homeCoords desde socio
 
     // -------- PAGOS (placeholder Mercado Pago) --------
     PAYMENT_DEFAULTS: {
@@ -125,7 +122,6 @@
     ROLES: { PLATFORM_OWNER:'platform_owner', EMERGENCY_PROVIDER:'emergency_provider' }
   };
 
-  // Congelados profundos selectivos
   function deepFreeze(obj) {
     if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
       Object.getOwnPropertyNames(obj).forEach((k) => deepFreeze(obj[k]));
