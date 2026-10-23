@@ -4,121 +4,107 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#3D5CA4" />
-  <meta name="description" content="Panel Administrativo ASARI / EMP — Convenios, Organizaciones, Servicios Tercerizados y Auditoría — MVP Demostración." />
+  <meta name="description" content="Panel Administrativo ASARI / EMP — Convenios, Organizaciones, Servicios Tercerizados, Pagos y Auditoría." />
   <title>Panel Admin ASARI — Emergencias 360 MVP</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="admin-body">
-
-  <!-- ===================== HEADER ADMIN ===================== -->
   <header class="admin-header" role="banner">
-
     <a class="emp-brand" href="admin.html" aria-label="ASARI / EMP - Panel Admin">
       <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
         <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74"
-              stroke="#FB0100" stroke-width="2.6" fill="none"
-              stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span class="emp-brand-text">
         <span class="emp-brand-name">Panel ASARI — Admin Multitenant</span>
         <span class="emp-brand-claim">Proveedor Tecnológico de EMP</span>
       </span>
     </a>
-
     <span class="badge-admin">MODO MVP DEMOSTRACIÓN — PANEL ADMINISTRATIVO MULTITENANT & AUDITORÍA</span>
-
     <div class="header-controls">
-      <label>Administrador responsable
-        <input type="text" id="adminInput" class="admin-input"
-               placeholder="Ej: Dirección ASARI / EMP" maxlength="80" autocomplete="off" />
-      </label>
-
+      <label>Administrador responsable<input type="text" id="adminInput" class="admin-input" placeholder="Ej: Dirección ASARI / EMP" maxlength="80" autocomplete="off" /></label>
       <a href="index.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
       <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central</a>
       <a href="b2b.html" target="_blank" rel="noopener" class="btn-link">↗ B2B</a>
     </div>
   </header>
 
-  <!-- ===================== MAIN ===================== -->
   <main class="admin-main" role="main">
 
-    <!-- ============ SECCIÓN 1: ORGANIZACIONES ============ -->
     <section class="admin-card" aria-label="Organizaciones y aislamiento jurídico">
       <h2>1. Organizaciones y Aislamiento Jurídico (Línea A vs. Línea B)</h2>
       <div id="orgsContainer"></div>
-      <p class="warn-operador" style="margin-top:10px;">
-        <strong>Recordatorio legal:</strong> ASARI S.A.S. es Proveedor Tecnológico; EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. La Línea A (Emergencias) y la Línea B (Red de Beneficios) deben permanecer visual y legalmente separadas.
-      </p>
+      <p class="warn-operador" style="margin-top:10px;"><strong>Recordatorio legal:</strong> ASARI S.A.S. es Proveedor Tecnológico; EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. La Línea A (Emergencias) y la Línea B (Red de Beneficios) deben permanecer visual y legalmente separadas.</p>
     </section>
 
-    <!-- ============ SECCIÓN 2: GESTOR CONTRACTUAL ============ -->
     <section class="admin-card" aria-label="Gestor contractual de la Red de Beneficios">
       <h2>2. Gestor Contractual de la Red de Beneficios en Salud</h2>
-      <p class="aviso-comercial">
-        <strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (index.html). En cualquier otro estado permanece oculto.</strong>
-      </p>
+      <p class="aviso-comercial"><strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (index.html). En cualquier otro estado permanece oculto.</strong></p>
       <div style="overflow-x:auto;">
         <table class="admin-table" id="benefitsTable">
-          <thead>
-            <tr>
-              <th>Prestador</th>
-              <th>Categoría / Localidad</th>
-              <th>Estado</th>
-              <th>N° Convenio / Respaldo</th>
-              <th>Vigencia</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Prestador</th><th>Categoría / Localidad</th><th>Estado</th><th>N° Convenio / Respaldo</th><th>Vigencia</th><th>Acciones</th></tr></thead>
           <tbody id="benefitsTbody"></tbody>
         </table>
       </div>
       <p class="form-msg" id="adminMsg" role="status" aria-live="polite"></p>
     </section>
 
-    <!-- ============ SECCIÓN 3: AUDITORÍA ============ -->
     <section class="admin-card" aria-label="Registro inmutable de auditoría">
       <h2>3. Registro Inmutable de Auditoría</h2>
       <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-        <button type="button" id="btnExportAudit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">
-          ⬇ Exportar Auditoría (JSON)
-        </button>
-        <button type="button" id="btnResetDemo" style="background:var(--color-primary); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">
-          ♻ Reiniciar Demo (Reset Total)
-        </button>
+        <button type="button" id="btnExportAudit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">⬇ Exportar Auditoría (JSON)</button>
+        <button type="button" id="btnResetDemo" style="background:var(--color-primary); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">♻ Reiniciar Demo (Reset Total)</button>
       </div>
       <ul class="audit-list" id="auditList"></ul>
     </section>
 
-    <!-- ============ SECCIÓN 4: SERVICIOS TERCERIZADOS ============ -->
     <section class="admin-card" aria-label="Configuración de servicios tercerizados">
       <h2>4. Configuración de Servicios Tercerizados</h2>
-      <p class="aviso-comercial">
-        <strong>Médico Virtual</strong> y <strong>Seguro al Viajero</strong> son prestadores tercerizados: no son operados ni garantizados por ASARI S.A.S. ni por EMP. Cargá acá las URLs oficiales. Se mostrarán en la Ficha del Socio como enlaces externos (con disclaimer de tercerización).
-      </p>
+      <p class="aviso-comercial"><strong>Médico Virtual</strong> y <strong>Seguro al Viajero</strong> son prestadores tercerizados: no son operados ni garantizados por ASARI S.A.S. ni por EMP. Cargá acá las URLs oficiales. Se mostrarán en la Ficha del Socio como enlaces externos, gateados por plan (ORO/PLATINO).</p>
       <form id="extServicesForm" class="ext-services-form" novalidate>
-        <label>URL de Médico Virtual (5 especialistas, 24/365)
-          <input type="url" id="extMedicoVirtualUrl" maxlength="300" placeholder="https://…" autocomplete="off" />
-        </label>
-        <label>URL de Seguro al Viajero
-          <input type="url" id="extSeguroViajeroUrl" maxlength="300" placeholder="https://…" autocomplete="off" />
-        </label>
+        <label>URL de Médico Virtual (5 especialistas, 24/365)<input type="url" id="extMedicoVirtualUrl" maxlength="300" placeholder="https://…" autocomplete="off" /></label>
+        <label>URL de Seguro al Viajero<input type="url" id="extSeguroViajeroUrl" maxlength="300" placeholder="https://…" autocomplete="off" /></label>
         <div class="full" style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="submit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">
-            Guardar configuración
-          </button>
-          <button type="button" id="extServicesClear" style="background:var(--color-surface-2); color:var(--color-text); border:1px solid var(--color-border); border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">
-            Limpiar URLs
-          </button>
+          <button type="submit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Guardar configuración</button>
+          <button type="button" id="extServicesClear" style="background:var(--color-surface-2); color:var(--color-text); border:1px solid var(--color-border); border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Limpiar URLs</button>
         </div>
         <p class="form-msg" id="extServicesMsg" role="status" aria-live="polite"></p>
         <p class="form-msg" id="extServicesStatus" role="status" aria-live="polite" style="color:var(--color-text-dim); font-size:0.78rem;"></p>
       </form>
     </section>
 
+    <section class="admin-card" aria-label="Configuración de pagos">
+      <h2>5. Configuración de Pagos (Mercado Pago — placeholder)</h2>
+      <p class="aviso-comercial">Integración con Mercado Pago pendiente de conexión del SDK. Cargá la Public Key y las cuotas mensuales por plan. Dejá vacío si todavía no hay valor.</p>
+      <form id="paymentForm" class="ext-services-form" novalidate>
+        <label style="flex-direction:row; align-items:center; gap:8px;">
+          <input type="checkbox" id="payMpEnabled" style="width:auto;" />
+          <span>Habilitar pago online con Mercado Pago</span>
+        </label>
+        <label>Public Key de Mercado Pago<input type="text" id="payMpPublicKey" maxlength="200" placeholder="APP_USR-…" autocomplete="off" /></label>
+        <label>Cuota mensual BRONCE<input type="text" id="payCuotaBRONCE" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
+        <label>Cuota mensual PLATA<input type="text" id="payCuotaPLATA" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
+        <label>Cuota mensual ORO<input type="text" id="payCuotaORO" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
+        <label>Cuota mensual PLATINO<input type="text" id="payCuotaPLATINO" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
+        <div class="full"><button type="submit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Guardar configuración de pagos</button></div>
+        <p class="form-msg" id="payMsg" role="status" aria-live="polite"></p>
+        <p class="form-msg" id="payStatus" role="status" aria-live="polite" style="color:var(--color-text-dim); font-size:0.78rem;"></p>
+      </form>
+    </section>
+
+    <section class="admin-card" aria-label="Gestión de plan por DNI">
+      <h2>6. Gestión de Plan y Carnet por Socio</h2>
+      <p class="aviso-comercial">Cambiá el plan, renová el carnet o suspendé un socio. El N° de socio es correlativo ascendente y no se reasigna.</p>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="planManagerTable">
+          <thead><tr><th>Socio</th><th>N° socio</th><th>Plan</th><th>Carnet</th><th>Acciones</th></tr></thead>
+          <tbody id="planManagerTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
-  <!-- ===================== FOOTER SELLO ASARI ===================== -->
   <footer class="asari-footer" role="contentinfo">
     <div class="asari-logo">ASARI S.A.S.</div>
     <div class="asari-line">
