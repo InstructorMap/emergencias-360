@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#3D5CA4" />
+  <meta name="theme-color" content="#0B3C78" />
   <meta name="description" content="Panel Administrativo ASARI / EMP — Convenios, Organizaciones, Servicios Tercerizados, Pagos y Auditoría." />
   <title>Panel Admin ASARI — Emergencias 360 MVP</title>
   <link rel="stylesheet" href="css/styles.css" />
@@ -12,8 +12,8 @@
   <header class="admin-header" role="banner">
     <a class="emp-brand" href="admin.html" aria-label="ASARI / EMP - Panel Admin">
       <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span class="emp-brand-text">
         <span class="emp-brand-name">Panel ASARI — Admin Multitenant</span>
@@ -23,7 +23,7 @@
     <span class="badge-admin">MODO MVP DEMOSTRACIÓN — PANEL ADMINISTRATIVO MULTITENANT & AUDITORÍA</span>
     <div class="header-controls">
       <label>Administrador responsable<input type="text" id="adminInput" class="admin-input" placeholder="Ej: Dirección ASARI / EMP" maxlength="80" autocomplete="off" /></label>
-      <a href="index.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
+      <a href="socio.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
       <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central</a>
       <a href="b2b.html" target="_blank" rel="noopener" class="btn-link">↗ B2B</a>
     </div>
@@ -39,7 +39,7 @@
 
     <section class="admin-card" aria-label="Gestor contractual de la Red de Beneficios">
       <h2>2. Gestor Contractual de la Red de Beneficios en Salud</h2>
-      <p class="aviso-comercial"><strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (index.html). En cualquier otro estado permanece oculto.</strong></p>
+      <p class="aviso-comercial"><strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (socio.html). En cualquier otro estado permanece oculto.</strong></p>
       <div style="overflow-x:auto;">
         <table class="admin-table" id="benefitsTable">
           <thead><tr><th>Prestador</th><th>Categoría / Localidad</th><th>Estado</th><th>N° Convenio / Respaldo</th><th>Vigencia</th><th>Acciones</th></tr></thead>
@@ -114,6 +114,7 @@
     </div>
   </footer>
 
+  <script src="js/supabase.config.js"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
