@@ -32,4 +32,69 @@
       <label>Operador / Comercial responsable<input type="text" id="b2bOperatorInput" class="operator-input" placeholder="Ej: Lic. María Gómez" maxlength="80" autocomplete="off" /></label>
       <a href="socio.html" target="_blank" rel="noopener" class="btn-link">↗ Abrir Vista Socio</a>
       <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central Operativa</a>
-      <a href="admin
+      <a href="admin.html" target="_blank" rel="noopener" class="btn-link">↗ Panel Admin</a>
+    </div>
+  </header>
+
+  <main class="b2b-main" role="main">
+    <section class="b2b-card" aria-label="Alta de establecimiento B2B">
+      <h2 id="formTitle">Dar de alta un nuevo establecimiento / evento</h2>
+      <form id="b2bForm" class="b2b-form" novalidate>
+        <input type="hidden" id="b2bId" />
+        <label>Nombre del establecimiento / evento<input type="text" id="b2bName" maxlength="120" required placeholder="Ej: Hotel Costa Azul / Fiesta Provincial" /></label>
+        <label>Rubro
+          <select id="b2bType" required>
+            <option value="Hotel / Complejo">Hotel / Complejo</option>
+            <option value="Balneario / Camping">Balneario / Camping</option>
+            <option value="Empresa / Comercio">Empresa / Comercio</option>
+            <option value="Institución / Consultorio">Institución / Consultorio</option>
+            <option value="Evento Temporal">Evento Temporal</option>
+          </select>
+        </label>
+        <label>Base asignada
+          <select id="b2bBase" required>
+            <option value="DOLORES">DOLORES</option>
+            <option value="LA_COSTA">LA_COSTA</option>
+          </select>
+        </label>
+        <label>Estado
+          <select id="b2bStatus">
+            <option value="en_revision">En revisión</option>
+            <option value="activo">Activo</option>
+            <option value="suspendido">Suspendido</option>
+          </select>
+        </label>
+        <label>Dirección exacta<input type="text" id="b2bAddress" maxlength="160" required placeholder="Ej: Av. Costanera 1200, Santa Teresita" /></label>
+        <label>Latitud (opcional)<input type="number" id="b2bLat" step="0.000001" min="-90" max="90" placeholder="-36.5421" /></label>
+        <label>Longitud (opcional)<input type="number" id="b2bLng" step="0.000001" min="-180" max="180" placeholder="-56.6812" /></label>
+        <label>Teléfono del referente en lugar<input type="tel" id="b2bPhone" maxlength="30" placeholder="Ej: 02246-420000" /></label>
+        <label class="full">Protocolo operativo de ingreso para la ambulancia<textarea id="b2bProtocol" rows="3" maxlength="400" placeholder="Ej: Ingreso por dársena de recepción, conserjería 24hs."></textarea></label>
+        <button type="submit" class="btn-primary" id="b2bSubmit">Crear establecimiento</button>
+        <button type="button" class="btn-secondary" id="b2bCancelEdit" hidden>Cancelar edición</button>
+        <p class="form-msg" id="b2bMsg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="b2b-card" aria-label="Listado de establecimientos B2B">
+      <h2>Establecimientos registrados</h2>
+      <div class="b2b-grid" id="b2bList"></div>
+      <p class="empty-msg" id="b2bEmpty" hidden>No hay establecimientos para esta base.</p>
+    </section>
+  </main>
+
+  <footer class="asari-footer" role="contentinfo">
+    <div class="asari-logo">ASARI S.A.S.</div>
+    <div class="asari-line">
+      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
+      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
+      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+    </div>
+  </footer>
+
+  <script src="js/supabase.config.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/state-machine.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app-b2b.js"></script>
+  <script src="js/healthcheck.js"></script>
+</body>
+</html>
