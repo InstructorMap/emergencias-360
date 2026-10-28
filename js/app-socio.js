@@ -1,13 +1,13 @@
 /* ============================================================
-   app-socio.js — Controlador de socio.html (v6.2)
+   app-socio.js — Controlador de socio.html (v6.3)
    - 5 tabs: Inicio, SOS, Credencial, Beneficios, Cuenta/Ficha
    - Credencial con N° SOCIO (4 columnas) + QR payload corto
    - Regeneración defensiva de carnetToken + fallback visible
    - Modo Adulto Mayor (WCAG AAA) persistente en localStorage
-   - Configuración Supabase en caliente
+   - SIN test tools (simulador) y SIN config Supabase en la UI
    - Preserva: SOS 1.5s (tab-sos + btnSOSInicio sincronizados),
      GPS, ETA, ficha, beneficios, ?b2b=, ?pulsera=, ?carnet=,
-     test tools, toast, helper el() con guard exacto.
+     toast, helper el() con guard exacto.
    ============================================================ */
 
 (function () {
@@ -51,7 +51,6 @@
     return node;
   }
 
-  // Estado local
   let currentIncident = null;
   let currentLocation = null;
   let manualAddress = '';
@@ -63,7 +62,7 @@
   let activeFamilyIndex = 0;
 
   const MODO_MAYOR_KEY = 'e360_modo_mayor';
-  const CODIGO_DURACION_SEG = 180; // 3:00
+  const CODIGO_DURACION_SEG = 180;
 
   // ============================================================
   // MODO ADULTO MAYOR
@@ -99,11 +98,9 @@
     const main = document.querySelector('.app-main');
     const nav = document.querySelector('.bottom-nav');
     const footer = document.querySelector('.asari-footer');
-    const tools = document.getElementById('testTools');
     const header = document.querySelector('.app-header');
 
     if (nav) nav.hidden = true;
-    if (tools) tools.hidden = true;
 
     if (header) {
       header.innerHTML = '';
@@ -195,7 +192,7 @@
         panels.forEach((p) => { p.hidden = p.dataset.tab !== target; });
 
         if (target === 'beneficios') renderBenefits(activeLocality);
-        if (target === 'ficha') { loadProfileIntoForm(); renderExternalServices(); renderPlanSelector(); renderPagos(); renderSupabaseConfig(); }
+        if (target === 'ficha') { loadProfileIntoForm(); renderExternalServices(); renderPlanSelector(); renderPagos(); }
         if (target === 'credencial') { renderCredencial(); startCredencialTimer(); } else { stopCredencialTimer(); }
         if (target === 'inicio') renderInicio();
       });
@@ -226,18 +223,11 @@
   // CONEXIÓN + BASE
   // ============================================================
   function initConnection() {
-    const dot = $('#connDot'), text = $('#connText'), mode = $('#connMode');
+    const dot = $('#connDot'), text = $('#connText');
     function update() {
       const online = navigator.onLine;
       if (dot) dot.className = 'dot ' + (online ? 'dot-online' : 'dot-offline');
       if (text) text.textContent = online ? 'Online' : 'Offline';
-      if (mode) {
-        try {
-          const st = Store.getSupabaseStatus();
-          mode.textContent = st.connected ? 'SUPABASE LIVE' : 'LOCAL MVP';
-          mode.className = 'conn-mode ' + (st.connected ? 'conn-mode-live' : 'conn-mode-local');
-        } catch (_) { mode.textContent = 'LOCAL MVP'; }
-      }
     }
     window.addEventListener('online', update);
     window.addEventListener('offline', update);
@@ -487,7 +477,6 @@
       timelineEl.appendChild(li);
     });
 
-    // ETA referencial (v6.1)
     const etaBlock = $('#etaBlock'), etaMain = $('#etaMain'), etaSource = $('#etaSource');
     if (etaBlock && etaMain) {
       try {
@@ -503,7 +492,6 @@
       } catch (_) { etaBlock.hidden = true; }
     }
 
-    // Estado en Inicio
     const estadoInicio = $('#incidentEstadoInicio');
     if (estadoInicio) {
       if (incident.status === 'CERRADA' || incident.status === 'CANCELADA') {
@@ -699,14 +687,10 @@
     return family[activeFamilyIndex];
   }
 
-  // Payload corto para el QR: solo el token. El escáner lo resuelve
-  // contra el mismo origen (socio.html?carnet=<token>).
-  // Esto evita el límite de 76 bytes de qr.js v4.
   function buildCarnetQrPayload(profile) {
     return '?carnet=' + encodeURIComponent(profile.carnetToken || '');
   }
 
-  // URL completa para compartir por link / WhatsApp.
   function buildCarnetUrl(profile) {
     const origin = window.location.origin + window.location.pathname;
     return origin + '?carnet=' + encodeURIComponent(profile.carnetToken || '');
@@ -723,8 +707,6 @@
     }
     if (tarjeta) tarjeta.style.display = '';
 
-    // Regeneración defensiva: si el perfil migrado no tiene carnetToken,
-    // forzamos un saveProfile para que se genere uno nuevo.
     if (!profile.carnetToken) {
       try {
         Store.saveProfile({
@@ -753,7 +735,6 @@
     if ($('#ctOrden')) $('#ctOrden').textContent = (member && member.orden) || profile.orden || '00';
     if ($('#ctSede')) $('#ctSede').textContent = ((member && member.filial) || profile.filial || profile.baseId || 'DOLORES').toUpperCase();
 
-    // QR: payload corto + fallback visible con el token como texto.
     const qrWrap = $('#qrSvgWrap');
     if (qrWrap) {
       qrWrap.innerHTML = '';
@@ -779,7 +760,6 @@
       }
     }
 
-    // Grupo familiar en píldoras
     const pildorasWrap = $('#gfPildoras');
     if (pildorasWrap) {
       pildorasWrap.innerHTML = '';
@@ -1000,81 +980,6 @@
   }
 
   // ============================================================
-  // SUPABASE CONFIG UI
-  // ============================================================
-  function renderSupabaseConfig() {
-    const urlInput = $('#sbUrl'), keyInput = $('#sbKey'), msg = $('#sbMsg');
-    if (!urlInput || !keyInput) return;
-    try {
-      const u = localStorage.getItem('e360_supabase_url') || '';
-      const k = localStorage.getItem('e360_supabase_anon_key') || '';
-      if (!urlInput.value) urlInput.value = u;
-      if (!keyInput.value) keyInput.value = k;
-    } catch (_) {}
-    if (msg) {
-      const st = Store.getSupabaseStatus();
-      msg.textContent = st.connected ? ('Conectado a ' + st.url + ' (' + st.mode + ')') : ('Modo ' + st.mode + (st.lastError ? ' — ' + st.lastError : ''));
-      msg.style.color = st.connected ? '#16A34A' : '#64748B';
-    }
-  }
-
-  function initSupabaseConfig() {
-    const btn = $('#btnSaveSb');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      const url = ($('#sbUrl') || {}).value || '';
-      const key = ($('#sbKey') || {}).value || '';
-      const msg = $('#sbMsg');
-      try {
-        const st = Store.configureSupabaseConnection(url, key);
-        if (msg) {
-          msg.textContent = st.connected ? ('Conectado (' + st.mode + ')') : ('Modo ' + st.mode + (st.lastError ? ' — ' + st.lastError : ''));
-          msg.style.color = st.connected ? '#16A34A' : '#64748B';
-        }
-        const mode = $('#connMode');
-        if (mode) {
-          mode.textContent = st.connected ? 'SUPABASE LIVE' : 'LOCAL MVP';
-          mode.className = 'conn-mode ' + (st.connected ? 'conn-mode-live' : 'conn-mode-local');
-        }
-        toast('Conexión guardada.');
-      } catch (err) {
-        if (msg) { msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--emp-sos)'; }
-      }
-    });
-  }
-
-  // ============================================================
-  // TEST TOOLS
-  // ============================================================
-  function initTestTools() {
-    const tools = $('#testTools'), toggle = $('#btnTestToggle'), panel = $('#testPanel');
-    if (!tools || !toggle || !panel) return;
-    const ctx = Store.getActiveContext();
-    if (ctx.platformMode !== 'LOCAL_MVP') return;
-    tools.hidden = false;
-    toggle.addEventListener('click', () => {
-      const expanded = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-      panel.hidden = expanded;
-    });
-    $$('.btn-test[data-sim]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (!currentIncident) { alert('Primero generá un incidente SOS.'); return; }
-        const map = { recibir:'ACEPTADA_POR_CENTRAL', clasificar:'CLASIFICADA', asignar:'MOVIL_ASIGNADO', camino:'EN_CAMINO' };
-        const next = map[btn.dataset.sim]; if (!next) return;
-        try {
-          const updated = Store.transitionIncidentStatus(currentIncident.id, next);
-          currentIncident = updated; renderIncident(updated);
-        } catch (err) { alert('Transición no permitida: ' + err.message); }
-      });
-    });
-  }
-
-  function initServiceWorker() {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
-
-  // ============================================================
   // TOAST
   // ============================================================
   let toastTimer = null;
@@ -1127,12 +1032,10 @@
     initIncidentSubscription();
     initFichaForm();
     initBenefitsFilter();
-    initTestTools();
     initServiceWorker();
     initB2BFromQuery();
     initAccesosRapidos();
     initShareCredencial();
-    initSupabaseConfig();
 
     renderExternalServices();
     renderPillSocio();
@@ -1140,7 +1043,6 @@
     renderCredencial();
     renderPlanSelector();
     renderPagos();
-    renderSupabaseConfig();
 
     const activeProfile = Store.getActiveProfile();
     if (activeProfile) {
@@ -1149,4 +1051,8 @@
       loadProfileIntoForm();
     }
   });
+
+  function initServiceWorker() {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 })();
