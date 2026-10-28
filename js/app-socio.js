@@ -1,9 +1,13 @@
 /* ============================================================
-   app-socio.js — Controlador de index.html
-   SOS, GPS, ficha, beneficios, B2B, servicios tercerizados,
-   carnet digital (QR + N° socio), tab Pagos y verificación ?carnet=.
-   Fix defensivo: no aborta el boot si falta E360QR; log detallado
-   si falta E360Store o E360Config.
+   app-socio.js — Controlador de index.html (v6.1 EMP rediseño)
+   - 5 tabs: Inicio, SOS, Credencial, Beneficios, Cuenta/Ficha
+   - Credencial virtual con código de seguridad 3 dígitos (3:00)
+   - Grupo familiar en píldoras + QR vía E360QR.toSvg(?carnet=)
+   - Modo Adulto Mayor (WCAG AAA) persistente en localStorage
+   - Configuración Supabase en caliente
+   - Preserva: SOS 1.5s (tab-sos + btnSOSInicio sincronizados),
+     GPS, ETA, ficha, beneficios, ?b2b=, ?pulsera=, ?carnet=,
+     test tools, toast, helper el() con guard exacto.
    ============================================================ */
 
 (function () {
@@ -47,11 +51,38 @@
     return node;
   }
 
+  // Estado local
   let currentIncident = null;
   let currentLocation = null;
   let manualAddress = '';
   let activeLocality = 'Dolores';
   let b2bContext = null;
+  let credencialInterval = null;
+  let credencialCodigo = null;
+  let credencialSegundos = 180;
+  let activeFamilyIndex = 0;
+
+  const MODO_MAYOR_KEY = 'e360_modo_mayor';
+  const CODIGO_DURACION_SEG = 180; // 3:00
+
+  // ============================================================
+  // MODO ADULTO MAYOR
+  // ============================================================
+  function initModoMayor() {
+    const btn = $('#btnModoMayor');
+    if (!btn) return;
+    const activo = (function () {
+      try { return localStorage.getItem(MODO_MAYOR_KEY) === '1'; } catch (_) { return false; }
+    })();
+    document.body.classList.toggle('modo-mayor', activo);
+    btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+    btn.addEventListener('click', () => {
+      const ahora = !document.body.classList.contains('modo-mayor');
+      document.body.classList.toggle('modo-mayor', ahora);
+      btn.setAttribute('aria-pressed', ahora ? 'true' : 'false');
+      try { localStorage.setItem(MODO_MAYOR_KEY, ahora ? '1' : '0'); } catch (_) {}
+    });
+  }
 
   // ============================================================
   // VERIFICACIÓN PÚBLICA ?carnet=TOKEN
@@ -81,11 +112,11 @@
       brand.href = 'index.html';
       brand.innerHTML =
         '<svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-        '<text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#3D5CA4" letter-spacing="1">EMP</text>' +
-        '<path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>' +
+        '<path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
         '</svg>' +
         '<span class="emp-brand-text"><span class="emp-brand-name">EMP</span>' +
-        '<span class="emp-brand-claim">Verificación de Carnet Digital</span></span>';
+        '<span class="emp-brand-claim">Verificación de Credencial</span></span>';
       header.appendChild(brand);
     }
 
@@ -96,8 +127,8 @@
       if (!data) {
         wrap.appendChild(el('div', { className: 'carnet-verify-card carnet-verify-invalid' }, [
           el('div', { className: 'cv-icon', textContent: '❌' }),
-          el('h1', { textContent: 'Carnet no válido' }),
-          el('p', { textContent: 'El código escaneado no corresponde a un socio registrado en Emergencias 360.' }),
+          el('h1', { textContent: 'Credencial no válida' }),
+          el('p', { textContent: 'El código escaneado no corresponde a un socio registrado en EMP.' }),
           el('p', { className: 'cv-hint', textContent: 'Verificá el QR o consultá en administración.' })
         ]));
       } else {
@@ -109,7 +140,7 @@
           : '—';
         wrap.appendChild(el('div', { className: 'carnet-verify-card ' + statusClass }, [
           el('div', { className: 'cv-icon', textContent: icon }),
-          el('h1', { textContent: 'Carnet ' + statusLabel }),
+          el('h1', { textContent: 'Credencial ' + statusLabel }),
           el('div', { className: 'cv-row' }, [
             el('span', { className: 'cv-k', textContent: 'N° de socio' }),
             el('span', { className: 'cv-v', textContent: data.socioNumber || '—' })
@@ -149,7 +180,7 @@
   }
 
   // ============================================================
-  // TABS (incluye 4to tab Pagos)
+  // TABS (5 tabs)
   // ============================================================
   function initTabs() {
     const navBtns = $$('.nav-btn');
@@ -162,9 +193,11 @@
           b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
         });
         panels.forEach((p) => { p.hidden = p.dataset.tab !== target; });
+
         if (target === 'beneficios') renderBenefits(activeLocality);
-        if (target === 'ficha') { loadProfileIntoForm(); renderExternalServices(); renderCarnetBlock(); }
-        if (target === 'pagos') renderPagos();
+        if (target === 'ficha') { loadProfileIntoForm(); renderExternalServices(); renderPlanSelector(); renderPagos(); renderSupabaseConfig(); }
+        if (target === 'credencial') { renderCredencial(); startCredencialTimer(); } else { stopCredencialTimer(); }
+        if (target === 'inicio') renderInicio();
       });
     });
   }
@@ -193,11 +226,18 @@
   // CONEXIÓN + BASE
   // ============================================================
   function initConnection() {
-    const dot = $('#connDot'), text = $('#connText');
+    const dot = $('#connDot'), text = $('#connText'), mode = $('#connMode');
     function update() {
       const online = navigator.onLine;
-      dot.className = 'dot ' + (online ? 'dot-online' : 'dot-offline');
-      text.textContent = online ? 'Online' : 'Offline';
+      if (dot) dot.className = 'dot ' + (online ? 'dot-online' : 'dot-offline');
+      if (text) text.textContent = online ? 'Online' : 'Offline';
+      if (mode) {
+        try {
+          const st = Store.getSupabaseStatus();
+          mode.textContent = st.connected ? 'SUPABASE LIVE' : 'LOCAL MVP';
+          mode.className = 'conn-mode ' + (st.connected ? 'conn-mode-live' : 'conn-mode-local');
+        } catch (_) { mode.textContent = 'LOCAL MVP'; }
+      }
     }
     window.addEventListener('online', update);
     window.addEventListener('offline', update);
@@ -206,38 +246,59 @@
 
   function initBaseSelector() {
     const select = $('#baseSelector');
+    if (!select) return;
     const ctx = Store.getActiveContext();
     select.value = ctx.activeBaseId;
     updateBasePhone(ctx.base.phone);
+    updateBaseSelectorLabel(ctx.base);
     select.addEventListener('change', () => {
       Store.setActiveBase(select.value);
       const newCtx = Store.getActiveContext();
       updateBasePhone(newCtx.base.phone);
+      updateBaseSelectorLabel(newCtx.base);
+      renderInicio();
     });
   }
 
   function updateBasePhone(phone) {
     const btn = $('#btnCallBase');
-    if (btn && phone) btn.setAttribute('href', 'tel:' + String(phone).replace(/[^0-9+]/g, ''));
+    const btnInicio = $('#btnCallBaseInicio');
+    const tel = phone ? String(phone).replace(/[^0-9+]/g, '') : '';
+    if (btn && tel) btn.setAttribute('href', 'tel:' + tel);
+    if (btnInicio && tel) {
+      btnInicio.setAttribute('href', 'tel:' + tel);
+      btnInicio.textContent = '📞 ' + phone;
+    }
+  }
+
+  function updateBaseSelectorLabel(base) {
+    const opt = document.querySelector('#baseSelector option[value="' + (base && base.id) + '"]');
+    if (opt && base) opt.textContent = base.id === 'LA_COSTA' ? 'La Costa' : 'Dolores';
   }
 
   // ============================================================
-  // HEADER: BADGE DE PLAN
+  // PILL SOCIO HABILITADO
   // ============================================================
-  function renderPlanBadge() {
-    const slot = $('#planBadgeSlot');
-    if (!slot) return;
-    slot.innerHTML = '';
+  function renderPillSocio() {
+    const pill = $('#pillSocio');
+    if (!pill) return;
     const profile = Store.getActiveProfile();
-    if (!profile || !profile.plan) {
-      slot.appendChild(el('span', { className: 'plan-badge plan-badge-none', textContent: 'Sin plan' }));
+    if (!profile) {
+      pill.textContent = 'Sin socio';
+      pill.className = 'pill-socio-habilitado pill-socio-none';
       return;
     }
-    const plan = C.PLANS[profile.plan] || { label: profile.plan };
-    slot.appendChild(el('span', {
-      className: 'plan-badge plan-badge-' + profile.plan.toLowerCase(),
-      textContent: 'Plan ' + plan.label
-    }));
+    const st = Store.calcCarnetStatus(profile);
+    if (st === 'activo') {
+      pill.textContent = '✓ Socio Habilitado';
+      pill.className = 'pill-socio-habilitado pill-socio-ok';
+    } else if (st === 'suspendido') {
+      pill.textContent = '⛔ Suspendido';
+      pill.className = 'pill-socio-habilitado pill-socio-bad';
+    } else {
+      pill.textContent = '⏰ Vencido';
+      pill.className = 'pill-socio-habilitado pill-socio-warn';
+    }
   }
 
   // ============================================================
@@ -287,6 +348,7 @@
         banner.appendChild(tipo);
       }
     }
+    switchTab('sos');
   }
 
   // ============================================================
@@ -297,65 +359,71 @@
     const btn = $('#btnGps');
     const fallback = $('#manualFallback');
     const manualInput = $('#manualDir');
+    if (!btn) return;
     btn.addEventListener('click', () => {
-      if (!navigator.geolocation) { status.textContent = 'GPS: no disponible en este dispositivo.'; fallback.hidden = false; return; }
-      status.textContent = 'GPS: obteniendo ubicación…';
+      if (!navigator.geolocation) { if (status) status.textContent = 'GPS: no disponible en este dispositivo.'; if (fallback) fallback.hidden = false; return; }
+      if (status) status.textContent = 'GPS: obteniendo ubicación…';
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-          status.textContent = 'GPS: ' + currentLocation.lat.toFixed(5) + ', ' + currentLocation.lng.toFixed(5) + ' (±' + Math.round(currentLocation.accuracy) + 'm)';
-          fallback.hidden = true;
+          if (status) status.textContent = 'GPS: ' + currentLocation.lat.toFixed(5) + ', ' + currentLocation.lng.toFixed(5) + ' (±' + Math.round(currentLocation.accuracy) + 'm)';
+          if (fallback) fallback.hidden = true;
         },
-        (err) => { status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.'; fallback.hidden = false; },
+        () => { if (status) status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.'; if (fallback) fallback.hidden = false; },
         { enableHighAccuracy: true, timeout: C.GPS_TIMEOUT_MS, maximumAge: C.GPS_MAX_AGE_MS }
       );
     });
-    manualInput.addEventListener('input', () => { manualAddress = manualInput.value.trim(); });
+    if (manualInput) manualInput.addEventListener('input', () => { manualAddress = manualInput.value.trim(); });
   }
 
   // ============================================================
-  // SOS
+  // SOS (sincronizado entre tab-inicio y tab-sos)
   // ============================================================
   const HOLD_MS = C.SOS_HOLD_MS;
   let holdTimer = null, holdStart = 0, holdRAF = null, sosFired = false;
 
-  function setProgress(pct) {
-    const btn = $('#btnSOS'); if (!btn) return;
+  function setProgress(pct, btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn) return;
     btn.style.setProperty('--progress', pct + '%');
   }
 
-  function startHold(e) {
+  function startHold(e, btnId) {
     if (sosFired) return;
     if (e.type === 'touchstart') e.preventDefault();
-    const btn = $('#btnSOS'); btn.classList.add('pressing');
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn) return;
+    btn.classList.add('pressing');
     holdStart = Date.now();
     function tick() {
       const elapsed = Date.now() - holdStart;
       const pct = Math.min(100, (elapsed / HOLD_MS) * 100);
-      setProgress(pct);
+      setProgress(pct, btnId);
       if (elapsed < HOLD_MS) holdRAF = requestAnimationFrame(tick);
     }
     holdRAF = requestAnimationFrame(tick);
-    holdTimer = setTimeout(() => { sosFired = true; cancelHold(true); fireSOS(); }, HOLD_MS);
+    holdTimer = setTimeout(() => { sosFired = true; cancelHold(true, btnId); fireSOS(); }, HOLD_MS);
   }
 
-  function cancelHold(force) {
-    const btn = $('#btnSOS'); if (btn) btn.classList.remove('pressing');
+  function cancelHold(force, btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (btn) btn.classList.remove('pressing');
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
     if (holdRAF) { cancelAnimationFrame(holdRAF); holdRAF = null; }
-    if (!force) setProgress(0);
+    if (!force) setProgress(0, btnId);
   }
 
-  function initSOSButton() {
-    const btn = $('#btnSOS'); if (!btn) return;
-    btn.addEventListener('touchstart', startHold, { passive: false });
-    btn.addEventListener('mousedown', startHold);
-    btn.addEventListener('touchend', () => cancelHold(false));
-    btn.addEventListener('mouseup', () => cancelHold(false));
-    btn.addEventListener('mouseleave', () => cancelHold(false));
-    btn.addEventListener('touchcancel', () => cancelHold(false));
-    btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!holdTimer) startHold(e); } });
-    btn.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cancelHold(false); } });
+  function initSOSButton(btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn) return;
+    btn.addEventListener('touchstart', (e) => startHold(e, btnId), { passive: false });
+    btn.addEventListener('mousedown', (e) => startHold(e, btnId));
+    btn.addEventListener('touchend', () => cancelHold(false, btnId));
+    btn.addEventListener('mouseup', () => cancelHold(false, btnId));
+    btn.addEventListener('mouseleave', () => cancelHold(false, btnId));
+    btn.addEventListener('touchcancel', () => cancelHold(false, btnId));
+    btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!holdTimer) startHold(e, btnId); } });
+    btn.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cancelHold(false, btnId); } });
   }
 
   function fireSOS() {
@@ -368,12 +436,17 @@
     });
     currentIncident = incident;
     renderIncident(incident);
-    setProgress(100);
-    setTimeout(() => { setProgress(0); sosFired = false; }, 400);
+    setProgress(100, 'btnSOS');
+    setProgress(100, 'btnSOSInicio');
+    setTimeout(() => {
+      setProgress(0, 'btnSOS');
+      setProgress(0, 'btnSOSInicio');
+      sosFired = false;
+    }, 400);
   }
 
   // ============================================================
-  // RENDER INCIDENTE
+  // RENDER INCIDENTE + ETA
   // ============================================================
   const STATE_LABELS = {
     RECIBIDA_SERVIDOR: { text: 'Alerta emitida. Aguardando confirmación de un operador de central.', color: 'amber' },
@@ -413,6 +486,34 @@
       if (doneSet.has(step.key)) li.classList.add('done');
       timelineEl.appendChild(li);
     });
+
+    // ETA referencial (v6.1)
+    const etaBlock = $('#etaBlock'), etaMain = $('#etaMain'), etaSource = $('#etaSource');
+    if (etaBlock && etaMain) {
+      try {
+        const eta = Store.getIncidentEta(incident.id);
+        if (eta.hasEta) {
+          etaBlock.hidden = false;
+          etaMain.textContent = 'Llegada estimada: ' + eta.etaMinutes + ' min';
+          etaMain.className = 'eta-main ' + (eta.etaMinutes <= 5 ? 'eta-eta-near' : 'eta-eta-normal');
+          if (etaSource) etaSource.textContent = 'Fuente: ' + eta.source;
+        } else {
+          etaBlock.hidden = true;
+        }
+      } catch (_) { etaBlock.hidden = true; }
+    }
+
+    // Estado en Inicio
+    const estadoInicio = $('#incidentEstadoInicio');
+    if (estadoInicio) {
+      if (incident.status === 'CERRADA' || incident.status === 'CANCELADA') {
+        estadoInicio.textContent = 'Sin incidentes activos';
+        estadoInicio.className = 'card-sos-estado';
+      } else {
+        estadoInicio.textContent = info.text;
+        estadoInicio.className = 'card-sos-estado card-sos-estado-activo';
+      }
+    }
   }
 
   function initIncidentSubscription() {
@@ -426,10 +527,44 @@
       }
       renderBenefits(activeLocality);
       renderExternalServices();
-      renderPlanBadge();
-      renderCarnetBlock();
-      if (!$('#tab-pagos')?.hidden) renderPagos();
+      renderPillSocio();
+      renderInicio();
+      if (!$('#tab-credencial')?.hidden) renderCredencial();
+      if (!$('#tab-ficha')?.hidden) { renderPagos(); renderPlanSelector(); }
     });
+  }
+
+  // ============================================================
+  // INICIO
+  // ============================================================
+  function renderInicio() {
+    const profile = Store.getActiveProfile();
+    const ctx = Store.getActiveContext();
+
+    // Estado del incidente en tarjeta SOS
+    const estadoInicio = $('#incidentEstadoInicio');
+    if (estadoInicio) {
+      const latest = Store.getLatestIncident();
+      if (latest && latest.status !== 'CERRADA' && latest.status !== 'CANCELADA') {
+        const info = STATE_LABELS[latest.status] || { text: latest.status };
+        estadoInicio.textContent = info.text;
+        estadoInicio.className = 'card-sos-estado card-sos-estado-activo';
+      } else {
+        estadoInicio.textContent = 'Sin incidentes activos';
+        estadoInicio.className = 'card-sos-estado';
+      }
+    }
+
+    // Línea directa
+    updateBasePhone(ctx.base.phone);
+
+    // Farmacia: descuento según plan
+    const farm = $('#servicioFarmacia');
+    if (farm && profile) {
+      const plan = C.PLANS[profile.plan] || {};
+      const label = farm.querySelector('.si-label');
+      if (label) label.textContent = 'Farmacias Adheridas (' + (plan.pharmacyDiscountLabel || plan.pharmacyDiscount + '%') + ')';
+    }
   }
 
   // ============================================================
@@ -441,227 +576,220 @@
     const profile = typedDni ? Store.getProfile(typedDni) : Store.getActiveProfile();
     if (!profile) return;
     if (!typedDni) dniInput.value = profile.dni || '';
-    $('#fNombre').value = profile.nombre || '';
-    $('#fTelefono').value = profile.telefono || '';
-    $('#fGrupo').value = profile.grupoSanguineo || '';
-    $('#fAlergias').value = profile.alergias || '';
-    $('#fPatologias').value = profile.patologias || '';
-    $('#fContacto').value = profile.contacto || '';
+    if ($('#fNombre')) $('#fNombre').value = profile.nombre || '';
+    if ($('#fCuil')) $('#fCuil').value = profile.cuil || '';
+    if ($('#fTelefono')) $('#fTelefono').value = profile.telefono || '';
+    if ($('#fGrupo')) $('#fGrupo').value = profile.grupoSanguineo || '';
+    if ($('#fAlergias')) $('#fAlergias').value = profile.alergias || '';
+    if ($('#fPatologias')) $('#fPatologias').value = profile.patologias || '';
+    if ($('#fContacto')) $('#fContacto').value = profile.contacto || '';
   }
 
   function initFichaForm() {
     const form = $('#formFicha'), msg = $('#fichaMsg'); if (!form) return;
     const dniInput = $('#fDni');
-    dniInput.addEventListener('blur', loadProfileIntoForm);
+    if (dniInput) dniInput.addEventListener('blur', loadProfileIntoForm);
     form.addEventListener('submit', (e) => {
-      e.preventDefault(); msg.textContent = '';
+      e.preventDefault();
+      if (msg) msg.textContent = '';
       const nombre = $('#fNombre').value.trim();
       const dni = $('#fDni').value.trim();
       const telefono = $('#fTelefono').value.trim();
       const consent = $('#fConsent').checked;
-      if (!nombre || !dni || !telefono) { msg.style.color = 'var(--color-red)'; msg.textContent = 'Completá nombre, DNI y teléfono.'; return; }
-      if (!consent) { msg.style.color = 'var(--color-red)'; msg.textContent = 'Debés aceptar el Consentimiento Informado.'; return; }
+      if (!nombre || !dni || !telefono) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Completá nombre, DNI y teléfono.'; } return; }
+      if (!consent) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Debés aceptar el Consentimiento Informado.'; } return; }
       try {
+        const existing = Store.getProfile(dni);
         Store.saveProfile({
           nombre, dni, telefono,
+          cuil: $('#fCuil') ? $('#fCuil').value.trim() : '',
           grupoSanguineo: $('#fGrupo').value,
           alergias: $('#fAlergias').value.trim(),
           patologias: $('#fPatologias').value.trim(),
-          contacto: $('#fContacto').value.trim()
+          contacto: $('#fContacto').value.trim(),
+          plan: existing ? existing.plan : (Store.getActiveProfile() ? Store.getActiveProfile().plan : C.DEFAULT_PLAN),
+          familyGroup: existing ? existing.familyGroup : undefined
         });
-        msg.style.color = 'var(--color-green)';
-        msg.textContent = 'Ficha guardada correctamente.';
+        if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Ficha guardada correctamente.'; }
         renderExternalServices();
-        renderCarnetBlock();
-        renderPlanBadge();
+        renderPillSocio();
         renderPagos();
+        renderInicio();
+        renderCredencial();
       } catch (err) {
-        msg.style.color = 'var(--color-red)';
-        msg.textContent = 'Error al guardar: ' + err.message;
+        if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Error al guardar: ' + err.message; }
       }
     });
   }
 
   // ============================================================
-  // CARNET DIGITAL
+  // PLAN SELECTOR (tab-ficha)
   // ============================================================
-  function carnetStatusMeta(profile) {
-    const st = Store.calcCarnetStatus(profile);
-    const days = Store.daysToExpire(profile);
-    if (st === 'suspendido') return { st: 'suspendido', label: 'SUSPENDIDO', cls: 'carnet-status-suspendido', icon: '⛔' };
-    if (st === 'vencido') return { st: 'vencido', label: 'VENCIDO', cls: 'carnet-status-vencido', icon: '⏰' };
-    if (days !== null && days <= C.CARNET_WARN_DAYS) return { st: 'por_vencer', label: 'POR VENCER', cls: 'carnet-status-por_vencer', icon: '⚠️' };
-    return { st: 'activo', label: 'ACTIVO', cls: 'carnet-status-activo', icon: '✅' };
+  function renderPlanSelector() {
+    const sel = $('#planSelector');
+    if (!sel) return;
+    const profile = Store.getActiveProfile();
+    if (profile && profile.plan) sel.value = profile.plan;
+    if (!sel.dataset.bound) {
+      sel.dataset.bound = '1';
+      sel.addEventListener('change', () => {
+        const p = Store.getActiveProfile();
+        if (!p) { toast('Guardá tu ficha primero.'); return; }
+        try {
+          Store.setProfilePlan(p.dni, sel.value, 'socio_app_demo');
+          toast('Plan actualizado a ' + (C.PLANS[sel.value] || {}).label);
+          renderPillSocio();
+          renderInicio();
+          renderCredencial();
+          renderPagos();
+        } catch (err) {
+          toast('Error: ' + err.message);
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  // CREDENCIAL VIRTUAL
+  // ============================================================
+  function generarCodigo3Digitos() {
+    return String(Math.floor(100 + Math.random() * 900));
+  }
+
+  function formatoTiempo(seg) {
+    const m = Math.floor(seg / 60);
+    const s = seg % 60;
+    return m + ':' + (s < 10 ? '0' + s : s);
+  }
+
+  function startCredencialTimer() {
+    stopCredencialTimer();
+    if (!credencialCodigo) {
+      credencialCodigo = generarCodigo3Digitos();
+      credencialSegundos = CODIGO_DURACION_SEG;
+    }
+    updateCodigoUI();
+    credencialInterval = setInterval(() => {
+      credencialSegundos -= 1;
+      if (credencialSegundos <= 0) {
+        credencialCodigo = generarCodigo3Digitos();
+        credencialSegundos = CODIGO_DURACION_SEG;
+      }
+      updateCodigoUI();
+    }, 1000);
+  }
+
+  function stopCredencialTimer() {
+    if (credencialInterval) { clearInterval(credencialInterval); credencialInterval = null; }
+  }
+
+  function updateCodigoUI() {
+    const cod = $('#csCodigo');
+    const ren = $('#csRenueva');
+    if (cod && credencialCodigo) {
+      cod.textContent = credencialCodigo.split('').join(' ');
+    }
+    if (ren) ren.textContent = formatoTiempo(credencialSegundos);
+  }
+
+  function getActiveFamilyMember() {
+    const profile = Store.getActiveProfile();
+    if (!profile) return null;
+    const family = Array.isArray(profile.familyGroup) && profile.familyGroup.length
+      ? profile.familyGroup
+      : [{ id: 'self', nombre: profile.nombre, dni: profile.dni, cuil: profile.cuil, orden: profile.orden || '00', filial: profile.filial || profile.baseId }];
+    if (activeFamilyIndex >= family.length) activeFamilyIndex = 0;
+    return family[activeFamilyIndex];
   }
 
   function buildCarnetUrl(profile) {
     const origin = window.location.origin + window.location.pathname;
-    return origin + '?carnet=' + encodeURIComponent(profile.carnetToken);
+    return origin + '?carnet=' + encodeURIComponent(profile.carnetToken || '');
   }
 
-  function renderCarnetBlock() {
-    const container = $('#carnetBlock');
-    if (!container) return;
-    container.innerHTML = '';
+  function renderCredencial() {
     const profile = Store.getActiveProfile();
+    const tarjeta = $('#credencialTarjeta');
     if (!profile) {
-      container.appendChild(el('div', { className: 'carnet-empty', textContent: 'Guardá tu ficha para generar tu carnet digital.' }));
-      container.hidden = false;
+      if (tarjeta) tarjeta.style.display = 'none';
+      const nombre = $('#ctNombre');
+      if (nombre) nombre.textContent = 'Sin socio activo';
       return;
     }
-    const meta = carnetStatusMeta(profile);
-    const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
+    if (tarjeta) tarjeta.style.display = '';
+
     const plan = C.PLANS[profile.plan] || { label: profile.plan };
+    if ($('#ctPlanLabel')) $('#ctPlanLabel').textContent = 'PLAN ' + (plan.label || profile.plan).toUpperCase();
 
-    container.appendChild(el('div', { className: 'carnet-card ' + meta.cls }, [
-      el('div', { className: 'carnet-header' }, [
-        el('div', { className: 'carnet-brand' }, [
-          el('span', { className: 'carnet-emp', textContent: 'EMP' }),
-          el('span', { className: 'carnet-sub', textContent: 'Emergencias Médicas Privadas' })
-        ]),
-        el('div', { className: 'carnet-status-pill ' + meta.cls }, [
-          el('span', { textContent: meta.icon + ' ' }),
-          el('span', { textContent: meta.label })
-        ])
-      ]),
-      el('div', { className: 'carnet-body' }, [
-        el('div', { className: 'carnet-qr' }, [
-          (function () {
-            if (!QR || typeof QR.toSvg !== 'function') {
-              return el('div', { className: 'carnet-qr-fallback', textContent: 'QR no disponible (falta js/qr.js)' });
-            }
-            try {
-              const div = document.createElement('div');
-              div.innerHTML = QR.toSvg(buildCarnetUrl(profile), 180);
-              return div.firstChild;
-            } catch (e) {
-              return el('div', { className: 'carnet-qr-fallback', textContent: 'QR no disponible' });
-            }
-          })()
-        ]),
-        el('div', { className: 'carnet-data' }, [
-          el('div', { className: 'carnet-row' }, [
-            el('span', { className: 'ck', textContent: 'N° de socio' }),
-            el('span', { className: 'cv', textContent: profile.socioNumber || '—' })
-          ]),
-          el('div', { className: 'carnet-row' }, [
-            el('span', { className: 'ck', textContent: 'Titular' }),
-            el('span', { className: 'cv', textContent: profile.nombre || '—' })
-          ]),
-          el('div', { className: 'carnet-row' }, [
-            el('span', { className: 'ck', textContent: 'DNI' }),
-            el('span', { className: 'cv', textContent: profile.dni || '—' })
-          ]),
-          el('div', { className: 'carnet-row' }, [
-            el('span', { className: 'ck', textContent: 'Plan' }),
-            el('span', { className: 'cv cv-plan', textContent: plan.label })
-          ]),
-          el('div', { className: 'carnet-row' }, [
-            el('span', { className: 'ck', textContent: 'Vigencia' }),
-            el('span', { className: 'cv', textContent: validTxt })
-          ])
-        ])
-      ]),
-      el('div', { className: 'carnet-actions' }, [
-        el('button', {
-          type: 'button', className: 'btn-secondary',
-          textContent: '📋 Copiar N° de socio',
-          onclick: () => copySocioNumber(profile.socioNumber)
-        }),
-        el('button', {
-          type: 'button', className: 'btn-secondary',
-          textContent: '⬇ Descargar carnet',
-          onclick: () => downloadCarnet(profile)
-        }),
-        el('button', {
-          type: 'button', className: 'btn-secondary',
-          textContent: '🔍 Verificar (abrir link)',
-          onclick: () => window.open(buildCarnetUrl(profile), '_blank', 'noopener')
-        })
-      ]),
-      el('p', { className: 'carnet-legal', textContent: 'Carnet digital personal. El QR abre la verificación pública del estado del carnet. No expone datos clínicos.' })
-    ]));
-    container.hidden = false;
-  }
-
-  function copySocioNumber(num) {
-    if (!num) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(num).then(() => toast('N° de socio copiado: ' + num), () => toast('No se pudo copiar.'));
-    } else {
-      toast('Tu N° de socio es: ' + num);
+    const member = getActiveFamilyMember();
+    if ($('#ctNombre')) $('#ctNombre').textContent = (member && member.nombre) || profile.nombre || '—';
+    if ($('#ctCuilDni')) {
+      const cuil = (member && member.cuil) || profile.cuil || '—';
+      const dni = (member && member.dni) || profile.dni || '—';
+      $('#ctCuilDni').textContent = cuil + ' / ' + dni;
     }
-  }
+    if ($('#ctOrden')) $('#ctOrden').textContent = (member && member.orden) || profile.orden || '00';
+    if ($('#ctSede')) $('#ctSede').textContent = ((member && member.filial) || profile.filial || profile.baseId || 'DOLORES').toUpperCase();
 
-  function downloadCarnet(profile) {
-    try {
-      const c = document.createElement('canvas');
-      const W = 720, H = 420;
-      c.width = W; c.height = H;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#F8FAFC'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#3D5CA4'; ctx.fillRect(0, 0, W, 90);
-      ctx.fillStyle = '#fff';
-      ctx.font = '900 44px Montserrat, sans-serif';
-      ctx.fillText('EMP', 32, 62);
-      ctx.font = '500 18px Poppins, sans-serif';
-      ctx.fillText('Emergencias Médicas Privadas', 140, 55);
-      ctx.fillStyle = '#FB0100';
-      ctx.fillRect(0, 90, W, 6);
-
-      // QR (guard defensivo)
-      if (QR && typeof QR.toCanvas === 'function') {
-        const qrCanvas = document.createElement('canvas');
-        QR.toCanvas(qrCanvas, buildCarnetUrl(profile), 240);
-        ctx.drawImage(qrCanvas, 32, 130, 240, 240);
+    // QR
+    const qrWrap = $('#qrSvgWrap');
+    if (qrWrap) {
+      qrWrap.innerHTML = '';
+      if (QR && typeof QR.toSvg === 'function' && profile.carnetToken) {
+        try {
+          const svg = QR.toSvg(buildCarnetUrl(profile), 220);
+          qrWrap.innerHTML = svg;
+        } catch (e) {
+          qrWrap.appendChild(el('div', { className: 'qr-fallback', textContent: 'QR no disponible' }));
+        }
       } else {
-        ctx.fillStyle = '#DC2626';
-        ctx.font = '600 14px Poppins, sans-serif';
-        ctx.fillText('QR no disponible', 60, 260);
+        qrWrap.appendChild(el('div', { className: 'qr-fallback', textContent: 'QR no disponible' }));
       }
-
-      const meta = carnetStatusMeta(profile);
-      const plan = C.PLANS[profile.plan] || { label: profile.plan };
-      const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
-      ctx.fillStyle = '#0F172A';
-      ctx.font = '800 26px Poppins, sans-serif';
-      ctx.fillText(profile.nombre || '—', 300, 165);
-      ctx.font = '600 16px Poppins, sans-serif';
-      ctx.fillStyle = '#4A5568';
-      ctx.fillText('N° socio: ' + (profile.socioNumber || '—'), 300, 200);
-      ctx.fillText('DNI: ' + (profile.dni || '—'), 300, 228);
-      ctx.fillText('Plan: ' + plan.label, 300, 256);
-      ctx.fillText('Vigencia: ' + validTxt, 300, 284);
-      ctx.fillStyle = meta.st === 'activo' ? '#16A34A' : meta.st === 'por_vencer' ? '#D97706' : '#DC2626';
-      ctx.font = '800 18px Poppins, sans-serif';
-      ctx.fillText(meta.label, 300, 320);
-      ctx.fillStyle = '#64748B';
-      ctx.font = '400 12px Poppins, sans-serif';
-      ctx.fillText('Tecnología provista por ASARI S.A.S. — Esta app NO sustituye al 107 / 911 / Bomberos.', 32, 398);
-
-      const url = c.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'carnet_EMP_' + (profile.socioNumber || 'socio') + '.png';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      toast('Carnet descargado.');
-    } catch (err) {
-      toast('Error al descargar: ' + err.message);
     }
+
+    // Grupo familiar en píldoras
+    const pildorasWrap = $('#gfPildoras');
+    if (pildorasWrap) {
+      pildorasWrap.innerHTML = '';
+      const family = Array.isArray(profile.familyGroup) && profile.familyGroup.length
+        ? profile.familyGroup
+        : [{ id: 'self', nombre: profile.nombre, dni: profile.dni }];
+      family.forEach((m, idx) => {
+        const activa = idx === activeFamilyIndex;
+        const btn = el('button', {
+          type: 'button',
+          className: 'gf-pildora' + (activa ? ' gf-pildora-activa' : ''),
+          onclick: () => { activeFamilyIndex = idx; renderCredencial(); }
+        }, [
+          el('span', { className: 'gf-nombre', textContent: m.nombre || '—' }),
+          el('span', { className: 'gf-dni', textContent: 'DNI ' + (m.dni || '—') })
+        ]);
+        pildorasWrap.appendChild(btn);
+      });
+    }
+
+    updateCodigoUI();
   }
 
-  let toastTimer = null;
-  function toast(text) {
-    let t = document.getElementById('e360Toast');
-    if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
-    t.textContent = text;
-    t.classList.add('show');
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  function initShareCredencial() {
+    const btn = $('#btnShareCredencial');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const profile = Store.getActiveProfile();
+      if (!profile || !profile.carnetToken) { toast('Sin credencial para compartir.'); return; }
+      const url = buildCarnetUrl(profile);
+      if (navigator.share) {
+        navigator.share({ title: 'Credencial EMP', url }).catch(() => {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => toast('Enlace copiado'), () => toast('No se pudo copiar'));
+      } else {
+        toast('Enlace: ' + url);
+      }
+    });
   }
 
   // ============================================================
-  // SERVICIOS TERCERIZADOS (gateados por plan)
+  // SERVICIOS TERCERIZADOS
   // ============================================================
   function renderExternalServices() {
     const container = $('#externalServicesBlock');
@@ -710,12 +838,12 @@
       hint.innerHTML = '';
       if (profile && profile.plan) {
         const plan = C.PLANS[profile.plan] || { label: profile.plan, pharmacyDiscount: 0 };
-        hint.textContent = 'Tu plan ' + plan.label + ' incluye ' + (plan.pharmacyDiscount || 0) + '% de descuento en farmacia.';
+        hint.textContent = 'Tu plan ' + plan.label + ' incluye ' + (plan.pharmacyDiscountLabel || (plan.pharmacyDiscount || 0) + '%') + ' de descuento en farmacia.';
         hint.hidden = false;
       } else { hint.hidden = true; }
     }
-    if (!items.length) { empty.hidden = false; return; }
-    empty.hidden = true;
+    if (!items.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
     items.forEach((b) => {
       list.appendChild(el('li', { className: 'benefit-card' }, [
         el('h3', { textContent: b.name }),
@@ -739,7 +867,7 @@
   }
 
   // ============================================================
-  // TAB PAGOS
+  // PAGOS (dentro de tab-ficha)
   // ============================================================
   function renderPagos() {
     const container = $('#pagosContainer'); if (!container) return;
@@ -749,19 +877,25 @@
 
     if (!profile) {
       container.appendChild(el('div', { className: 'pagos-empty' }, [
-        el('p', { textContent: 'Completá tu ficha para ver el estado de tu plan y tus pagos.' }),
-        el('button', { type: 'button', className: 'btn-primary', textContent: 'Ir a Mi Ficha', onclick: () => switchTab('ficha') })
+        el('p', { textContent: 'Completá tu ficha para ver el estado de tu plan y tus pagos.' })
       ]));
       return;
     }
 
     const plan = C.PLANS[profile.plan] || { label: profile.plan };
-    const meta = carnetStatusMeta(profile);
+    const meta = (function () {
+      const st = Store.calcCarnetStatus(profile);
+      const days = Store.daysToExpire(profile);
+      if (st === 'suspendido') return { st, label: 'SUSPENDIDO', cls: 'carnet-status-suspendido', icon: '⛔' };
+      if (st === 'vencido') return { st, label: 'VENCIDO', cls: 'carnet-status-vencido', icon: '⏰' };
+      if (days !== null && days <= C.CARNET_WARN_DAYS) return { st: 'por_vencer', label: 'POR VENCER', cls: 'carnet-status-por_vencer', icon: '⚠️' };
+      return { st: 'activo', label: 'ACTIVO', cls: 'carnet-status-activo', icon: '✅' };
+    })();
     const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
     const days = Store.daysToExpire(profile);
     const cuota = (cfg.cuotas && cfg.cuotas[profile.plan]) || '';
 
-    const card = el('div', { className: 'pagos-card' }, [
+    container.appendChild(el('div', { className: 'pagos-card' }, [
       el('h2', { textContent: 'Estado de tu Plan' }),
       el('div', { className: 'pagos-row' }, [
         el('span', { className: 'pk', textContent: 'Plan actual' }),
@@ -772,7 +906,7 @@
         el('span', { className: 'pv', textContent: profile.socioNumber || '—' })
       ]),
       el('div', { className: 'pagos-row' }, [
-        el('span', { className: 'pk', textContent: 'Estado del carnet' }),
+        el('span', { className: 'pk', textContent: 'Estado de la credencial' }),
         el('span', { className: 'pv' }, [el('span', { className: 'carnet-status-pill ' + meta.cls, textContent: meta.icon + ' ' + meta.label })])
       ]),
       el('div', { className: 'pagos-row' }, [
@@ -784,17 +918,14 @@
         el('span', { className: 'pv', textContent: '$ ' + cuota })
       ]) : null,
       (meta.st === 'por_vencer' && days !== null)
-        ? el('div', { className: 'pagos-warn', textContent: '⚠️ Tu carnet vence en ' + days + ' días. Renová tu cuota para mantenerlo activo.' })
+        ? el('div', { className: 'pagos-warn', textContent: '⚠️ Tu credencial vence en ' + days + ' días. Renová tu cuota para mantenerla activa.' })
         : null,
       (meta.st === 'vencido')
-        ? el('div', { className: 'pagos-warn', textContent: '⏰ Tu carnet está vencido. Contactá a administración para renovar.' })
+        ? el('div', { className: 'pagos-warn', textContent: '⏰ Tu credencial está vencida. Contactá a administración para renovar.' })
         : null
-    ].filter(Boolean));
-    container.appendChild(card);
+    ].filter(Boolean)));
 
-    const payCard = el('div', { className: 'pagos-card' }, [
-      el('h2', { textContent: 'Pagar cuota' })
-    ]);
+    const payCard = el('div', { className: 'pagos-card' }, [el('h2', { textContent: 'Pagar cuota' })]);
     if (cfg.mercadoPagoEnabled && cfg.mercadoPagoPublicKey) {
       payCard.appendChild(el('p', { className: 'pagos-note', textContent: 'Pago online habilitado vía Mercado Pago.' }));
       payCard.appendChild(el('button', {
@@ -815,18 +946,16 @@
     }
     container.appendChild(payCard);
 
-    const benefitsCard = el('div', { className: 'pagos-card' }, [
-      el('h2', { textContent: 'Prestaciones incluidas en tu plan' })
-    ]);
+    const benefitsCard = el('div', { className: 'pagos-card' }, [el('h2', { textContent: 'Prestaciones incluidas en tu plan' })]);
     const feats = [
       { ok: true, label: 'Emergencias / Urgencias / Enfermería / Traslados locales' },
       { ok: true, label: 'Cobertura Costa Atlántica (roaming Dolores ↔ La Costa)' },
-      { ok: true, label: 'Descuento farmacia ' + (plan.pharmacyDiscount || 0) + '%' },
+      { ok: true, label: 'Descuento farmacia ' + (plan.pharmacyDiscountLabel || plan.pharmacyDiscount + '%') },
       { ok: !!plan.hasRemis, label: 'Remis en ambulancia (discapacidad)' },
       { ok: !!plan.hasApp, label: 'Acceso completo a la APP' },
-      { ok: !!plan.hasTravel, label: 'Seguro al viajero' },
-      { ok: !!plan.hasVirtualDoc, label: 'Médico virtual (5 especialistas, 24/365)' },
-      { ok: !!plan.hasPulsera, label: 'Pulsera SOS con geolocalización' },
+      { ok: !!plan.hasTravel || !!plan.hasTravelerAssistance, label: 'Seguro al viajero' },
+      { ok: !!plan.hasVirtualDoc || !!plan.hasTelemedicine, label: 'Médico virtual (5 especialistas, 24/365)' },
+      { ok: !!plan.hasPulsera || !!plan.hasSosBracelet, label: 'Pulsera SOS con geolocalización' },
       { ok: !!plan.hasHomeButton, label: 'Botón fijo SOS en domicilio' }
     ];
     feats.forEach((f) => {
@@ -836,6 +965,51 @@
       ]));
     });
     container.appendChild(benefitsCard);
+  }
+
+  // ============================================================
+  // SUPABASE CONFIG UI
+  // ============================================================
+  function renderSupabaseConfig() {
+    const urlInput = $('#sbUrl'), keyInput = $('#sbKey'), msg = $('#sbMsg');
+    if (!urlInput || !keyInput) return;
+    try {
+      const u = localStorage.getItem('e360_supabase_url') || '';
+      const k = localStorage.getItem('e360_supabase_anon_key') || '';
+      if (!urlInput.value) urlInput.value = u;
+      if (!keyInput.value) keyInput.value = k;
+    } catch (_) {}
+    if (msg) {
+      const st = Store.getSupabaseStatus();
+      msg.textContent = st.connected ? ('Conectado a ' + st.url + ' (' + st.mode + ')') : ('Modo ' + st.mode + (st.lastError ? ' — ' + st.lastError : ''));
+      msg.style.color = st.connected ? '#16A34A' : '#64748B';
+    }
+  }
+
+  function initSupabaseConfig() {
+    const btn = $('#btnSaveSb');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const url = ($('#sbUrl') || {}).value || '';
+      const key = ($('#sbKey') || {}).value || '';
+      const msg = $('#sbMsg');
+      try {
+        const st = Store.configureSupabaseConnection(url, key);
+        if (msg) {
+          msg.textContent = st.connected ? ('Conectado (' + st.mode + ')') : ('Modo ' + st.mode + (st.lastError ? ' — ' + st.lastError : ''));
+          msg.style.color = st.connected ? '#16A34A' : '#64748B';
+        }
+        // Refrescar badge de conexión
+        const mode = $('#connMode');
+        if (mode) {
+          mode.textContent = st.connected ? 'SUPABASE LIVE' : 'LOCAL MVP';
+          mode.className = 'conn-mode ' + (st.connected ? 'conn-mode-live' : 'conn-mode-local');
+        }
+        toast('Conexión guardada.');
+      } catch (err) {
+        if (msg) { msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--emp-sos)'; }
+      }
+    });
   }
 
   // ============================================================
@@ -870,27 +1044,72 @@
   }
 
   // ============================================================
+  // TOAST
+  // ============================================================
+  let toastTimer = null;
+  function toast(text) {
+    let t = document.getElementById('e360Toast');
+    if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
+    t.textContent = text;
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // ============================================================
+  // ACCESOS RÁPIDOS (grilla 2x2)
+  // ============================================================
+  function initAccesosRapidos() {
+    $$('.acceso-rapido').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const goto = btn.dataset.goto;
+        if (goto) switchTab(goto);
+      });
+    });
+    $$('.servicio-item').forEach((li) => {
+      li.addEventListener('click', () => {
+        if (li.id === 'servicioTeleconsulta' || li.id === 'servicioPulsera') {
+          switchTab('ficha');
+        } else if (li.id === 'servicioFarmacia') {
+          switchTab('beneficios');
+        } else {
+          toast('Próximamente.');
+        }
+      });
+    });
+  }
+
+  // ============================================================
   // BOOT
   // ============================================================
   document.addEventListener('DOMContentLoaded', () => {
     if (isCarnetMode()) { renderCarnetVerifyMode(); return; }
 
+    initModoMayor();
     initBanner();
     initConnection();
     initBaseSelector();
     initTabs();
     initGPS();
-    initSOSButton();
+    initSOSButton('btnSOS');
+    initSOSButton('btnSOSInicio');
     initIncidentSubscription();
     initFichaForm();
     initBenefitsFilter();
     initTestTools();
     initServiceWorker();
     initB2BFromQuery();
+    initAccesosRapidos();
+    initShareCredencial();
+    initSupabaseConfig();
+
     renderExternalServices();
-    renderCarnetBlock();
-    renderPlanBadge();
+    renderPillSocio();
+    renderInicio();
+    renderCredencial();
+    renderPlanSelector();
     renderPagos();
+    renderSupabaseConfig();
 
     const activeProfile = Store.getActiveProfile();
     if (activeProfile) {
