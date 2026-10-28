@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0B3C78" />
   <meta name="description" content="EMP - Emergencias Médicas Privadas. Alerta SOS, credencial virtual y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos." />
-  <title>EMP — Emergencias Médicas Privadas</title>
+  <title>Mi Credencial EMP — Emergencias Médicas Privadas</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -13,17 +13,18 @@
 
   <header class="app-header" role="banner">
     <div class="header-top">
-      <a class="emp-brand" href="index.html" aria-label="EMP - Emergencias Médicas Privadas">
+      <a class="emp-brand" href="socio.html" aria-label="EMP - Mi Credencial">
         <svg viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
           <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="30" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
           <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h94" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <span class="emp-brand-text">
           <span class="emp-brand-name">EMP</span>
-          <span class="emp-brand-claim">Emergencias Médicas Privadas</span>
+          <span class="emp-brand-claim">Mi Credencial</span>
         </span>
       </a>
       <div class="header-right">
+        <a href="index.html" class="btn-volver-sitio" title="Volver al sitio institucional">← Sitio</a>
         <button type="button" id="btnModoMayor" class="btn-modo-mayor" aria-pressed="false" title="Modo Adulto Mayor (WCAG AAA)">👴 Mayor</button>
         <div class="avatar-circle" aria-hidden="true">MP</div>
         <span class="pill-socio-habilitado" id="pillSocio">✓ Socio Habilitado</span>
@@ -34,7 +35,6 @@
       <div class="status-item" id="connStatus" aria-live="polite">
         <span class="dot dot-online" id="connDot"></span>
         <span id="connText">Online</span>
-        <span class="conn-mode" id="connMode">LOCAL MVP</span>
       </div>
       <label class="base-selector">
         <span class="sr-only">Sede operativa actual</span>
@@ -62,7 +62,6 @@
     <section class="tab-panel" id="tab-inicio" data-tab="inicio" role="tabpanel" aria-labelledby="nav-inicio">
       <h1 class="panel-title">Inicio <span class="tag-linea-a">Línea A</span></h1>
 
-      <!-- Tarjeta destacada SOS -->
       <div class="card-sos-destacada">
         <div class="card-sos-header">
           <span class="card-sos-title">Urgencias y Guardias SOS</span>
@@ -76,7 +75,6 @@
         <div class="card-sos-estado" id="incidentEstadoInicio">Sin incidentes activos</div>
       </div>
 
-      <!-- Tarjeta azul línea directa -->
       <div class="card-linea-directa">
         <div class="cld-title">Línea de Atención Directa EMP 24 hs</div>
         <a href="tel:2245444600" class="cld-phone" id="btnCallBaseInicio">📞 2245-444600</a>
@@ -86,7 +84,6 @@
         </div>
       </div>
 
-      <!-- Grilla 2x2 accesos rápidos -->
       <div class="grid-accesos-rapidos">
         <button type="button" class="acceso-rapido" data-goto="credencial">
           <span class="ar-icon ar-icon-blue">🪪</span>
@@ -106,7 +103,6 @@
         </button>
       </div>
 
-      <!-- Lista servicios con chevron -->
       <ul class="servicios-lista">
         <li class="servicio-item" id="servicioFarmacia">
           <span class="si-icon">💊</span>
@@ -185,6 +181,10 @@
           <div class="ct-col">
             <span class="ct-k">CUIL / DNI</span>
             <span class="ct-v" id="ctCuilDni">20-33656107-9 / 33656107</span>
+          </div>
+          <div class="ct-col">
+            <span class="ct-k">N° SOCIO</span>
+            <span class="ct-v" id="ctSocio">EMP-000001</span>
           </div>
           <div class="ct-col">
             <span class="ct-k">ORDEN</span>
@@ -276,14 +276,6 @@
 
       <div class="external-services-block" id="externalServicesBlock" hidden></div>
 
-      <div class="supabase-config-card">
-        <h3>Configurar conexión Supabase</h3>
-        <label>URL<input type="text" id="sbUrl" placeholder="https://xxxx.supabase.co" /></label>
-        <label>Anon Key<input type="text" id="sbKey" placeholder="eyJhbGciOi..." /></label>
-        <button type="button" class="btn-secondary" id="btnSaveSb">Guardar conexión</button>
-        <p class="form-msg" id="sbMsg" role="status" aria-live="polite"></p>
-      </div>
-
       <div id="pagosContainer"></div>
     </section>
 
@@ -306,21 +298,7 @@
     <button class="nav-btn" id="nav-ficha" role="tab" aria-selected="false" data-target="ficha" aria-controls="tab-ficha"><span class="nav-icon">👤</span><span class="nav-text">Cuenta</span></button>
   </nav>
 
-  <div class="test-tools" id="testTools" hidden>
-    <button type="button" class="btn-test-toggle" id="btnTestToggle" aria-expanded="false" aria-controls="testPanel">🧪 Herramientas MVP</button>
-    <div class="test-panel" id="testPanel" hidden>
-      <p class="test-title">Simulador Central Operativa</p>
-      <button type="button" class="btn-test" data-sim="recibir">Simular: Central acusa recibo</button>
-      <button type="button" class="btn-test" data-sim="clasificar">Simular: Central clasifica (Triage)</button>
-      <button type="button" class="btn-test" data-sim="asignar">Simular: Móvil asignado</button>
-      <button type="button" class="btn-test" data-sim="camino">Simular: Móvil en camino</button>
-      <a class="btn-test" href="central.html" target="_blank" rel="noopener">↗ Abrir Central Operativa</a>
-      <a class="btn-test" href="guardia.html" target="_blank" rel="noopener">↗ Abrir Guardia Móvil</a>
-      <a class="btn-test" href="b2b.html" target="_blank" rel="noopener">↗ Abrir Módulo B2B</a>
-      <a class="btn-test" href="admin.html" target="_blank" rel="noopener">↗ Abrir Panel Admin</a>
-    </div>
-  </div>
-
+  <script src="js/supabase.config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
