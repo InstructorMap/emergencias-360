@@ -1,8 +1,9 @@
 /* ============================================================
    healthcheck.js — Auto-diagnóstico visual de Emergencias 360
-   v6.1: expectedVersion dinámico desde E360Config.STORAGE_VERSION.
-         index.html actualizado a 5 tabs + credencial + modo mayor.
+   v6.2: index.html → landing pública (sin store).
+         socio.html → app del socio (5 tabs + credencial).
          central/guardia/b2b/admin aceptan 6.x hasta su migración.
+         E360SupabaseConfig agregado a globals esperados.
    - Se carga al final de los 5 HTML
    - Detecta globals faltantes, métodos faltantes, IDs faltantes,
      versión de storage, y rutas de assets (200 vs 404)
@@ -40,7 +41,7 @@
 
     const baseCommon = {
       page: path,
-      globals: ['E360Config', 'E360StateMachine', 'E360Store'],
+      globals: ['E360Config', 'E360StateMachine', 'E360Store', 'E360SupabaseConfig'],
       storeMethods: [
         'getActiveContext', 'getIncidents', 'getIncidentById',
         'canTransitionIncident', 'getFleet', 'getBases', 'subscribe',
@@ -67,11 +68,26 @@
       assets: []
     };
 
+    // LANDING PÚBLICA: no carga store.js ni config.js.
+    // Solo chequeamos que exista el HTML básico.
     if (path === 'index.html' || path === '' || path === '/') {
+      return {
+        page: path,
+        globals: [],
+        storeMethods: [],
+        configKeys: [],
+        requiredIds: ['servicios', 'planes', 'sos', 'nosotros', 'contacto'],
+        assets: [],
+        expectedVersion: null
+      };
+    }
+
+    // APP DEL SOCIO
+    if (path === 'socio.html') {
       return Object.assign({}, baseCommon, {
         expectedVersion: expectedVersion(),
         requiredIds: [
-          // Header v6.1
+          // Header v6.2
           'btnModoMayor', 'pillSocio', 'connDot', 'connText', 'connMode',
           'baseSelector', 'btnToggleBanner', 'bannerDetalle',
           // Tab Inicio
@@ -83,9 +99,9 @@
           'tab-sos', 'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
           'incidentPanel', 'incidentState', 'timeline', 'etaBlock',
           'btnCallBase', 'b2bBanner',
-          // Tab Credencial
+          // Tab Credencial (4 columnas + N° SOCIO)
           'tab-credencial',
-          'credencialTarjeta', 'ctPlanLabel', 'ctNombre', 'ctCuilDni', 'ctOrden', 'ctSede',
+          'credencialTarjeta', 'ctPlanLabel', 'ctNombre', 'ctCuilDni', 'ctSocio', 'ctOrden', 'ctSede',
           'csCodigo', 'csRenueva', 'qrSvgWrap', 'gfPildoras', 'btnShareCredencial',
           // Tab Beneficios
           'tab-beneficios', 'benefitsList', 'benefitsEmpty', 'planBenefitsHint',
@@ -103,8 +119,8 @@
           'testTools', 'btnTestToggle', 'testPanel'
         ],
         assets: [
-          'js/config.js', 'js/state-machine.js', 'js/store.js',
-          'js/qr.js', 'js/app-socio.js', 'css/styles.css'
+          'js/supabase.config.js', 'js/config.js', 'js/state-machine.js',
+          'js/store.js', 'js/qr.js', 'js/app-socio.js', 'css/styles.css'
         ]
       });
     }
@@ -117,7 +133,7 @@
           'incidentList', 'incidentEmpty', 'detailContainer',
           'fleetContainer'
         ],
-        assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-central.js', 'css/styles.css']
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-central.js', 'css/styles.css']
       });
     }
 
@@ -129,7 +145,7 @@
           'unitStatus', 'noIncidentPanel', 'activeIncidentContainer',
           'historyList', 'historyEmpty'
         ],
-        assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-guardia.js', 'css/styles.css']
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-guardia.js', 'css/styles.css']
       });
     }
 
@@ -142,7 +158,7 @@
           'b2bLat', 'b2bLng', 'b2bPhone', 'b2bProtocol', 'b2bSubmit',
           'b2bCancelEdit', 'b2bMsg', 'b2bList', 'b2bEmpty', 'formTitle'
         ],
-        assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-b2b.js', 'css/styles.css']
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-b2b.js', 'css/styles.css']
       });
     }
 
@@ -160,7 +176,7 @@
           'payMsg', 'payStatus',
           'planManagerTbody', 'planManagerTable'
         ],
-        assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-admin.js', 'css/styles.css']
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-admin.js', 'css/styles.css']
       });
     }
 
@@ -198,8 +214,6 @@
       }
     });
 
-    // Versión: si expectedVersion es número → estricto.
-    // Si es '6.x' → acepta 6 o 6.1 (vistas aún no migradas).
     const actual = global.E360Config.STORAGE_VERSION;
     const exp = plan.expectedVersion;
     if (typeof exp === 'number') {
