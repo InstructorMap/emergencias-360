@@ -1,16 +1,9 @@
 /* ============================================================
    healthcheck.js — Auto-diagnóstico visual de Emergencias 360
-   v6.2: index.html → landing pública (sin store).
-         socio.html → app del socio (5 tabs + credencial).
+   v6.3: index.html → landing pública (sin store).
+         socio.html → app del socio (5 tabs + credencial,
+         sin test tools ni config Supabase).
          central/guardia/b2b/admin aceptan 6.x hasta su migración.
-         E360SupabaseConfig agregado a globals esperados.
-   - Se carga al final de los 5 HTML
-   - Detecta globals faltantes, métodos faltantes, IDs faltantes,
-     versión de storage, y rutas de assets (200 vs 404)
-   - Muestra un panel rojo fijo arriba si hay errores
-   - Muestra un badge verde chiquito si todo OK
-   - Loguea a localStorage los últimos 20 diagnósticos
-   - Apagable con ?healthcheck=off en la URL
    ============================================================ */
 
 (function (global) {
@@ -21,23 +14,16 @@
 
   if (new URLSearchParams(global.location.search).get('healthcheck') === 'off') return;
 
-  // ---------- Plan de chequeos por página ----------
   function getPagePlan() {
     const path = (global.location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
-    // Versión esperada: se lee del config real. Si no está, fallback 6.1.
     function expectedVersion() {
       try {
         const v = global.E360Config && global.E360Config.STORAGE_VERSION;
         return (typeof v === 'number') ? v : 6.1;
       } catch (_) { return 6.1; }
     }
-
-    // Para vistas todavía no migradas (central/guardia/b2b/admin),
-    // aceptamos 6.x hasta que las pasemos a 6.1 estricto.
-    function expectedVersionLoose() {
-      return '6.x';
-    }
+    function expectedVersionLoose() { return '6.x'; }
 
     const baseCommon = {
       page: path,
@@ -55,7 +41,6 @@
         'setHomeCoords', 'getActiveIncidentForUnit', 'updateCrewPosition',
         'guardiaDispatchIncident', 'guardiaMarkOnScene', 'guardiaMarkInTransit',
         'guardiaCloseIncident', 'getGuardiaHistory', 'requestSupportFromCrew',
-        // v6.1
         'getIncidentEta',
         'configureSupabaseConnection', 'getSupabaseStatus', 'syncWithSupabase'
       ],
@@ -68,8 +53,7 @@
       assets: []
     };
 
-    // LANDING PÚBLICA: no carga store.js ni config.js.
-    // Solo chequeamos que exista el HTML básico.
+    // LANDING PÚBLICA
     if (path === 'index.html' || path === '' || path === '/') {
       return {
         page: path,
@@ -87,36 +71,26 @@
       return Object.assign({}, baseCommon, {
         expectedVersion: expectedVersion(),
         requiredIds: [
-          // Header v6.2
-          'btnModoMayor', 'pillSocio', 'connDot', 'connText', 'connMode',
+          'btnModoMayor', 'pillSocio', 'connDot', 'connText',
           'baseSelector', 'btnToggleBanner', 'bannerDetalle',
-          // Tab Inicio
           'tab-inicio',
           'btnSOSInicio', 'sosProgressInicio', 'incidentEstadoInicio',
           'btnCallBaseInicio',
           'servicioFarmacia', 'servicioTeleconsulta', 'servicioPulsera', 'servicioCursos',
-          // Tab SOS
           'tab-sos', 'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
           'incidentPanel', 'incidentState', 'timeline', 'etaBlock',
           'btnCallBase', 'b2bBanner',
-          // Tab Credencial (4 columnas + N° SOCIO)
           'tab-credencial',
           'credencialTarjeta', 'ctPlanLabel', 'ctNombre', 'ctCuilDni', 'ctSocio', 'ctOrden', 'ctSede',
           'csCodigo', 'csRenueva', 'qrSvgWrap', 'gfPildoras', 'btnShareCredencial',
-          // Tab Beneficios
           'tab-beneficios', 'benefitsList', 'benefitsEmpty', 'planBenefitsHint',
-          // Tab Cuenta/Ficha
           'tab-ficha',
           'planSelector',
           'formFicha', 'fNombre', 'fDni', 'fCuil', 'fTelefono',
           'fGrupo', 'fAlergias', 'fPatologias', 'fContacto', 'fConsent',
           'fichaMsg', 'externalServicesBlock',
-          'sbUrl', 'sbKey', 'btnSaveSb', 'sbMsg',
           'pagosContainer',
-          // Nav inferior (5 tabs)
-          'nav-inicio', 'nav-sos', 'nav-credencial', 'nav-beneficios', 'nav-ficha',
-          // Test tools
-          'testTools', 'btnTestToggle', 'testPanel'
+          'nav-inicio', 'nav-sos', 'nav-credencial', 'nav-beneficios', 'nav-ficha'
         ],
         assets: [
           'js/supabase.config.js', 'js/config.js', 'js/state-machine.js',
@@ -183,7 +157,6 @@
     return baseCommon;
   }
 
-  // ---------- Chequeos ----------
   function checkGlobals(plan) {
     const issues = [];
     plan.globals.forEach((g) => {
@@ -291,7 +264,6 @@
     });
   }
 
-  // ---------- Render UI ----------
   function renderPanel(plan, issues) {
     const hasErrors = issues.some((i) => i.level === 'error');
     const hasWarns = issues.some((i) => i.level === 'warn');
@@ -441,7 +413,6 @@
     document.body.appendChild(overlay);
   }
 
-  // ---------- Log a localStorage ----------
   function logToLS(plan, issues) {
     try {
       const raw = localStorage.getItem(LS_LOG_KEY);
@@ -458,7 +429,6 @@
     } catch (_) {}
   }
 
-  // ---------- Boot ----------
   function run() {
     const plan = getPagePlan();
     const issues = [];
