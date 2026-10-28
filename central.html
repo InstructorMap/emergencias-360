@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#3D5CA4" />
+  <meta name="theme-color" content="#0B3C78" />
   <meta name="description" content="Consola Operativa EMP - MVP Demostración. No conectada a despacho real." />
   <title>Central Operativa EMP — MVP Demostración</title>
   <link rel="stylesheet" href="css/styles.css" />
@@ -13,7 +13,7 @@
     <a class="emp-brand" href="central.html" aria-label="EMP - Central Operativa">
       <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
         <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#FB0100" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span class="emp-brand-text">
         <span class="emp-brand-name">Consola Operativa EMP</span>
@@ -31,7 +31,7 @@
       </label>
       <label>Operador en turno<input type="text" id="operatorInput" class="operator-input" placeholder="Ej: Téc. Juan Pérez" maxlength="80" autocomplete="off" /></label>
       <span class="alert-counter" id="alertCounter" title="Alertas pendientes de acuse">0</span>
-      <a href="index.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Abrir Vista Socio</a>
+      <a href="socio.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Abrir Vista Socio</a>
     </div>
   </header>
 
@@ -66,6 +66,7 @@
     </div>
   </footer>
 
+  <script src="js/supabase.config.js"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
