@@ -4,323 +4,759 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0B3C78" />
-  <meta name="description" content="EMP - Emergencias Médicas Privadas. Alerta SOS, credencial virtual y red de beneficios. Más de 16 años brindando atención médica profesional. Esta app NO sustituye al 107 / 911 / Bomberos." />
-  <title>Mi Credencial EMP — Emergencias Médicas Privadas</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/styles.css" />
+  <meta name="description" content="EMP - Emergencias Médicas Privadas. Servicio de emergencias médicas, urgencias, traslados y cobertura sanitaria integral en Dolores y Partido de La Costa. Más de 16 años brindando atención médica profesional las 24 horas." />
+  <meta name="keywords" content="emergencias médicas, ambulancias, urgencias médicas, traslados sanitarios, cobertura médica, emergencias 24 horas, ambulancia privada, Dolores, Santa Teresita, La Costa" />
+  <title>EMP - Emergencias Médicas Privadas | Atención Médica 24 hs</title>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="EMP - Emergencias Médicas Privadas | Atención Médica 24 hs" />
+  <meta property="og:description" content="Servicio de emergencias médicas, urgencias, traslados y cobertura sanitaria integral. Más de 16 años brindando atención médica profesional." />
+  <meta property="og:url" content="https://instructormap.github.io/emergencias-360/" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- JSON-LD LocalBusiness -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "EmergencyService",
+    "name": "EMP - Emergencias Médicas Privadas",
+    "description": "Servicio de emergencias médicas, urgencias, traslados y cobertura sanitaria integral las 24 horas en Dolores y Partido de La Costa.",
+    "url": "https://www.empemergenciasmedicasprivadas.com/",
+    "telephone": "+54-2245-444600",
+    "areaServed": ["Dolores", "Partido de La Costa", "Santa Teresita"],
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Juan Vucetich 88 (Local 1)",
+      "addressLocality": "Dolores",
+      "addressRegion": "Buenos Aires",
+      "postalCode": "B7100",
+      "addressCountry": "AR"
+    },
+    "sameAs": ["https://instagram.com/emp_emergencias_medicas/"]
+  }
+  </script>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230B3C78'/%3E%3Ctext x='50' y='68' font-family='Arial' font-size='52' font-weight='900' fill='white' text-anchor='middle'%3EEMP%3C/text%3E%3C/svg%3E" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap');
+
+    :root {
+      --emp-blue: #0B3C78;
+      --emp-blue-light: #1E6091;
+      --emp-bordo: #7A1C32;
+      --emp-bordo-dark: #581122;
+      --emp-orange: #EA580C;
+      --emp-orange-bg: #FFF3E0;
+      --emp-sos: #DC2626;
+      --emp-green: #16A34A;
+      --emp-white: #FFFFFF;
+      --emp-offwhite: #F4F8FD;
+      --emp-text: #0F172A;
+      --emp-text-dim: #4A5568;
+      --emp-border: #CBD5E1;
+      --font-body: 'Poppins', system-ui, sans-serif;
+      --font-display: 'Montserrat', system-ui, sans-serif;
+      --radius: 14px;
+      --radius-sm: 8px;
+      --radius-lg: 20px;
+      --shadow-sm: 0 1px 3px rgba(15,23,42,0.08);
+      --shadow-md: 0 4px 12px rgba(15,23,42,0.10);
+      --shadow-lg: 0 10px 30px rgba(15,23,42,0.15);
+    }
+
+    html, body, div, span, main, header, footer, section, nav, ul, ol, li, form,
+    input, select, textarea, button, a, h1, h2, h3, h4, p, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+    }
+    html, body {
+      background: var(--emp-white);
+      color: var(--emp-text);
+      font-family: var(--font-body);
+      font-size: 16px; line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.01em; line-height: 1.15; }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+    /* ============ HEADER ============ */
+    .site-header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--emp-border);
+    }
+    .site-header .wrap {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding-top: 12px; padding-bottom: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--emp-blue), var(--emp-bordo));
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 900; font-size: 1rem;
+      letter-spacing: 0.04em;
+    }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+    .brand-name { font-family: var(--font-display); font-weight: 900; font-size: 1.05rem; color: var(--emp-blue); }
+    .brand-claim { font-size: 0.65rem; color: var(--emp-bordo); font-weight: 600; letter-spacing: 0.02em; }
+
+    .nav-desktop { display: none; gap: 4px; align-items: center; }
+    .nav-desktop a {
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 500; color: var(--emp-text-dim);
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-desktop a:hover { background: var(--emp-orange-bg); color: var(--emp-bordo); }
+
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .btn-credential {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--emp-blue); color: #fff;
+      padding: 10px 18px; border-radius: 999px;
+      font-weight: 700; font-size: 0.88rem;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-credential:hover { background: var(--emp-bordo); transform: translateY(-1px); }
+    .btn-sos-mini {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--emp-sos); color: #fff;
+      padding: 10px 14px; border-radius: 999px;
+      font-weight: 800; font-size: 0.82rem;
+    }
+    @media (min-width: 900px) {
+      .nav-desktop { display: flex; }
+    }
+
+    /* ============ HERO ============ */
+    .hero {
+      background:
+        radial-gradient(ellipse at top right, rgba(234,88,12,0.15), transparent 60%),
+        linear-gradient(180deg, #EAF2FB 0%, #FFFFFF 100%);
+      padding: 60px 0 80px;
+    }
+    .hero .wrap {
+      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
+    }
+    @media (min-width: 900px) {
+      .hero .wrap { grid-template-columns: 1.15fr 1fr; }
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      background: var(--emp-orange-bg); color: var(--emp-orange);
+      font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 6px 12px; border-radius: 999px;
+      margin-bottom: 18px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      color: var(--emp-blue); font-weight: 900;
+      margin-bottom: 16px;
+    }
+    .hero h1 span { color: var(--emp-orange); }
+    .hero-sub {
+      font-size: 1.1rem; color: var(--emp-text-dim);
+      max-width: 560px; margin-bottom: 28px;
+    }
+    .hero-ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--emp-orange); color: #fff;
+      padding: 14px 26px; border-radius: 999px;
+      font-weight: 700; font-size: 1rem;
+      box-shadow: var(--shadow-md);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-primary:hover { background: var(--emp-bordo); transform: translateY(-2px); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #fff; color: var(--emp-blue);
+      padding: 14px 26px; border-radius: 999px;
+      border: 2px solid var(--emp-blue);
+      font-weight: 700; font-size: 1rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { background: var(--emp-blue); color: #fff; }
+    .hero-call {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-top: 24px;
+      background: #fff; border: 1px solid var(--emp-border);
+      padding: 12px 18px; border-radius: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+    .hero-call .dot-pulse {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--emp-green);
+      box-shadow: 0 0 0 0 rgba(22,163,74,0.7);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(22,163,74,0); }
+      100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+    }
+    .hero-call .call-label { font-size: 0.72rem; color: var(--emp-text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .hero-call .call-num { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; color: var(--emp-blue); }
+    .hero-visual {
+      position: relative; border-radius: var(--radius-lg);
+      overflow: hidden; box-shadow: var(--shadow-lg);
+      aspect-ratio: 4/3;
+      background: linear-gradient(135deg, var(--emp-blue), var(--emp-bordo));
+    }
+    .hero-visual-placeholder {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; text-align: center; padding: 20px;
+    }
+    .hero-visual-placeholder .pulse-line {
+      width: 80%; height: 6px; background: rgba(255,255,255,0.3);
+      border-radius: 3px; overflow: hidden; margin-bottom: 16px;
+    }
+    .hero-visual-placeholder .pulse-line::before {
+      content: ''; display: block; height: 100%; width: 40%;
+      background: var(--emp-orange); border-radius: 3px;
+      animation: scan 2.5s infinite;
+    }
+    @keyframes scan {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+    .hero-visual-placeholder .ph-title {
+      font-family: var(--font-display); font-size: 1.2rem; font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .hero-visual-placeholder .ph-sub { font-size: 0.85rem; opacity: 0.85; margin-top: 4px; }
+
+    /* ============ TRUST BAR ============ */
+    .trust-bar {
+      background: var(--emp-blue); color: #fff;
+      padding: 22px 0;
+    }
+    .trust-bar .wrap {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 20px; text-align: center;
+    }
+    @media (min-width: 700px) {
+      .trust-bar .wrap { grid-template-columns: repeat(4, 1fr); }
+    }
+    .trust-item .ti-num {
+      font-family: var(--font-display); font-size: 1.6rem; font-weight: 900;
+      color: var(--emp-orange);
+    }
+    .trust-item .ti-label {
+      font-size: 0.8rem; opacity: 0.9; margin-top: 2px;
+    }
+
+    /* ============ SECCIONES ============ */
+    .section { padding: 80px 0; }
+    .section-alt { background: var(--emp-offwhite); }
+    .section-head { max-width: 720px; margin: 0 auto 50px; text-align: center; }
+    .section-head .eyebrow {
+      color: var(--emp-orange); font-size: 0.72rem;
+      font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 12px; display: inline-block;
+    }
+    .section-head h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      color: var(--emp-blue); font-weight: 900; margin-bottom: 12px;
+    }
+    .section-head p {
+      color: var(--emp-text-dim); font-size: 1rem; line-height: 1.6;
+    }
+
+    /* ============ SERVICIOS ============ */
+    .services-grid {
+      display: grid; grid-template-columns: 1fr; gap: 20px;
+    }
+    @media (min-width: 600px) { .services-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1000px) { .services-grid { grid-template-columns: repeat(3, 1fr); } }
+    .service-card {
+      background: #fff; border: 1px solid var(--emp-border);
+      border-radius: var(--radius); padding: 28px 24px;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .service-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--emp-orange);
+    }
+    .service-icon {
+      width: 52px; height: 52px; border-radius: 12px;
+      background: var(--emp-orange-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; margin-bottom: 16px;
+    }
+    .service-card h3 {
+      font-size: 1.1rem; color: var(--emp-blue); margin-bottom: 8px;
+    }
+    .service-card p { font-size: 0.92rem; color: var(--emp-text-dim); }
+
+    /* ============ PLANES ============ */
+    .plans-grid {
+      display: grid; grid-template-columns: 1fr; gap: 20px;
+    }
+    @media (min-width: 700px) { .plans-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) { .plans-grid { grid-template-columns: repeat(4, 1fr); } }
+    .plan-card {
+      background: #fff; border: 2px solid var(--emp-border);
+      border-radius: var(--radius-lg); padding: 28px 22px;
+      display: flex; flex-direction: column;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .plan-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .plan-card.featured {
+      border-color: var(--emp-orange);
+      box-shadow: var(--shadow-md);
+    }
+    .plan-card.featured::before {
+      content: 'Más elegido';
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--emp-orange); color: #fff;
+      font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 4px 12px; border-radius: 999px;
+      white-space: nowrap;
+    }
+    .plan-name {
+      font-family: var(--font-display); font-size: 1.5rem;
+      font-weight: 900; margin-bottom: 6px;
+    }
+    .plan-bronce .plan-name { color: #92400E; }
+    .plan-plata .plan-name { color: #475569; }
+    .plan-oro .plan-name { color: #B45309; }
+    .plan-platino .plan-name { color: var(--emp-bordo); }
+    .plan-tagline { font-size: 0.85rem; color: var(--emp-text-dim); margin-bottom: 18px; }
+    .plan-features { list-style: none; flex: 1; margin-bottom: 22px; }
+    .plan-features li {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: 0.88rem; padding: 6px 0;
+      border-bottom: 1px dashed rgba(203,213,225,0.6);
+    }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li::before {
+      content: '✓'; color: var(--emp-green);
+      font-weight: 900; flex-shrink: 0;
+    }
+    .plan-features li.no { color: #94A3B8; }
+    .plan-features li.no::before { content: '✕'; color: #CBD5E1; }
+    .plan-cta {
+      display: block; text-align: center;
+      background: var(--emp-blue); color: #fff;
+      padding: 12px; border-radius: 999px;
+      font-weight: 700; font-size: 0.92rem;
+      transition: background 0.15s;
+    }
+    .plan-cta:hover { background: var(--emp-bordo); }
+    .plan-card.featured .plan-cta { background: var(--emp-orange); }
+    .plan-card.featured .plan-cta:hover { background: var(--emp-bordo); }
+
+    /* ============ SOS BANNER ============ */
+    .sos-section {
+      background: linear-gradient(135deg, var(--emp-orange), var(--emp-bordo));
+      color: #fff; padding: 70px 0;
+    }
+    .sos-section .wrap {
+      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
+    }
+    @media (min-width: 900px) { .sos-section .wrap { grid-template-columns: 1.2fr 1fr; } }
+    .sos-section h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900;
+      margin-bottom: 16px;
+    }
+    .sos-section p { font-size: 1rem; opacity: 0.95; margin-bottom: 24px; line-height: 1.65; }
+    .sos-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn-white {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #fff; color: var(--emp-bordo);
+      padding: 14px 26px; border-radius: 999px;
+      font-weight: 800; font-size: 1rem;
+      box-shadow: var(--shadow-md);
+    }
+    .btn-white:hover { background: #F8FAFC; }
+    .btn-outline-white {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: #fff;
+      padding: 14px 26px; border-radius: 999px;
+      border: 2px solid #fff;
+      font-weight: 800; font-size: 1rem;
+    }
+    .btn-outline-white:hover { background: rgba(255,255,255,0.15); }
+    .sos-visual {
+      background: rgba(255,255,255,0.12);
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: var(--radius-lg); padding: 32px;
+      text-align: center;
+    }
+    .sos-visual .sv-icon { font-size: 3rem; margin-bottom: 12px; }
+    .sos-visual .sv-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
+    .sos-visual .sv-sub { font-size: 0.9rem; opacity: 0.9; }
+
+    /* ============ QUIÉNES SOMOS ============ */
+    .about-grid {
+      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
+    }
+    @media (min-width: 900px) { .about-grid { grid-template-columns: 1fr 1fr; } }
+    .about-grid h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); color: var(--emp-blue); font-weight: 900; margin-bottom: 16px; }
+    .about-grid p { color: var(--emp-text-dim); font-size: 1rem; line-height: 1.7; margin-bottom: 14px; }
+    .about-visual {
+      background: linear-gradient(135deg, var(--emp-blue), var(--emp-blue-light));
+      border-radius: var(--radius-lg); aspect-ratio: 4/3;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; text-align: center; padding: 24px;
+      box-shadow: var(--shadow-lg);
+    }
+    .about-visual .ph-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; }
+
+    /* ============ CTA FINAL ============ */
+    .cta-final {
+      background: var(--emp-blue); color: #fff;
+      padding: 80px 0; text-align: center;
+    }
+    .cta-final h2 {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900;
+      margin-bottom: 16px; max-width: 720px; margin-left: auto; margin-right: auto;
+    }
+    .cta-final p { font-size: 1rem; opacity: 0.9; margin-bottom: 28px; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .cta-final .hero-ctas { justify-content: center; }
+    .cta-final .btn-secondary { background: transparent; color: #fff; border-color: #fff; }
+    .cta-final .btn-secondary:hover { background: #fff; color: var(--emp-blue); }
+
+    /* ============ FOOTER ============ */
+    .site-footer {
+      background: var(--emp-bordo-dark); color: #fff;
+      padding: 50px 0 30px;
+    }
+    .footer-grid {
+      display: grid; grid-template-columns: 1fr; gap: 32px;
+      margin-bottom: 32px;
+    }
+    @media (min-width: 700px) { .footer-grid { grid-template-columns: 1.3fr 1fr 1fr; } }
+    .footer-col h4 {
+      font-size: 0.85rem; text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 12px; color: var(--emp-orange);
+    }
+    .footer-col p, .footer-col a {
+      font-size: 0.85rem; opacity: 0.9; line-height: 1.7;
+    }
+    .footer-col a:hover { opacity: 1; text-decoration: underline; }
+    .footer-legal {
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 24px; font-size: 0.72rem;
+      opacity: 0.7; text-align: center; line-height: 1.6;
+    }
+    .footer-legal strong { opacity: 1; }
+    .footer-legal .disclaimer {
+      display: block; margin-top: 8px;
+      color: var(--emp-orange); opacity: 1; font-weight: 700;
+    }
+
+    @media (max-width: 899px) {
+      .header-actions .btn-credential span.lbl { display: none; }
+    }
+  </style>
 </head>
 <body>
 
-  <header class="app-header" role="banner">
-    <div class="header-top">
-      <a class="emp-brand" href="socio.html" aria-label="EMP - Mi Credencial">
-        <svg viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-          <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="30" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
-          <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h94" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span class="emp-brand-text">
-          <span class="emp-brand-name">EMP</span>
-          <span class="emp-brand-claim">Mi Credencial</span>
-        </span>
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="index.html" aria-label="EMP - Emergencias Médicas Privadas">
+        <div class="brand-mark">EMP</div>
+        <div class="brand-text">
+          <span class="brand-name">EMP</span>
+          <span class="brand-claim">Emergencias Médicas Privadas</span>
+        </div>
       </a>
-      <div class="header-right">
-        <a href="index.html" class="btn-volver-sitio" title="Volver al sitio institucional">← Sitio</a>
-        <button type="button" id="btnModoMayor" class="btn-modo-mayor" aria-pressed="false" title="Modo Adulto Mayor (WCAG AAA)">👴 Mayor</button>
-        <div class="avatar-circle" aria-hidden="true">MP</div>
-        <span class="pill-socio-habilitado" id="pillSocio">✓ Socio Habilitado</span>
-      </div>
-    </div>
 
-    <div class="header-status">
-      <div class="status-item" id="connStatus" aria-live="polite">
-        <span class="dot dot-online" id="connDot"></span>
-        <span id="connText">Online</span>
-        <span class="conn-mode" id="connMode">LOCAL MVP</span>
-      </div>
-      <label class="base-selector">
-        <span class="sr-only">Sede operativa actual</span>
-        <select id="baseSelector" aria-label="Seleccionar sede operativa">
-          <option value="DOLORES">Dolores</option>
-          <option value="LA_COSTA">La Costa</option>
-        </select>
-      </label>
-    </div>
+      <nav class="nav-desktop" aria-label="Navegación principal">
+        <a href="#servicios">Servicios</a>
+        <a href="#planes">Planes</a>
+        <a href="#sos">SOS</a>
+        <a href="#nosotros">Quiénes somos</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
 
-    <div class="banner-legal" id="bannerLegal">
-      <div class="banner-row">
-        <button type="button" class="btn-toggle-banner" id="btnToggleBanner" aria-expanded="false" aria-controls="bannerDetalle">Ver aviso legal</button>
-      </div>
-      <div class="banner-detalle" id="bannerDetalle" hidden>
-        <p><strong>ASARI S.A.S.</strong> es el <em>Proveedor Tecnológico</em> de la plataforma. <strong>EMP - Emergencias Médicas Privadas</strong> es el <em>Prestador Operativo</em> en Dolores y Partido de La Costa.</p>
-        <p class="aviso-critico">⚠️ Esta aplicación <strong>NO sustituye</strong> a los servicios públicos de emergencia: llamá al <strong>107</strong> (SAME), <strong>911</strong> (Policía) o <strong>100</strong> (Bomberos) ante una urgencia real.</p>
+      <div class="header-actions">
+        <a class="btn-sos-mini" href="tel:2245444600" aria-label="Llamar emergencias 24 hs">🚨 24 hs</a>
+        <a class="btn-credential" href="socio.html" aria-label="Acceder a mi credencial y SOS">
+          🪪 <span class="lbl">Mi Credencial</span>
+        </a>
       </div>
     </div>
   </header>
 
-  <main class="app-main" role="main">
-
-    <!-- ============ TAB INICIO ============ -->
-    <section class="tab-panel" id="tab-inicio" data-tab="inicio" role="tabpanel" aria-labelledby="nav-inicio">
-      <h1 class="panel-title">Inicio <span class="tag-linea-a">Línea A</span></h1>
-
-      <div class="card-sos-destacada">
-        <div class="card-sos-header">
-          <span class="card-sos-title">Urgencias y Guardias SOS</span>
-          <span class="card-sos-sub">Línea A — Emergencias 24 hs</span>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-text">
+        <span class="hero-eyebrow">Más de 16 años cuidando tu salud</span>
+        <h1>Emergencias médicas <span>las 24 horas</span>, los 365 días.</h1>
+        <p class="hero-sub">Atención médica rápida, humana y profesional para cada momento. Emergencias, urgencias, traslados y cobertura sanitaria integral en Dolores y Partido de La Costa.</p>
+        <div class="hero-ctas">
+          <a class="btn-primary" href="socio.html">🪪 Acceder a mi credencial</a>
+          <a class="btn-secondary" href="tel:2245444600">📞 Llamar 2245-444600</a>
         </div>
-        <button type="button" id="btnSOSInicio" class="btn-sos-mini" aria-label="Mantener presionado 1.5 segundos para emitir alerta SOS">
-          <span class="sos-progress" id="sosProgressInicio" aria-hidden="true"></span>
-          <span class="sos-label">SOS</span>
-        </button>
-        <div class="card-sos-hint">Mantené presionado 1.5s para emitir la alerta</div>
-        <div class="card-sos-estado" id="incidentEstadoInicio">Sin incidentes activos</div>
-      </div>
-
-      <div class="card-linea-directa">
-        <div class="cld-title">Línea de Atención Directa EMP 24 hs</div>
-        <a href="tel:2245444600" class="cld-phone" id="btnCallBaseInicio">📞 2245-444600</a>
-        <div class="cld-actions">
-          <a href="tel:107" class="cld-btn cld-btn-107">107 SAME</a>
-          <a href="tel:911" class="cld-btn cld-btn-911">911 Policía</a>
-        </div>
-      </div>
-
-      <div class="grid-accesos-rapidos">
-        <button type="button" class="acceso-rapido" data-goto="credencial">
-          <span class="ar-icon ar-icon-blue">🪪</span>
-          <span class="ar-label">Credencial Virtual</span>
-        </button>
-        <button type="button" class="acceso-rapido" data-goto="beneficios">
-          <span class="ar-icon ar-icon-orange">🏷️</span>
-          <span class="ar-label">Red de Beneficios</span>
-        </button>
-        <button type="button" class="acceso-rapido" data-goto="ficha">
-          <span class="ar-icon ar-icon-green">🚑</span>
-          <span class="ar-label">Traslados y Enfermería</span>
-        </button>
-        <button type="button" class="acceso-rapido" data-goto="ficha">
-          <span class="ar-icon ar-icon-bordo">📋</span>
-          <span class="ar-label">Mi Ficha Médica</span>
-        </button>
-      </div>
-
-      <ul class="servicios-lista">
-        <li class="servicio-item" id="servicioFarmacia">
-          <span class="si-icon">💊</span>
-          <span class="si-label">Farmacias Adheridas</span>
-          <span class="si-chevron">›</span>
-        </li>
-        <li class="servicio-item" id="servicioTeleconsulta">
-          <span class="si-icon">📹</span>
-          <span class="si-label">Teleconsulta / Médico Virtual</span>
-          <span class="si-chevron">›</span>
-        </li>
-        <li class="servicio-item" id="servicioPulsera">
-          <span class="si-icon">🆘</span>
-          <span class="si-label">Pulsera QR y Botón Domiciliario</span>
-          <span class="si-chevron">›</span>
-        </li>
-        <li class="servicio-item" id="servicioCursos">
-          <span class="si-icon">🎓</span>
-          <span class="si-label">Cursos RCP y Primeros Auxilios</span>
-          <span class="si-chevron">›</span>
-        </li>
-      </ul>
-    </section>
-
-    <!-- ============ TAB SOS ============ -->
-    <section class="tab-panel" id="tab-sos" data-tab="sos" role="tabpanel" aria-labelledby="nav-sos" hidden>
-      <h1 class="panel-title">Emergencia SOS <span class="tag-linea-a">Línea A</span></h1>
-      <div class="b2b-banner" id="b2bBanner" hidden></div>
-      <div class="sos-zone">
-        <button type="button" id="btnSOS" class="btn-sos" aria-label="Mantener presionado 1.5 segundos para emitir alerta SOS">
-          <span class="sos-progress" id="sosProgress" aria-hidden="true"></span>
-          <span class="sos-label">SOS</span>
-          <span class="sos-hint">Mantené presionado 1.5s</span>
-        </button>
-      </div>
-      <div class="gps-panel" id="gpsPanel">
-        <div class="gps-status" id="gpsStatus" aria-live="polite">GPS: sin capturar</div>
-        <button type="button" class="btn-secondary" id="btnGps">Capturar mi ubicación</button>
-        <div class="manual-fallback" id="manualFallback" hidden>
-          <label for="manualDir">No pudimos obtener tu GPS. Escribí tu dirección o referencia:</label>
-          <input type="text" id="manualDir" maxlength="160" placeholder="Ej: J. Vucetich 88, Dolores" />
-        </div>
-      </div>
-      <div class="incident-panel" id="incidentPanel" hidden>
-        <h2 class="incident-title">Estado del incidente</h2>
-        <div class="incident-state" id="incidentState" aria-live="assertive">—</div>
-        <ol class="timeline" id="timeline"></ol>
-        <div class="eta-block" id="etaBlock" hidden>
-          <div class="eta-main" id="etaMain">—</div>
-          <div class="eta-source" id="etaSource"></div>
-          <div class="eta-disclaimer">Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).</div>
-        </div>
-      </div>
-      <div class="call-actions">
-        <a href="tel:107" class="btn-call btn-call-107">📞 Llamar 107 (SAME)</a>
-        <a href="tel:911" class="btn-call btn-call-911">📞 Llamar 911 (Policía)</a>
-        <a href="tel:2245444600" class="btn-call btn-call-base" id="btnCallBase">📞 Base EMP Dolores (contingencia)</a>
-      </div>
-    </section>
-
-    <!-- ============ TAB CREDENCIAL ============ -->
-    <section class="tab-panel" id="tab-credencial" data-tab="credencial" role="tabpanel" aria-labelledby="nav-credencial" hidden>
-      <div class="credencial-topbar">
-        <h1 class="credencial-title">Credencial Virtual EMP</h1>
-        <button type="button" class="btn-share" id="btnShareCredencial" title="Copiar enlace de emergencia">🔗</button>
-      </div>
-
-      <div class="credencial-tarjeta" id="credencialTarjeta">
-        <div class="ct-brand">EMERGENCIAS MÉDICAS PRIVADAS — EMP</div>
-        <div class="ct-row-top">
-          <span class="ct-sigla">EMP</span>
-          <span class="ct-plan" id="ctPlanLabel">PLAN PLATINO</span>
-        </div>
-        <div class="ct-nombre" id="ctNombre">PATRI, MARCELO ALEJANDRO</div>
-        <div class="ct-row-bottom">
-          <div class="ct-col">
-            <span class="ct-k">CUIL / DNI</span>
-            <span class="ct-v" id="ctCuilDni">20-33656107-9 / 33656107</span>
-          </div>
-          <div class="ct-col">
-            <span class="ct-k">N° SOCIO</span>
-            <span class="ct-v" id="ctSocio">EMP-000001</span>
-          </div>
-          <div class="ct-col">
-            <span class="ct-k">ORDEN</span>
-            <span class="ct-v" id="ctOrden">00</span>
-          </div>
-          <div class="ct-col">
-            <span class="ct-k">SEDE</span>
-            <span class="ct-v" id="ctSede">DOLORES</span>
+        <div class="hero-call">
+          <span class="dot-pulse"></span>
+          <div>
+            <div class="call-label">Emergencias 24 hs — Dolores</div>
+            <div class="call-num">2245-444600 / 444601</div>
           </div>
         </div>
       </div>
-
-      <div class="codigo-seguridad-card">
-        <div class="cs-left">
-          <div class="cs-label">CÓDIGO DE SEGURIDAD</div>
-          <div class="cs-codigo" id="csCodigo">9 8 7</div>
-        </div>
-        <div class="cs-right">
-          <div class="cs-renueva-label">Renueva en</div>
-          <div class="cs-renueva" id="csRenueva">3:00</div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-visual-placeholder">
+          <div class="pulse-line"></div>
+          <div class="ph-title">EMP</div>
+          <div class="ph-sub">Emergencias Médicas Privadas</div>
         </div>
       </div>
+    </div>
+  </section>
 
-      <div class="qr-card" id="qrCard">
-        <div class="qr-card-title">Código QR de verificación</div>
-        <div class="qr-card-svg" id="qrSvgWrap"></div>
+  <!-- TRUST BAR -->
+  <section class="trust-bar">
+    <div class="wrap">
+      <div class="trust-item">
+        <div class="ti-num">16+</div>
+        <div class="ti-label">Años de trayectoria</div>
       </div>
-
-      <div class="grupo-familiar-section">
-        <h2 class="gf-title">GRUPO FAMILIAR</h2>
-        <div class="gf-pildoras" id="gfPildoras"></div>
+      <div class="trust-item">
+        <div class="ti-num">24/7</div>
+        <div class="ti-label">Emergencias y urgencias</div>
       </div>
-
-      <p class="aviso-dni">🪪 Deberás presentar tu DNI junto con esta credencial</p>
-    </section>
-
-    <!-- ============ TAB BENEFICIOS ============ -->
-    <section class="tab-panel" id="tab-beneficios" data-tab="beneficios" role="tabpanel" aria-labelledby="nav-beneficios" hidden>
-      <h1 class="panel-title">Red de Beneficios <span class="tag-linea-b">Línea B</span></h1>
-      <p class="aviso-comercial"><strong>Programa comercial de descuentos.</strong> No constituye obra social, medicina prepaga ni seguro médico. Sujetos a cartilla y convenio vigente.</p>
-      <p class="plan-benefits-hint" id="planBenefitsHint" hidden></p>
-      <div class="filtro-localidad" role="group" aria-label="Filtrar por localidad">
-        <button type="button" class="btn-filter active" data-loc="Dolores">Dolores</button>
-        <button type="button" class="btn-filter" data-loc="La Costa">Partido de La Costa</button>
+      <div class="trust-item">
+        <div class="ti-num">2</div>
+        <div class="ti-label">Sedes operativas</div>
       </div>
-      <ul class="benefits-list" id="benefitsList" aria-live="polite"></ul>
-      <p class="empty-msg" id="benefitsEmpty" hidden>No hay convenios activos para tu plan en esta localidad por el momento.</p>
-    </section>
-
-    <!-- ============ TAB CUENTA / FICHA ============ -->
-    <section class="tab-panel" id="tab-ficha" data-tab="ficha" role="tabpanel" aria-labelledby="nav-ficha" hidden>
-      <h1 class="panel-title">Mi Cuenta / Ficha <span class="tag-modulo">Módulo</span></h1>
-
-      <div class="plan-selector-card">
-        <label for="planSelector">Mi Plan EMP</label>
-        <select id="planSelector">
-          <option value="BRONCE">Plan Bronce</option>
-          <option value="PLATA">Plan Plata</option>
-          <option value="ORO">Plan Oro</option>
-          <option value="PLATINO">Plan Platino</option>
-        </select>
+      <div class="trust-item">
+        <div class="ti-num">4</div>
+        <div class="ti-label">Planes a tu medida</div>
       </div>
+    </div>
+  </section>
 
-      <p class="privacy-note">Minimización de datos: solo pedimos lo indispensable para una urgencia.</p>
-      <form id="formFicha" class="ficha-form" novalidate>
-        <label>Nombre completo<input type="text" name="nombre" id="fNombre" required maxlength="80" autocomplete="name" /></label>
-        <label>DNI<input type="text" name="dni" id="fDni" required maxlength="12" inputmode="numeric" /></label>
-        <label>CUIL<input type="text" name="cuil" id="fCuil" maxlength="20" placeholder="20-33656107-9" /></label>
-        <label>Teléfono<input type="tel" name="telefono" id="fTelefono" required maxlength="20" inputmode="tel" /></label>
-        <label>Grupo sanguíneo
-          <select name="grupoSanguineo" id="fGrupo">
-            <option value="">No sé / Prefiero no decir</option>
-            <option value="O+">O+</option><option value="O-">O-</option>
-            <option value="A+">A+</option><option value="A-">A-</option>
-            <option value="B+">B+</option><option value="B-">B-</option>
-            <option value="AB+">AB+</option><option value="AB-">AB-</option>
-          </select>
-        </label>
-        <label>Alergias críticas<textarea name="alergias" id="fAlergias" rows="2" maxlength="200" placeholder="Ej: penicilina, látex"></textarea></label>
-        <label>Patologías relevantes para urgencia<textarea name="patologias" id="fPatologias" rows="2" maxlength="200" placeholder="Ej: diabetes, cardiopatía"></textarea></label>
-        <label>Contacto de emergencia<input type="text" name="contacto" id="fContacto" maxlength="80" placeholder="Nombre y teléfono" /></label>
-        <label class="checkbox-consent">
-          <input type="checkbox" id="fConsent" required />
-          <span>Doy mi <strong>Consentimiento Informado</strong> para el tratamiento de estos datos con fines de emergencia.</span>
-        </label>
-        <button type="submit" class="btn-primary">Guardar ficha</button>
-        <p class="form-msg" id="fichaMsg" role="status" aria-live="polite"></p>
-      </form>
+  <!-- SERVICIOS -->
+  <section class="section" id="servicios">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Servicios</span>
+        <h2>Soluciones médicas integrales</h2>
+        <p>Brindamos atención rápida, profesional y humana. Cobertura de emergencias, traslados, capacitaciones y servicios especializados pensados para cuidarte en todo momento.</p>
+      </div>
+      <div class="services-grid">
+        <div class="service-card">
+          <div class="service-icon">🚑</div>
+          <h3>Emergencias médicas</h3>
+          <p>Atención inmediata ante situaciones de riesgo de vida, con respuesta rápida y profesionales capacitados las 24 horas.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🩺</div>
+          <h3>Urgencias médicas</h3>
+          <p>Asistencia médica para cuadros que requieren atención rápida y segura, priorizando el bienestar del paciente.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🛏️</div>
+          <h3>Traslados programados</h3>
+          <p>Servicio de ambulancia desde el domicilio hasta centros de atención médica, clínicas y hospitales.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🏥</div>
+          <h3>Derivaciones de pacientes</h3>
+          <p>Traslados privados y por obra social entre distintas ciudades, coordinados de manera eficiente y segura.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🚨</div>
+          <h3>Ambulancias especializadas</h3>
+          <p>Unidades equipadas para diferentes necesidades: desde ambulancias comunes hasta pediátricas con incubadora.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🎪</div>
+          <h3>Cobertura de eventos</h3>
+          <p>Cobertura médica para eventos sociales, deportivos, empresariales e institucionales con personal y unidades preparadas.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">🎓</div>
+          <h3>Capacitaciones certificadas</h3>
+          <p>Cursos y entrenamientos en RCP, DEA, maniobra de Heimlich y primeros auxilios, para empresas, instituciones y público en general.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">💊</div>
+          <h3>Red de beneficios</h3>
+          <p>Descuentos en farmacias, ópticas y consultorios adheridos. Beneficios exclusivos para socios EMP según su plan.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon">📱</div>
+          <h3>App del socio</h3>
+          <p>Credencial virtual verificable, botón SOS con GPS, ficha médica de emergencia y red de beneficios en tu teléfono.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <div class="external-services-block" id="externalServicesBlock" hidden></div>
+  <!-- PLANES -->
+  <section class="section section-alt" id="planes">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Planes</span>
+        <h2>Elegí tu plan</h2>
+        <p>Encontrá la cobertura que mejor se adapta a tus necesidades y las de tu familia. Compará nuestros planes y accedé a beneficios pensados para brindarte asistencia, tranquilidad y atención médica cuando más la necesitás.</p>
+      </div>
+      <div class="plans-grid">
+        <div class="plan-card plan-bronce">
+          <div class="plan-name">Bronce</div>
+          <div class="plan-tagline">Cobertura esencial</div>
+          <ul class="plan-features">
+            <li>Emergencias y urgencias</li>
+            <li>Enfermería en domicilio</li>
+            <li>Traslados locales</li>
+            <li>20% med / 15% perf en farmacia</li>
+            <li>Cobertura en Costa Atlántica</li>
+            <li class="no">Remis en ambulancia</li>
+            <li class="no">Médico virtual</li>
+            <li class="no">Seguro al viajero</li>
+          </ul>
+          <a class="plan-cta" href="socio.html">Elegir Bronce</a>
+        </div>
+        <div class="plan-card plan-plata">
+          <div class="plan-name">Plata</div>
+          <div class="plan-tagline">Cobertura familiar</div>
+          <ul class="plan-features">
+            <li>Todo lo de Bronce</li>
+            <li>Remis en ambulancia preferencial</li>
+            <li>Traslado en silla de ruedas</li>
+            <li>20% med / 15% perf en farmacia</li>
+            <li>Cobertura en Costa Atlántica</li>
+            <li class="no">Médico virtual</li>
+            <li class="no">Seguro al viajero</li>
+            <li class="no">Pulsera SOS</li>
+          </ul>
+          <a class="plan-cta" href="socio.html">Elegir Plata</a>
+        </div>
+        <div class="plan-card plan-oro featured">
+          <div class="plan-name">Oro</div>
+          <div class="plan-tagline">Cobertura completa</div>
+          <ul class="plan-features">
+            <li>Todo lo de Plata</li>
+            <li>50% en medicamentos (según cartilla)</li>
+            <li>Médico virtual 5 especialistas 24/365</li>
+            <li>Seguro al viajero</li>
+            <li>Pulsera SOS con geolocalización</li>
+            <li>Cobertura en Costa Atlántica</li>
+            <li class="no">Botón fijo en domicilio</li>
+            <li class="no">Acceso completo a la app</li>
+          </ul>
+          <a class="plan-cta" href="socio.html">Elegir Oro</a>
+        </div>
+        <div class="plan-card plan-platino">
+          <div class="plan-name">Platino</div>
+          <div class="plan-tagline">Máxima protección</div>
+          <ul class="plan-features">
+            <li>Todo lo de Oro</li>
+            <li>50% en medicamentos (según cartilla)</li>
+            <li>Médico virtual 5 especialistas 24/365</li>
+            <li>Seguro al viajero</li>
+            <li>Pulsera SOS con geolocalización</li>
+            <li>Botón fijo SOS en domicilio</li>
+            <li>Acceso completo a la app</li>
+            <li>Cobertura en Costa Atlántica</li>
+          </ul>
+          <a class="plan-cta" href="socio.html">Elegir Platino</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <div id="pagosContainer"></div>
-    </section>
+  <!-- SOS -->
+  <section class="sos-section" id="sos">
+    <div class="wrap">
+      <div>
+        <h2>Protección inteligente, estés donde estés</h2>
+        <p>Sumá un nivel extra de seguridad con nuestras soluciones de asistencia inmediata. La <strong>pulsera con geolocalización</strong> permite conocer tu ubicación y solicitar ayuda de forma rápida ante una emergencia, mientras que el <strong>botón fijo para el domicilio</strong> ofrece una respuesta inmediata desde tu hogar cuando más lo necesitás. Dos herramientas pensadas para brindar mayor tranquilidad a vos y a tu familia.</p>
+        <div class="sos-buttons">
+          <a class="btn-white" href="socio.html">🪪 Abrir la app del socio</a>
+          <a class="btn-outline-white" href="tel:2245444600">📞 Llamar emergencias</a>
+        </div>
+      </div>
+      <div class="sos-visual">
+        <div class="sv-icon">🆘</div>
+        <div class="sv-title">Botón SOS</div>
+        <div class="sv-sub">En tu celular, con GPS y confirmación en tiempo real.</div>
+      </div>
+    </div>
+  </section>
 
-  </main>
+  <!-- QUIÉNES SOMOS -->
+  <section class="section" id="nosotros">
+    <div class="wrap">
+      <div class="about-grid">
+        <div>
+          <span class="eyebrow" style="color: var(--emp-orange); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; display: inline-block; margin-bottom: 12px;">Quiénes somos</span>
+          <h2>Más de 16 años brindando atención médica profesional</h2>
+          <p>Nuestra misión es ofrecer asistencia médica de calidad, rápida y eficiente las 24 horas del día. Con un equipo altamente capacitado y tecnología de punta, garantizamos respuestas inmediatas y seguras para cada situación de emergencia.</p>
+          <p>Nuestro compromiso es brindar tranquilidad y respaldo a familias y empresas que necesitan cobertura médica confiable, priorizando siempre el bienestar de los pacientes. Nos dedicamos a la atención personalizada y humana, asegurando que nuestros servicios médicos sean profesionales y accesibles para toda la comunidad.</p>
+        </div>
+        <div class="about-visual">
+          <div class="ph-title">EMP en acción</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-  <footer class="asari-footer" role="contentinfo">
-    <div class="asari-logo">ASARI S.A.S.</div>
-    <div class="asari-line">
-      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
-      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
-      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+  <!-- CTA FINAL -->
+  <section class="cta-final" id="contacto">
+    <div class="wrap">
+      <h2>¿Necesitás asistencia médica o querés comunicarte con nosotros?</h2>
+      <p>Estamos disponibles para ayudarte con atención personalizada, consultas, afiliaciones, emergencias y cobertura médica. Nuestro equipo te brindará respuestas rápidas y el acompañamiento que necesitás, las 24 horas.</p>
+      <div class="hero-ctas">
+        <a class="btn-primary" href="socio.html">🪪 Ingresar a mi credencial</a>
+        <a class="btn-secondary" href="tel:2245444600">📞 Llamar 2245-444600</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="brand" style="margin-bottom: 14px;">
+            <div class="brand-mark">EMP</div>
+            <div class="brand-text">
+              <span class="brand-name" style="color: #fff;">EMP</span>
+              <span class="brand-claim" style="color: var(--emp-orange);">Emergencias Médicas Privadas</span>
+            </div>
+          </div>
+          <p>Más de 16 años brindando atención médica profesional. Emergencias Médicas Privadas las 24 horas en Dolores y Partido de La Costa.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Sede Dolores</h4>
+          <p>Juan Vucetich 88 (Local 1), Dolores, Buenos Aires</p>
+          <p><strong>Emergencias 24 hs:</strong><br><a href="tel:2245444600">2245-444600</a> / <a href="tel:2245444601">2245-444601</a></p>
+          <p><strong>Administración:</strong><br><a href="tel:2245444602">2245-444602</a> (lun a vie 9 a 14 hs)</p>
+          <p><strong>WhatsApp:</strong><br><a href="https://wa.me/5492245406323" target="_blank" rel="noopener">2245-406323</a></p>
+        </div>
+        <div class="footer-col">
+          <h4>Sucursal Santa Teresita (La Costa)</h4>
+          <p>Santa Teresita, Partido de La Costa</p>
+          <p><strong>Emergencias 24 hs:</strong><br><a href="tel:2246529000">2246-529000</a></p>
+          <p><strong>Administración:</strong><br><a href="tel:2246526777">2246-526777</a></p>
+          <p><strong>WhatsApp:</strong><br><a href="https://wa.me/5492245406323" target="_blank" rel="noopener">2245-406323</a></p>
+          <p style="margin-top: 12px;"><a href="https://instagram.com/emp_emergencias_medicas/" target="_blank" rel="noopener">📷 @emp_emergencias_medicas</a></p>
+        </div>
+      </div>
+      <div class="footer-legal">
+        <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.<br>
+        EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
+        <span class="disclaimer">⚠️ Esta app NO sustituye al 107 (SAME) / 911 (Policía) / 100 (Bomberos).</span>
+      </div>
     </div>
   </footer>
 
-  <nav class="bottom-nav" role="tablist" aria-label="Navegación principal">
-    <button class="nav-btn active" id="nav-inicio" role="tab" aria-selected="true" data-target="inicio" aria-controls="tab-inicio"><span class="nav-icon">🏠</span><span class="nav-text">Inicio</span></button>
-    <button class="nav-btn" id="nav-sos" role="tab" aria-selected="false" data-target="sos" aria-controls="tab-sos"><span class="nav-icon">🚨</span><span class="nav-text">SOS</span></button>
-    <button class="nav-btn" id="nav-credencial" role="tab" aria-selected="false" data-target="credencial" aria-controls="tab-credencial"><span class="nav-icon">🪪</span><span class="nav-text">Credencial</span></button>
-    <button class="nav-btn" id="nav-beneficios" role="tab" aria-selected="false" data-target="beneficios" aria-controls="tab-beneficios"><span class="nav-icon">🏷️</span><span class="nav-text">Beneficios</span></button>
-    <button class="nav-btn" id="nav-ficha" role="tab" aria-selected="false" data-target="ficha" aria-controls="tab-ficha"><span class="nav-icon">👤</span><span class="nav-text">Cuenta</span></button>
-  </nav>
-
-  <div class="test-tools" id="testTools" hidden>
-    <button type="button" class="btn-test-toggle" id="btnTestToggle" aria-expanded="false" aria-controls="testPanel">🧪 Herramientas MVP</button>
-    <div class="test-panel" id="testPanel" hidden>
-      <p class="test-title">Simulador Central Operativa</p>
-      <button type="button" class="btn-test" data-sim="recibir">Simular: Central acusa recibo</button>
-      <button type="button" class="btn-test" data-sim="clasificar">Simular: Central clasifica (Triage)</button>
-      <button type="button" class="btn-test" data-sim="asignar">Simular: Móvil asignado</button>
-      <button type="button" class="btn-test" data-sim="camino">Simular: Móvil en camino</button>
-      <a class="btn-test" href="central.html" target="_blank" rel="noopener">↗ Abrir Central Operativa</a>
-      <a class="btn-test" href="guardia.html" target="_blank" rel="noopener">↗ Abrir Guardia Móvil</a>
-      <a class="btn-test" href="b2b.html" target="_blank" rel="noopener">↗ Abrir Módulo B2B</a>
-      <a class="btn-test" href="admin.html" target="_blank" rel="noopener">↗ Abrir Panel Admin</a>
-    </div>
-  </div>
-
-  <script src="js/supabase.config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/state-machine.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/qr.js"></script>
-  <script src="js/app-socio.js"></script>
-  <script src="js/healthcheck.js"></script>
 </body>
 </html>
