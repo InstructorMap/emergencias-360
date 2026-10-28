@@ -1,10 +1,12 @@
 /* ============================================================
-   E360Store v6.1 — Capa de abstracción de datos (MVP LOCAL)
-   v6: pulsera QR/NFC + botón domiciliario + métodos de guardia
-       + requestSupportFromCrew nativo.
-   v6.1: agrega createSOSPulseraIncident(payload) que envuelve
-         createSOSIncident() con source:'pulsera' + validación.
-   API pública intacta respecto a v5 → los app-*.js no se rompen.
+   E360Store v6.1 — Capa de abstracción de datos (MVP LOCAL + Supabase híbrido)
+   v6.1: EMP rediseño. Agrega:
+     - Migración v6 → v6.1 (cuil, familyGroup, orden, filial)
+     - Seed con PATRI, MARCELO ALEJANDRO (PLATINO)
+     - getIncidentEta(incidentId)
+     - Puente Supabase: initSupabaseBridge, configureSupabaseConnection,
+       getSupabaseStatus, syncWithSupabase (defensivo, fallback LOCAL_MVP)
+   API pública v6 intacta → app-*.js no se rompe.
    ============================================================ */
 
 (function (global) {
@@ -27,14 +29,15 @@
   const BENEFIT_STATUSES = C.BENEFIT_STATUSES;
   const B2B_STATUSES = C.B2B_STATUSES;
 
-  // Defaults de pulsera (si config.js no los define, no rompe)
   const PULSERA_DEFAULTS = C.PULSERA_DEFAULTS || { pulseraStatus: 'inactivo', homeCoords: null, homeAddress: '' };
   const PULSERA_STATUSES = C.PULSERA_STATUSES || ['activo', 'inactivo'];
 
   const channel = (typeof BroadcastChannel !== 'undefined')
     ? new BroadcastChannel(CHANNEL_NAME) : null;
 
-  // ---------- Helpers ----------
+  // ============================================================
+  // HELPERS
+  // ============================================================
   function padNum(n, digits) {
     const s = String(Math.max(0, Math.floor(n)));
     return s.length >= digits ? s : '0'.repeat(digits - s.length) + s;
@@ -59,13 +62,131 @@
     return d.toISOString();
   }
 
-  // ---------- Seed ----------
+  // ============================================================
+  // SUPABASE BRIDGE (defensivo)
+  // ============================================================
+  // Estado interno del puente. Si no hay URL/KEY o window.supabase,
+  // queda en LOCAL_MVP. Nunca lanza en el camino crítico.
+  const supabaseBridge = {
+    client: null,
+    connected: false,
+    mode: 'LOCAL_MVP',
+    url: '',
+    channelSub: null,
+    lastError: null
+  };
+
+  function readSupabaseConfig() {
+    let url = '';
+    let anonKey = '';
+    try {
+      url = (global.localStorage && global.localStorage.getItem('e360_supabase_url')) || '';
+      anonKey = (global.localStorage && global.localStorage.getItem('e360_supabase_anon_key')) || '';
+    } catch (_) {}
+    if (!url && C.SUPABASE && C.SUPABASE.URL) url = C.SUPABASE.URL;
+    if (!anonKey && C.SUPABASE && C.SUPABASE.ANON_KEY) anonKey = C.SUPABASE.ANON_KEY;
+    return { url: String(url).trim(), anonKey: String(anonKey).trim() };
+  }
+
+  function initSupabaseBridge() {
+    const { url, anonKey } = readSupabaseConfig();
+    supabaseBridge.url = url;
+    if (!url || !anonKey) {
+      supabaseBridge.connected = false;
+      supabaseBridge.mode = 'LOCAL_MVP';
+      supabaseBridge.lastError = null;
+      return;
+    }
+    if (!global.supabase || typeof global.supabase.createClient !== 'function') {
+      supabaseBridge.connected = false;
+      supabaseBridge.mode = 'LOCAL_MVP';
+      supabaseBridge.lastError = 'SDK Supabase no cargado.';
+      return;
+    }
+    try {
+      if (supabaseBridge.channelSub && typeof supabaseBridge.channelSub.unsubscribe === 'function') {
+        try { supabaseBridge.channelSub.unsubscribe(); } catch (_) {}
+      }
+      supabaseBridge.client = global.supabase.createClient(url, anonKey);
+      supabaseBridge.connected = true;
+      supabaseBridge.mode = 'SUPABASE_LIVE';
+      supabaseBridge.lastError = null;
+
+      // Suscripción realtime (defensiva; si falla no rompe)
+      try {
+        supabaseBridge.channelSub = supabaseBridge.client
+          .channel('e360_realtime')
+          .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+            // Notificamos a la UI para que re-lea de localStorage o refresque.
+            // No aplicamos el payload directamente (evita conflictos con estado local).
+            if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now(), source: 'supabase' });
+          })
+          .subscribe();
+      } catch (e) {
+        supabaseBridge.lastError = 'Realtime: ' + (e && e.message ? e.message : 'error');
+      }
+    } catch (e) {
+      supabaseBridge.connected = false;
+      supabaseBridge.mode = 'LOCAL_MVP';
+      supabaseBridge.lastError = e && e.message ? e.message : 'Error inicializando Supabase.';
+    }
+  }
+
+  function tryUpsert(table, record) {
+    if (!supabaseBridge.connected || !supabaseBridge.client) return;
+    try {
+      const promise = supabaseBridge.client.from(table).upsert(record);
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch((err) => {
+          supabaseBridge.lastError = table + ': ' + (err && err.message ? err.message : 'error');
+          // No relanzamos: es no bloqueante.
+        });
+      }
+    } catch (e) {
+      supabaseBridge.lastError = table + ': ' + (e && e.message ? e.message : 'error');
+    }
+  }
+
+  // ============================================================
+  // SEED (v6.1)
+  // ============================================================
   function buildSeed() {
     const bDol = C.BASES.DOLORES;
     const bCos = C.BASES.LA_COSTA;
+
+    // Perfil demo titular (activo por defecto)
+    const demoDni = '33656107';
+    const demoProfile = {
+      nombre: 'PATRI, MARCELO ALEJANDRO',
+      dni: demoDni,
+      cuil: '20-33656107-9',
+      socioNumber: C.SOCIO_PREFIX + '-' + padNum(1, C.SOCIO_DIGITS),
+      plan: 'PLATINO',
+      baseId: 'DOLORES',
+      telefono: '2245-406323',
+      grupoSanguineo: 'O+',
+      alergias: 'Ninguna declarada',
+      patologias: 'Sin antecedentes críticos',
+      contacto: 'Mariana Larrea (Co-titular)',
+      orden: '00',
+      filial: 'DOLORES',
+      familyGroup: [
+        { id: 'fam_01', nombre: 'PATRI, MARCELO ALEJANDRO', dni: demoDni, cuil: '20-33656107-9', orden: '00', filial: 'DOLORES' },
+        { id: 'fam_02', nombre: 'LARREA, MARIANA TIZIANA', dni: '35123456', cuil: '27-35123456-4', orden: '01', filial: 'DOLORES' }
+      ],
+      carnetToken: uuidv4(),
+      carnetStatus: 'activo',
+      carnetValidUntil: addMonthsISO(new Date().toISOString(), C.CARNET_VALIDITY_MONTHS),
+      pulseraToken: uuidv4(),
+      pulseraStatus: 'activo',
+      homeCoords: null,
+      homeAddress: '',
+      updatedAt: new Date().toISOString()
+    };
+
     return {
       version: STORAGE_VERSION,
-      socioCounter: 0,
+      socioCounter: 1,
       organizations: [
         { id:'org_asari', name:'ASARI S.A.S.', role:C.ROLES.PLATFORM_OWNER, lineAEnabled:true, lineBEnabled:true },
         { id:'org_emp', name:'EMP - Emergencias Médicas Privadas', role:C.ROLES.EMERGENCY_PROVIDER, lineAEnabled:true, lineBEnabled:true }
@@ -93,7 +214,7 @@
         { id:'b2b_comercio_dolores', name:'Galería Comercial Centro [DEMO]', type:'Empresa / Comercio', baseId:'DOLORES', address:'Calle Buenos Aires 450, Dolores', coords:null, referencePhone:'2245-440000', protocol:'Acceso libre por entrada principal.', tipoUnidadRequerida:'COMUN', status:'activo', createdAt:'2026-01-15T10:00:00.000Z' },
         { id:'b2b_consultorio_dolores', name:'Consultorios Externos Sin Emergencia Propia [DEMO]', type:'Institución / Consultorio', baseId:'DOLORES', address:'Calle Belgrano 820, Dolores', coords:null, referencePhone:'2245-450000', protocol:'Prioridad de derivación por puerta lateral.', tipoUnidadRequerida:'TRASLADO_PROGRAMADO', status:'en_revision', createdAt:'2026-01-20T10:00:00.000Z' }
       ],
-      profiles: {},
+      profiles: { [demoDni]: demoProfile },
       incidents: [],
       audit_logs: [],
       external_services: {
@@ -102,16 +223,23 @@
         updatedAt: null, updatedBy: null
       },
       payment_config: JSON.parse(JSON.stringify(C.PAYMENT_DEFAULTS)),
-      context: { activeBaseId:'DOLORES', platformMode:C.MODE, activeProfileDni:null }
+      context: { activeBaseId:'DOLORES', platformMode:C.MODE, activeProfileDni:demoDni }
     };
   }
 
-  // ---------- Migración v3/v4/v5 → v6 ----------
+  // ============================================================
+  // MIGRACIÓN v3/v4/v5/v6 → v6.1
+  // ============================================================
   function migrateIfNeeded(parsed) {
     if (!parsed || typeof parsed !== 'object') return buildSeed();
-    if (parsed.version === STORAGE_VERSION) return parsed;
 
-    if (parsed.version === 5 || parsed.version === 4 || parsed.version === 3) {
+    if (parsed.version === STORAGE_VERSION) {
+      // Mismo schema: normalizar campos nuevos por si acaso.
+      normalizeProfilesV61(parsed);
+      return parsed;
+    }
+
+    if (parsed.version === 6 || parsed.version === 5 || parsed.version === 4 || parsed.version === 3) {
       const seed = buildSeed();
       parsed.bases = seed.bases.map((nb) => {
         const prev = (parsed.bases || []).find(b => b.id === nb.id);
@@ -140,18 +268,17 @@
       if (typeof parsed.socioCounter !== 'number') parsed.socioCounter = 0;
       parsed.payment_config = parsed.payment_config || JSON.parse(JSON.stringify(C.PAYMENT_DEFAULTS));
 
-      Object.keys(parsed.profiles || {}).forEach((dni) => {
-        const p = parsed.profiles[dni];
-        if (!p.plan) p.plan = C.DEFAULT_PLAN;
-        if (!p.carnetToken) p.carnetToken = null;
-        if (!p.carnetStatus) p.carnetStatus = 'activo';
-        if (!p.carnetValidUntil) p.carnetValidUntil = null;
-        if (!p.socioNumber) p.socioNumber = null;
-        if (p.pulseraToken === undefined) p.pulseraToken = null;
-        if (p.pulseraStatus === undefined) p.pulseraStatus = PULSERA_DEFAULTS.pulseraStatus;
-        if (p.homeCoords === undefined) p.homeCoords = null;
-        if (p.homeAddress === undefined) p.homeAddress = '';
-      });
+      parsed.profiles = parsed.profiles || {};
+      normalizeProfilesV61(parsed);
+
+      // Si no hay perfiles, sembrar el demo.
+      if (Object.keys(parsed.profiles).length === 0) {
+        parsed.profiles = seed.profiles;
+        parsed.socioCounter = seed.socioCounter;
+        parsed.context = parsed.context || {};
+        parsed.context.activeProfileDni = seed.context.activeProfileDni;
+      }
+
       parsed.version = STORAGE_VERSION;
       return parsed;
     }
@@ -159,7 +286,41 @@
     return buildSeed();
   }
 
-  // ---------- Persistencia ----------
+  // v6.1: agrega cuil, familyGroup, orden, filial si faltan.
+  function normalizeProfilesV61(state) {
+    const profiles = state.profiles || {};
+    Object.keys(profiles).forEach((dni) => {
+      const p = profiles[dni];
+      if (!p) return;
+      if (!p.plan) p.plan = C.DEFAULT_PLAN;
+      if (!p.carnetToken) p.carnetToken = null;
+      if (!p.carnetStatus) p.carnetStatus = 'activo';
+      if (!p.carnetValidUntil) p.carnetValidUntil = null;
+      if (!p.socioNumber) p.socioNumber = null;
+      if (p.pulseraToken === undefined) p.pulseraToken = null;
+      if (p.pulseraStatus === undefined) p.pulseraStatus = PULSERA_DEFAULTS.pulseraStatus;
+      if (p.homeCoords === undefined) p.homeCoords = null;
+      if (p.homeAddress === undefined) p.homeAddress = '';
+      // v6.1
+      if (p.cuil === undefined) p.cuil = '';
+      if (p.orden === undefined) p.orden = '00';
+      if (p.filial === undefined) p.filial = p.baseId || 'DOLORES';
+      if (!Array.isArray(p.familyGroup)) {
+        p.familyGroup = [{
+          id: 'fam_' + (dni || 'x'),
+          nombre: p.nombre || '—',
+          dni: dni,
+          cuil: p.cuil || '',
+          orden: p.orden || '00',
+          filial: p.filial || 'DOLORES'
+        }];
+      }
+    });
+  }
+
+  // ============================================================
+  // PERSISTENCIA
+  // ============================================================
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -247,7 +408,9 @@
     return { inc, crew };
   }
 
-  // ---------- API pública ----------
+  // ============================================================
+  // API PÚBLICA
+  // ============================================================
   const E360Store = {
 
     INCIDENT_STATES, TRANSITION_ORDER, PRIORITIES, UNIT_STATUS, BENEFIT_STATUSES, B2B_STATUSES,
@@ -347,11 +510,41 @@
         homeAddress,
         updatedAt: nowISO()
       });
+
+      // v6.1: normalizar campos nuevos si vienen en profile
+      if (profile.cuil !== undefined) record.cuil = String(profile.cuil || '').trim();
+      if (profile.familyGroup !== undefined && Array.isArray(profile.familyGroup)) record.familyGroup = profile.familyGroup;
+      if (profile.orden !== undefined) record.orden = String(profile.orden || '00');
+      if (profile.filial !== undefined) record.filial = String(profile.filial || 'DOLORES');
+
       delete record.planField;
       state.profiles[dni] = record;
       state.context.activeProfileDni = dni;
       appendAudit(state, isNew ? 'CREATE_PROFILE' : 'SAVE_PROFILE', { dni, socioNumber, plan, pulseraStatus }, 'socio_app');
       saveState(state);
+
+      // Sync Supabase (no bloqueante)
+      tryUpsert('profiles', {
+        dni: record.dni,
+        nombre: record.nombre,
+        cuil: record.cuil || '',
+        socio_number: record.socioNumber,
+        plan: record.plan,
+        base_id: record.baseId || state.context.activeBaseId,
+        telefono: record.telefono || '',
+        grupo_sanguineo: record.grupoSanguineo || '',
+        alergias: record.alergias || '',
+        patologias: record.patologias || '',
+        contacto: record.contacto || '',
+        family_group: record.familyGroup || [],
+        carnet_token: record.carnetToken,
+        pulsera_token: record.pulseraToken,
+        pulsera_status: record.pulseraStatus,
+        home_coords: record.homeCoords,
+        home_address: record.homeAddress || '',
+        updated_at: record.updatedAt
+      });
+
       return { ...record };
     },
 
@@ -547,10 +740,32 @@
       state.incidents.unshift(incident);
       appendAudit(state, 'CREATE_SOS_INCIDENT', { incidentId: incident.id, baseId: incident.baseId, dni, b2b: incident.b2bEstablishmentId, source: incident.source }, payload.source || 'socio_app');
       saveState(state);
+
+      // Sync Supabase (no bloqueante)
+      tryUpsert('incidents', {
+        id: incident.id,
+        created_at: incident.createdAt,
+        base_id: incident.baseId,
+        status: incident.status,
+        priority: incident.priority,
+        assigned_unit_id: incident.assignedUnitId,
+        profile_dni: incident.profileDni,
+        location: incident.location,
+        manual_address: incident.manualAddress,
+        b2b_establishment_id: incident.b2bEstablishmentId,
+        source: incident.source,
+        status_history: incident.statusHistory,
+        clinical_notes: incident.clinicalNotes,
+        crew_notes: incident.crewNotes,
+        destination_center: incident.destinationCenter,
+        closure_reason: incident.closureReason,
+        outcome_notes: incident.outcomeNotes,
+        unit_location: incident.unitLocation || null
+      });
+
       return JSON.parse(JSON.stringify(incident));
     },
 
-    // ========== NUEVO v6.1: Alerta de pulsera SOS ==========
     createSOSPulseraIncident(payload) {
       const token = String(payload && payload.pulseraToken || '').trim();
       if (!token) throw new Error('Token de pulsera requerido.');
@@ -558,8 +773,6 @@
       if (!profile) throw new Error('Pulsera no registrada.');
       if (profile.pulseraStatus !== 'activo') throw new Error('La pulsera no está activa. Contactá a administración.');
 
-      // Preferimos coords del que escanea (GPS del teléfono);
-      // si no hay, fallback a homeCoords pre-validadas del socio.
       const gps = payload.location || null;
       const fallback = profile.homeCoords || null;
       const location = gps || (fallback ? { lat: fallback.lat, lng: fallback.lng, accuracy: fallback.accuracy || 0, source: 'homeCoords' } : null);
@@ -594,6 +807,44 @@
       return inc ? JSON.parse(JSON.stringify(inc)) : null;
     },
 
+    // v6.1: ETA referencial para un incidente.
+    // Devuelve { hasEta, etaMinutes, source, disclaimer }.
+    // Cálculo local conservador: si el móvil tiene unitLocation y el incidente
+    // tiene location, estima minutos con haversine a 40 km/h promedio.
+    // Si no hay datos, hasEta=false y etaMinutes=null.
+    getIncidentEta(incidentId) {
+      const disclaimer = 'Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).';
+      const state = loadState();
+      const inc = state.incidents.find(i => i.id === incidentId);
+      if (!inc) return { hasEta: false, etaMinutes: null, source: 'sin_incidente', disclaimer };
+
+      const closed = ['CERRADA','CANCELADA'];
+      if (closed.indexOf(inc.status) !== -1) {
+        return { hasEta: false, etaMinutes: null, source: 'incidente_cerrado', disclaimer };
+      }
+
+      const origin = inc.unitLocation || null;
+      const dest = inc.location || null;
+      if (!origin || !dest || typeof origin.lat !== 'number' || typeof origin.lng !== 'number' ||
+          typeof dest.lat !== 'number' || typeof dest.lng !== 'number') {
+        return { hasEta: false, etaMinutes: null, source: 'sin_coordenadas', disclaimer };
+      }
+
+      // Haversine
+      const toRad = (x) => x * Math.PI / 180;
+      const R = 6371;
+      const dLat = toRad(dest.lat - origin.lat);
+      const dLng = toRad(dest.lng - origin.lng);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(toRad(origin.lat)) * Math.cos(toRad(dest.lat)) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const km = R * c;
+      const speedKmh = 40;
+      const etaMinutes = Math.max(1, Math.round((km / speedKmh) * 60));
+      return { hasEta: true, etaMinutes, source: 'haversine_40kmh', disclaimer };
+    },
+
     canTransitionIncident(from, to) { return SM.canTransitionIncident(from, to); },
     getAllowedNextStatesIncident(s) { return SM.getAllowedNextStatesIncident(s); },
 
@@ -607,6 +858,7 @@
       pushStatus(inc, INCIDENT_STATES.ACEPTADA_POR_CENTRAL, actor, 'Acuse de recibo por operador.');
       appendAudit(state, 'ACK_INCIDENT', { incidentId, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -623,6 +875,7 @@
       pushStatus(inc, INCIDENT_STATES.CLASIFICADA, actor, 'Prioridad ' + priority + '.');
       appendAudit(state, 'TRIAGE_INCIDENT', { incidentId, priority, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, priority: inc.priority, clinical_notes: inc.clinicalNotes, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -643,6 +896,7 @@
       pushStatus(inc, INCIDENT_STATES.MOVIL_ASIGNADO, actor, 'Móvil ' + unit.unit + ' asignado.');
       appendAudit(state, 'ASSIGN_UNIT', { incidentId, unitId, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, assigned_unit_id: inc.assignedUnitId, crew_notes: inc.crewNotes, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -659,6 +913,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_CAMINO, actor, 'Móvil ' + unit.unit + ' despachado.');
       appendAudit(state, 'DISPATCH_INCIDENT', { incidentId, unitId: unit.id, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -672,6 +927,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_ESCENA, actor, 'Móvil arribó al lugar.');
       appendAudit(state, 'ON_SCENE', { incidentId, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -688,6 +944,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_TRASLADO, actor, 'Derivación a ' + dest + '.');
       appendAudit(state, 'IN_TRANSIT', { incidentId, destinationCenter: dest, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, destination_center: inc.destinationCenter, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -706,6 +963,7 @@
       releaseUnitIfAny(state, inc);
       appendAudit(state, 'CLOSE_INCIDENT', { incidentId, closureReason: reason, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, closure_reason: inc.closureReason, outcome_notes: inc.outcomeNotes, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -722,6 +980,7 @@
       releaseUnitIfAny(state, inc);
       appendAudit(state, 'CANCEL_INCIDENT', { incidentId, cancelReason: reason, operatorName: actor }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, closure_reason: inc.closureReason, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -741,6 +1000,7 @@
       }
       appendAudit(state, 'SIM_TRANSITION', { incidentId: id, nextStatus: next }, actor);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -805,6 +1065,7 @@
         actor: crew
       };
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, unit_location: inc.unitLocation });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -820,6 +1081,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_CAMINO, crew, 'Salida confirmada por guardia (móvil ' + unit.unit + ').');
       appendAudit(state, 'GUARDIA_DISPATCH', { incidentId, unitId, crewName: crew }, crew);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -832,6 +1094,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_ESCENA, crew, 'Arribo a escena confirmado por guardia.');
       appendAudit(state, 'GUARDIA_ON_SCENE', { incidentId, unitId, crewName: crew }, crew);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -847,6 +1110,7 @@
       pushStatus(inc, INCIDENT_STATES.EN_TRASLADO, crew, 'Traslado iniciado por guardia hacia ' + dest + '.');
       appendAudit(state, 'GUARDIA_IN_TRANSIT', { incidentId, unitId, destinationCenter: dest, crewName: crew }, crew);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, destination_center: inc.destinationCenter, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -865,6 +1129,7 @@
       releaseUnitIfAny(state, inc);
       appendAudit(state, 'GUARDIA_CLOSE', { incidentId, unitId, closureReason: reason, crewName: crew }, crew);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status: inc.status, closure_reason: inc.closureReason, outcome_notes: inc.outcomeNotes, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -897,6 +1162,7 @@
       });
       appendAudit(state, 'REQUEST_SUPPORT', { incidentId, unitId, supportType: type, notes: notes || '' }, crew);
       saveState(state);
+      tryUpsert('incidents', { id: inc.id, status_history: inc.statusHistory });
       return JSON.parse(JSON.stringify(inc));
     },
 
@@ -935,6 +1201,12 @@
       if (validUntil) benefit.validUntil = validUntil;
       appendAudit(state, 'UPDATE_BENEFIT_STATUS', { benefitId, from: prevStatus, to: newStatus, agreementRef: benefit.agreementRef, validUntil: benefit.validUntil, adminName: actor }, actor);
       saveState(state);
+      tryUpsert('benefits', {
+        id: benefit.id, name: benefit.name, category: benefit.category,
+        locality: benefit.locality, benefit_detail: benefit.benefitDetail,
+        agreement_ref: benefit.agreementRef, valid_until: benefit.validUntil,
+        status: benefit.status, plans: benefit.plans
+      });
       return { ...benefit };
     },
 
@@ -979,6 +1251,12 @@
       }
       appendAudit(state, isNew ? 'CREATE_B2B_ESTABLISHMENT' : 'UPDATE_B2B_ESTABLISHMENT', { b2bId: record.id, name: record.name, baseId: record.baseId, tipoUnidadRequerida: tipo }, actor);
       saveState(state);
+      tryUpsert('b2b_establishments', {
+        id: record.id, name: record.name, type: record.type, base_id: record.baseId,
+        address: record.address, coords: record.coords, reference_phone: record.referencePhone,
+        protocol: record.protocol, tipo_unidad_requerida: record.tipoUnidadRequerida,
+        status: record.status, created_at: record.createdAt
+      });
       return { ...record };
     },
 
@@ -993,6 +1271,7 @@
       est.status = newStatus;
       appendAudit(state, 'TOGGLE_B2B_STATUS', { b2bId: id, from: prev, to: newStatus }, actor);
       saveState(state);
+      tryUpsert('b2b_establishments', { id: est.id, status: est.status });
       return { ...est };
     },
 
@@ -1095,8 +1374,139 @@
         return p ? daysToExpire(p) : null;
       }
       return daysToExpire(dniOrProfile);
-    }
+    },
+
+    // ======================= SUPABASE API =======================
+    configureSupabaseConnection(url, anonKey) {
+      const u = String(url || '').trim();
+      const k = String(anonKey || '').trim();
+      try {
+        if (u) global.localStorage.setItem('e360_supabase_url', u);
+        else global.localStorage.removeItem('e360_supabase_url');
+        if (k) global.localStorage.setItem('e360_supabase_anon_key', k);
+        else global.localStorage.removeItem('e360_supabase_anon_key');
+      } catch (_) {}
+      initSupabaseBridge();
+      return this.getSupabaseStatus();
+    },
+
+    getSupabaseStatus() {
+      return {
+        connected: supabaseBridge.connected,
+        mode: supabaseBridge.mode,
+        url: supabaseBridge.url,
+        lastError: supabaseBridge.lastError
+      };
+    },
+
+    async syncWithSupabase() {
+      if (!supabaseBridge.connected || !supabaseBridge.client) {
+        return { ok: false, error: 'Puente Supabase inactivo (LOCAL_MVP).' };
+      }
+      try {
+        const state = loadState();
+        // Push best-effort de perfiles e incidentes recientes.
+        // No es un full-sync; es defensivo.
+        const profiles = Object.keys(state.profiles).map(k => state.profiles[k]);
+        const incidents = state.incidents.slice(0, 50);
+        let pushed = 0;
+        for (const p of profiles) {
+          tryUpsert('profiles', {
+            dni: p.dni, nombre: p.nombre, cuil: p.cuil || '',
+            socio_number: p.socioNumber, plan: p.plan,
+            base_id: p.baseId || state.context.activeBaseId,
+            telefono: p.telefono || '', grupo_sanguineo: p.grupoSanguineo || '',
+            alergias: p.alergias || '', patologias: p.patologias || '',
+            contacto: p.contacto || '', family_group: p.familyGroup || [],
+            carnet_token: p.carnetToken, pulsera_token: p.pulseraToken,
+            pulsera_status: p.pulseraStatus, home_coords: p.homeCoords,
+            home_address: p.homeAddress || '', updated_at: p.updatedAt
+          });
+          pushed++;
+        }
+        for (const i of incidents) {
+          tryUpsert('incidents', {
+            id: i.id, created_at: i.createdAt, base_id: i.baseId,
+            status: i.status, priority: i.priority, assigned_unit_id: i.assignedUnitId,
+            profile_dni: i.profileDni, location: i.location, manual_address: i.manualAddress,
+            b2b_establishment_id: i.b2bEstablishmentId, source: i.source,
+            status_history: i.statusHistory, clinical_notes: i.clinicalNotes,
+            crew_notes: i.crewNotes, destination_center: i.destinationCenter,
+            closure_reason: i.closureReason, outcome_notes: i.outcomeNotes,
+            unit_location: i.unitLocation || null
+          });
+          pushed++;
+        }
+        return { ok: true, pushed };
+      } catch (e) {
+        return { ok: false, error: e && e.message ? e.message : 'Error en syncWithSupabase.' };
+      }
+    },
+
+    _initSupabaseBridge: initSupabaseBridge
   };
+
+  // Inicializar puente al cargar el store (defensivo: nunca lanza).
+  try { initSupabaseBridge(); } catch (_) {}
 
   global.E360Store = E360Store;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* ============================================================
+   SQL DE REFERENCIA PARA SUPABASE (ejecutar manualmente)
+   ------------------------------------------------------------
+   Estas tablas NO existen todavía. Cuando las crees en el
+   SQL Editor de Supabase, el puente se activará solo (lee
+   URL+KEY de localStorage).
+
+   IMPORTANTE: habilitar RLS en todas y definir políticas
+   explícitas por rol (socio / admin / guardia). Con RLS off,
+   la anon key es una puerta abierta.
+
+   create table if not exists profiles (
+     dni text primary key,
+     nombre text, cuil text, socio_number text, plan text,
+     base_id text, telefono text, grupo_sanguineo text,
+     alergias text, patologias text, contacto text,
+     family_group jsonb default '[]'::jsonb,
+     carnet_token uuid, pulsera_token uuid,
+     pulsera_status text, home_coords jsonb, home_address text,
+     updated_at timestamptz default now()
+   );
+   alter table profiles enable row level security;
+
+   create table if not exists incidents (
+     id text primary key,
+     created_at timestamptz default now(),
+     base_id text, status text, priority text,
+     assigned_unit_id text, profile_dni text,
+     location jsonb, manual_address text,
+     b2b_establishment_id text, source text,
+     status_history jsonb default '[]'::jsonb,
+     clinical_notes text, crew_notes text,
+     destination_center text, closure_reason text,
+     outcome_notes text, unit_location jsonb
+   );
+   alter table incidents enable row level security;
+
+   create table if not exists benefits (
+     id text primary key, name text, category text,
+     locality text, benefit_detail text, agreement_ref text,
+     valid_until text, status text, plans jsonb default '[]'::jsonb
+   );
+   alter table benefits enable row level security;
+
+   create table if not exists b2b_establishments (
+     id text primary key, name text, type text, base_id text,
+     address text, coords jsonb, reference_phone text,
+     protocol text, tipo_unidad_requerida text, status text,
+     created_at timestamptz default now()
+   );
+   alter table b2b_establishments enable row level security;
+
+   create table if not exists audit_logs (
+     id text primary key, ts timestamptz default now(),
+     action text, payload jsonb default '{}'::jsonb, actor text
+   );
+   alter table audit_logs enable row level security;
+   ============================================================ */
