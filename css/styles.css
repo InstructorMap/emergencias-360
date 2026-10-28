@@ -1649,3 +1649,55 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 .plan-badge-plata   { background: #64748B; }
 .plan-badge-oro     { background: #D97706; }
 .plan-badge-platino { background: linear-gradient(90deg, #0B3C78, #7A1C32); }
+/* ===== CREDENCIAL: 4 COLUMNAS (N° SOCIO) ===== */
+.ct-row-bottom {
+  grid-template-columns: 1.6fr 1fr 0.6fr 0.8fr;
+}
+@media (max-width: 380px) {
+  .ct-row-bottom {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 8px;
+  }
+}
+
+/* ===== BOTÓN "← SITIO" EN HEADER DE socio.html ===== */
+.btn-volver-sitio {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--color-surface-2);
+  color: var(--emp-blue);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem; font-weight: 700;
+  font-family: var(--font-body);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-volver-sitio:hover {
+  background: var(--emp-blue);
+  color: #fff;
+}
+
+/* ===== PLAN BADGES (usado por central.html y guardia.html) ===== */
+.plan-badge {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.65rem; font-weight: 800;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px;
+  color: #fff;
+}
+.plan-badge-none    { background: var(--color-surface-2); color: var(--color-text-dim); }
+.plan-badge-bronce  { background: #A16207; }
+.plan-badge-plata   { background: #64748B; }
+.plan-badge-oro     { background: #D97706; }
+.plan-badge-platino { background: linear-gradient(90deg, #0B3C78, #7A1C32); }
+
+/* ===== QR FALLBACK (cuando qr.js falla o falta token) ===== */
+.qr-fallback {
+  font-size: 0.8rem;
+  color: var(--emp-bordo);
+  padding: 16px 8px;
+  text-align: center;
+  line-height: 1.5;
+}
