@@ -179,8 +179,25 @@
     //   localStorage.getItem('e360_supabase_url')
     //   localStorage.getItem('e360_supabase_anon_key')
     // Si están vacíos acá y en localStorage, el puente queda en LOCAL_MVP.
-    SUPABASE: { URL:'', ANON_KEY:'', TABLES:{} },
-
+        // -------- SUPABASE (híbrido, lee de supabase.config.js) --------
+    // Prioridad: window.E360SupabaseConfig > localStorage > vacío.
+    // Si no hay URL/KEY, el puente queda en LOCAL_MVP.
+    SUPABASE: (function () {
+      var ext = (typeof window !== 'undefined' && window.E360SupabaseConfig) || {};
+      var lsUrl = '';
+      var lsKey = '';
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          lsUrl = window.localStorage.getItem('e360_supabase_url') || '';
+          lsKey = window.localStorage.getItem('e360_supabase_anon_key') || '';
+        }
+      } catch (_) {}
+      return {
+        URL: String(ext.URL || lsUrl || '').trim(),
+        ANON_KEY: String(ext.ANON_KEY || lsKey || '').trim(),
+        TABLES: ext.TABLES || {}
+      };
+    })(),
     ROLES: { PLATFORM_OWNER:'platform_owner', EMERGENCY_PROVIDER:'emergency_provider' }
   };
 
