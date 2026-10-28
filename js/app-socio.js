@@ -1,8 +1,8 @@
 /* ============================================================
-   app-socio.js — Controlador de index.html (v6.1 EMP rediseño)
+   app-socio.js — Controlador de socio.html (v6.2)
    - 5 tabs: Inicio, SOS, Credencial, Beneficios, Cuenta/Ficha
-   - Credencial virtual con código de seguridad 3 dígitos (3:00)
-   - Grupo familiar en píldoras + QR vía E360QR.toSvg(?carnet=)
+   - Credencial con N° SOCIO (4 columnas) + QR payload corto
+   - Regeneración defensiva de carnetToken + fallback visible
    - Modo Adulto Mayor (WCAG AAA) persistente en localStorage
    - Configuración Supabase en caliente
    - Preserva: SOS 1.5s (tab-sos + btnSOSInicio sincronizados),
@@ -541,7 +541,6 @@
     const profile = Store.getActiveProfile();
     const ctx = Store.getActiveContext();
 
-    // Estado del incidente en tarjeta SOS
     const estadoInicio = $('#incidentEstadoInicio');
     if (estadoInicio) {
       const latest = Store.getLatestIncident();
@@ -555,10 +554,8 @@
       }
     }
 
-    // Línea directa
     updateBasePhone(ctx.base.phone);
 
-    // Farmacia: descuento según plan
     const farm = $('#servicioFarmacia');
     if (farm && profile) {
       const plan = C.PLANS[profile.plan] || {};
@@ -702,6 +699,14 @@
     return family[activeFamilyIndex];
   }
 
+  // Payload corto para el QR: solo el token. El escáner lo resuelve
+  // contra el mismo origen (socio.html?carnet=<token>).
+  // Esto evita el límite de 76 bytes de qr.js v4.
+  function buildCarnetQrPayload(profile) {
+    return '?carnet=' + encodeURIComponent(profile.carnetToken || '');
+  }
+
+  // URL completa para compartir por link / WhatsApp.
   function buildCarnetUrl(profile) {
     const origin = window.location.origin + window.location.pathname;
     return origin + '?carnet=' + encodeURIComponent(profile.carnetToken || '');
@@ -718,6 +723,22 @@
     }
     if (tarjeta) tarjeta.style.display = '';
 
+    // Regeneración defensiva: si el perfil migrado no tiene carnetToken,
+    // forzamos un saveProfile para que se genere uno nuevo.
+    if (!profile.carnetToken) {
+      try {
+        Store.saveProfile({
+          dni: profile.dni,
+          nombre: profile.nombre || '—',
+          telefono: profile.telefono || '—'
+        });
+        const fresh = Store.getActiveProfile();
+        if (fresh && fresh.carnetToken) {
+          return renderCredencial();
+        }
+      } catch (_) {}
+    }
+
     const plan = C.PLANS[profile.plan] || { label: profile.plan };
     if ($('#ctPlanLabel')) $('#ctPlanLabel').textContent = 'PLAN ' + (plan.label || profile.plan).toUpperCase();
 
@@ -728,22 +749,33 @@
       const dni = (member && member.dni) || profile.dni || '—';
       $('#ctCuilDni').textContent = cuil + ' / ' + dni;
     }
+    if ($('#ctSocio')) $('#ctSocio').textContent = profile.socioNumber || '—';
     if ($('#ctOrden')) $('#ctOrden').textContent = (member && member.orden) || profile.orden || '00';
     if ($('#ctSede')) $('#ctSede').textContent = ((member && member.filial) || profile.filial || profile.baseId || 'DOLORES').toUpperCase();
 
-    // QR
+    // QR: payload corto + fallback visible con el token como texto.
     const qrWrap = $('#qrSvgWrap');
     if (qrWrap) {
       qrWrap.innerHTML = '';
       if (QR && typeof QR.toSvg === 'function' && profile.carnetToken) {
         try {
-          const svg = QR.toSvg(buildCarnetUrl(profile), 220);
+          const svg = QR.toSvg(buildCarnetQrPayload(profile), 220);
           qrWrap.innerHTML = svg;
         } catch (e) {
-          qrWrap.appendChild(el('div', { className: 'qr-fallback', textContent: 'QR no disponible' }));
+          const fallback = document.createElement('div');
+          fallback.className = 'qr-fallback';
+          fallback.innerHTML = '<div style="font-weight:700;color:#7A1C32;margin-bottom:6px;">Escaneá el código o dictá este ID</div>' +
+            '<div style="font-family:monospace;font-size:0.85rem;word-break:break-all;background:#F4F8FD;padding:8px;border-radius:8px;">' +
+            (profile.socioNumber || '—') + '<br>' + (profile.carnetToken || '—') + '</div>';
+          qrWrap.appendChild(fallback);
         }
       } else {
-        qrWrap.appendChild(el('div', { className: 'qr-fallback', textContent: 'QR no disponible' }));
+        const fallback = document.createElement('div');
+        fallback.className = 'qr-fallback';
+        fallback.innerHTML = '<div style="font-weight:700;color:#7A1C32;margin-bottom:6px;">QR no disponible</div>' +
+          '<div style="font-family:monospace;font-size:0.8rem;background:#F4F8FD;padding:8px;border-radius:8px;">' +
+          (profile.socioNumber || '—') + '</div>';
+        qrWrap.appendChild(fallback);
       }
     }
 
@@ -999,7 +1031,6 @@
           msg.textContent = st.connected ? ('Conectado (' + st.mode + ')') : ('Modo ' + st.mode + (st.lastError ? ' — ' + st.lastError : ''));
           msg.style.color = st.connected ? '#16A34A' : '#64748B';
         }
-        // Refrescar badge de conexión
         const mode = $('#connMode');
         if (mode) {
           mode.textContent = st.connected ? 'SUPABASE LIVE' : 'LOCAL MVP';
