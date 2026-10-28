@@ -1,5 +1,8 @@
 /* ============================================================
    healthcheck.js — Auto-diagnóstico visual de Emergencias 360
+   v6.1: expectedVersion dinámico desde E360Config.STORAGE_VERSION.
+         index.html actualizado a 5 tabs + credencial + modo mayor.
+         central/guardia/b2b/admin aceptan 6.x hasta su migración.
    - Se carga al final de los 5 HTML
    - Detecta globals faltantes, métodos faltantes, IDs faltantes,
      versión de storage, y rutas de assets (200 vs 404)
@@ -20,6 +23,21 @@
   // ---------- Plan de chequeos por página ----------
   function getPagePlan() {
     const path = (global.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+
+    // Versión esperada: se lee del config real. Si no está, fallback 6.1.
+    function expectedVersion() {
+      try {
+        const v = global.E360Config && global.E360Config.STORAGE_VERSION;
+        return (typeof v === 'number') ? v : 6.1;
+      } catch (_) { return 6.1; }
+    }
+
+    // Para vistas todavía no migradas (central/guardia/b2b/admin),
+    // aceptamos 6.x hasta que las pasemos a 6.1 estricto.
+    function expectedVersionLoose() {
+      return '6.x';
+    }
+
     const baseCommon = {
       page: path,
       globals: ['E360Config', 'E360StateMachine', 'E360Store'],
@@ -35,12 +53,15 @@
         'getProfileByPulseraToken', 'setPulseraStatus', 'regeneratePulseraToken',
         'setHomeCoords', 'getActiveIncidentForUnit', 'updateCrewPosition',
         'guardiaDispatchIncident', 'guardiaMarkOnScene', 'guardiaMarkInTransit',
-        'guardiaCloseIncident', 'getGuardiaHistory', 'requestSupportFromCrew'
+        'guardiaCloseIncident', 'getGuardiaHistory', 'requestSupportFromCrew',
+        // v6.1
+        'getIncidentEta',
+        'configureSupabaseConnection', 'getSupabaseStatus', 'syncWithSupabase'
       ],
       configKeys: [
         'STORAGE_KEY', 'STORAGE_VERSION', 'BASES', 'PLANS', 'PLAN_IDS',
         'CARNET_STATUSES', 'PULSERA_STATUSES', 'PULSERA_DEFAULTS',
-        'PAYMENT_DEFAULTS', 'EXTERNAL_SERVICES_DEFAULTS', 'BRAND'
+        'PAYMENT_DEFAULTS', 'EXTERNAL_SERVICES_DEFAULTS', 'BRAND', 'SUPABASE'
       ],
       requiredIds: [],
       assets: []
@@ -48,31 +69,49 @@
 
     if (path === 'index.html' || path === '' || path === '/') {
       return Object.assign({}, baseCommon, {
-        expectedVersion: 6,
+        expectedVersion: expectedVersion(),
         requiredIds: [
-          'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
+          // Header v6.1
+          'btnModoMayor', 'pillSocio', 'connDot', 'connText', 'connMode',
+          'baseSelector', 'btnToggleBanner', 'bannerDetalle',
+          // Tab Inicio
+          'tab-inicio',
+          'btnSOSInicio', 'sosProgressInicio', 'incidentEstadoInicio',
+          'btnCallBaseInicio',
+          'servicioFarmacia', 'servicioTeleconsulta', 'servicioPulsera', 'servicioCursos',
+          // Tab SOS
+          'tab-sos', 'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
           'incidentPanel', 'incidentState', 'timeline', 'etaBlock',
-          'btnCallBase', 'formFicha', 'fNombre', 'fDni', 'fTelefono',
+          'btnCallBase', 'b2bBanner',
+          // Tab Credencial
+          'tab-credencial',
+          'credencialTarjeta', 'ctPlanLabel', 'ctNombre', 'ctCuilDni', 'ctOrden', 'ctSede',
+          'csCodigo', 'csRenueva', 'qrSvgWrap', 'gfPildoras', 'btnShareCredencial',
+          // Tab Beneficios
+          'tab-beneficios', 'benefitsList', 'benefitsEmpty', 'planBenefitsHint',
+          // Tab Cuenta/Ficha
+          'tab-ficha',
+          'planSelector',
+          'formFicha', 'fNombre', 'fDni', 'fCuil', 'fTelefono',
           'fGrupo', 'fAlergias', 'fPatologias', 'fContacto', 'fConsent',
-          'fichaMsg', 'carnetBlock', 'externalServicesBlock',
-          'benefitsList', 'benefitsEmpty', 'planBenefitsHint',
-          'pagosContainer', 'planBadgeSlot', 'b2bBanner',
-          'baseSelector', 'connDot', 'connText',
-          'btnToggleBanner', 'bannerDetalle',
-          'testTools', 'btnTestToggle', 'testPanel',
-          'nav-sos', 'nav-ficha', 'nav-beneficios', 'nav-pagos',
-          'tab-sos', 'tab-ficha', 'tab-beneficios', 'tab-pagos'
+          'fichaMsg', 'externalServicesBlock',
+          'sbUrl', 'sbKey', 'btnSaveSb', 'sbMsg',
+          'pagosContainer',
+          // Nav inferior (5 tabs)
+          'nav-inicio', 'nav-sos', 'nav-credencial', 'nav-beneficios', 'nav-ficha',
+          // Test tools
+          'testTools', 'btnTestToggle', 'testPanel'
         ],
-        assets: ['js/config.js', 'js/state-machine.js', 'js/store.js', 'js/qr.js', 'js/app-socio.js', 'css/styles.css']
+        assets: [
+          'js/config.js', 'js/state-machine.js', 'js/store.js',
+          'js/qr.js', 'js/app-socio.js', 'css/styles.css'
+        ]
       });
     }
 
     if (path === 'central.html') {
       return Object.assign({}, baseCommon, {
-        expectedVersion: 6,
-        // NOTA: 'detailEmpty' NO se chequea porque app-central.js hace
-        // container.innerHTML = '' en renderDetail() y lo reemplaza
-        // por un div sin id. Es un falso positivo del healthcheck.
+        expectedVersion: expectedVersionLoose(),
         requiredIds: [
           'centralBaseSelector', 'operatorInput', 'alertCounter',
           'incidentList', 'incidentEmpty', 'detailContainer',
@@ -84,7 +123,7 @@
 
     if (path === 'guardia.html') {
       return Object.assign({}, baseCommon, {
-        expectedVersion: 6,
+        expectedVersion: expectedVersionLoose(),
         requiredIds: [
           'guardiaBaseSelector', 'guardiaUnitSelector', 'guardiaNameInput',
           'unitStatus', 'noIncidentPanel', 'activeIncidentContainer',
@@ -96,7 +135,7 @@
 
     if (path === 'b2b.html') {
       return Object.assign({}, baseCommon, {
-        expectedVersion: 6,
+        expectedVersion: expectedVersionLoose(),
         requiredIds: [
           'b2bBaseSelector', 'b2bOperatorInput', 'b2bForm', 'b2bId',
           'b2bName', 'b2bType', 'b2bBase', 'b2bStatus', 'b2bAddress',
@@ -109,7 +148,7 @@
 
     if (path === 'admin.html') {
       return Object.assign({}, baseCommon, {
-        expectedVersion: 6,
+        expectedVersion: expectedVersionLoose(),
         requiredIds: [
           'adminInput', 'orgsContainer',
           'benefitsTbody', 'benefitsTable', 'adminMsg',
@@ -158,8 +197,28 @@
         issues.push({ level: 'error', code: 'CONFIG_KEY_MISSING', msg: 'E360Config.' + k + ' no existe (falta en config.js)' });
       }
     });
-    if (plan.expectedVersion && global.E360Config.STORAGE_VERSION !== plan.expectedVersion) {
-      issues.push({ level: 'error', code: 'STORAGE_VERSION_MISMATCH', msg: 'E360Config.STORAGE_VERSION = ' + global.E360Config.STORAGE_VERSION + ' (esperado ' + plan.expectedVersion + '). Actualizá config.js.' });
+
+    // Versión: si expectedVersion es número → estricto.
+    // Si es '6.x' → acepta 6 o 6.1 (vistas aún no migradas).
+    const actual = global.E360Config.STORAGE_VERSION;
+    const exp = plan.expectedVersion;
+    if (typeof exp === 'number') {
+      if (actual !== exp) {
+        issues.push({
+          level: 'error',
+          code: 'STORAGE_VERSION_MISMATCH',
+          msg: 'E360Config.STORAGE_VERSION = ' + actual + ' (esperado ' + exp + '). Actualizá config.js.'
+        });
+      }
+    } else if (exp === '6.x') {
+      const ok = (actual === 6 || actual === 6.1);
+      if (!ok) {
+        issues.push({
+          level: 'error',
+          code: 'STORAGE_VERSION_MISMATCH',
+          msg: 'E360Config.STORAGE_VERSION = ' + actual + ' (esperado 6.x). Actualizá config.js.'
+        });
+      }
     }
     return issues;
   }
@@ -331,7 +390,7 @@
 
     const copyBtn = document.createElement('button');
     copyBtn.textContent = '📋 Copiar todo';
-    copyBtn.style.cssText = 'background:#3D5CA4; color:#fff; border:none; border-radius:6px; padding:8px 14px; font:700 12px Poppins,sans-serif; cursor:pointer;';
+    copyBtn.style.cssText = 'background:#0B3C78; color:#fff; border:none; border-radius:6px; padding:8px 14px; font:700 12px Poppins,sans-serif; cursor:pointer;';
     copyBtn.addEventListener('click', () => {
       const txt = 'HEALTHCHECK ' + plan.page + '\nURL: ' + global.location.href +
         '\nFecha: ' + new Date().toISOString() + '\n\n' +
@@ -358,7 +417,7 @@
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕ Cerrar';
-    closeBtn.style.cssText = 'background:#740821; color:#fff; border:none; border-radius:6px; padding:8px 14px; font:700 12px Poppins,sans-serif; cursor:pointer; margin-left:auto;';
+    closeBtn.style.cssText = 'background:#7A1C32; color:#fff; border:none; border-radius:6px; padding:8px 14px; font:700 12px Poppins,sans-serif; cursor:pointer; margin-left:auto;';
     closeBtn.addEventListener('click', () => document.body.removeChild(overlay));
     actions.appendChild(closeBtn);
 
