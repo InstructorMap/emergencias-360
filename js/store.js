@@ -1,12 +1,13 @@
 /* ============================================================
-   E360Store v8 — Supabase Auth + caché híbrido + público carnet/pulsera
-   - getPublicCarnetInfo(token): verificación pública del carnet
-   - getPublicPulseraInfo(token): verificación pública de la pulsera
-   - getIncidentsByDni(dni): historial de incidentes del socio
-   - getMedicationsForProfile(profileId): medicación para admin/central/guardia
-   - submitRecategorizacion(dni, planActual, planSolicitado, mensaje)
-   - getExternalServices() / setExternalServices() (admin)
-   - getPaymentConfigPublic() (sin access_token) / getPaymentConfigAdmin() / setPaymentConfig()
+   E360Store v8.1 — Supabase Auth + caché híbrido + público carnet/pulsera
+   - loginWithEmail(email, password): login del admin por email
+   - getPublicCarnetInfo / getPublicPulseraInfo
+   - getIncidentsByDni, getMedicationsForProfile
+   - submitRecategorizacion
+   - getExternalServices / setExternalServices
+   - getPaymentConfigPublic / getPaymentConfigAdmin / setPaymentConfig
+   - getAuditLogs / getOrganizations / updateOrganizationFlags
+   - getBranding / loadBranding / setBranding / uploadBrandingFile
    - API síncrona intacta (getProfile, getIncidents, etc.)
    - Offline: lee de localStorage con TTL 7 días.
    ============================================================ */
@@ -55,8 +56,10 @@
     medicationsByProfile: {},
     doseLogs: [],
     socioRequests: [],
+    auditLogs: [],
     externalServices: { medicoVirtualUrl: '', seguroViajeroUrl: '' },
     paymentConfig: null,
+    branding: null,
     context: { activeBaseId: 'DOLORES', platformMode: 'LOCAL_MVP' },
     lastSync: null
   };
@@ -242,6 +245,19 @@
     return state.profile;
   }
 
+  async function loginWithEmail(email, password) {
+    if (!state.connected || !state.supabase) throw new Error('Supabase no configurado.');
+    const emailStr = String(email || '').trim().toLowerCase();
+    if (!emailStr || !emailStr.includes('@')) throw new Error('Email inválido.');
+    const { data, error } = await state.supabase.auth.signInWithPassword({ email: emailStr, password });
+    if (error) throw new Error('Email o contraseña incorrectos.');
+    state.session = data.session;
+    state.user = data.user;
+    await loadAllData();
+    saveCache();
+    return state.profile;
+  }
+
   async function logout() {
     if (state.supabase) await state.supabase.auth.signOut();
     state.session = null; state.user = null; state.profile = null;
@@ -297,7 +313,6 @@
       const { data: b2b } = await sb.from('b2b_establishments').select('*');
       if (b2b) state.b2b = b2b.map(mapB2BFromDB);
 
-      // External services (público)
       const { data: ext } = await sb.from('external_services').select('*').eq('id', 1).maybeSingle();
       if (ext) {
         state.externalServices = {
@@ -306,12 +321,10 @@
         };
       }
 
-      // Payment config (solo admin puede leer access_token; el socio ve sin token)
       if (state.profile && state.profile.role === 'admin') {
         const { data: pay } = await sb.from('payment_config').select('*').eq('id', 1).maybeSingle();
         if (pay) state.paymentConfig = pay;
       } else {
-        // Socio: solo cuotas y public key, no access_token
         const { data: pay } = await sb.from('payment_config').select('mercado_pago_enabled, mercado_pago_public_key, cuota_bronce, cuota_plata, cuota_oro, cuota_platino').eq('id', 1).maybeSingle();
         if (pay) state.paymentConfig = pay;
       }
@@ -370,7 +383,7 @@
       return { loggedIn: false, mode: 'SUPABASE_LIVE' };
     },
 
-    login, logout, changePassword,
+    login, loginWithEmail, logout, changePassword,
     getSession() { return state.session ? { ...state.session } : null; },
     getUser() { return state.user ? { ...state.user } : null; },
     isLoggedIn() { return !!(state.session && state.profile); },
@@ -381,7 +394,6 @@
       if (!state.connected || !state.supabase) throw new Error('Supabase no configurado.');
       const t = String(token || '').trim();
       if (!t) return null;
-      // SELECT solo de columnas públicas (no DNI, no alergias, no CUIL)
       const { data } = await state.supabase
         .from('profiles')
         .select('nombre, dni, plan, carnet_status, carnet_valid_until, carnet_token')
@@ -408,15 +420,14 @@
       if (!t) return null;
       const { data } = await state.supabase
         .from('profiles')
-        .select('nombre, dni, plan, telefono, grupo_sanguineo, alergias, patologias, contacto, pulsera_status, home_address, family_group')
+        .select('id, nombre, dni, plan, telefono, grupo_sanguineo, alergias, patologias, contacto, pulsera_status, home_address, family_group')
         .eq('pulsera_token', t)
         .maybeSingle();
       if (!data) return null;
-      // Medicación activa del socio
       const { data: meds } = await state.supabase
         .from('medications')
         .select('nombre, dosis, frecuencia, horarios, notas')
-        .eq('profile_id', (await state.supabase.from('profiles').select('id').eq('pulsera_token', t).maybeSingle()).data.id)
+        .eq('profile_id', data.id)
         .eq('activo', true);
       const effective = (data.pulsera_status === 'activo') ? 'activo' : 'inactivo';
       return {
@@ -714,7 +725,6 @@
       return mapped;
     },
     async scheduleDosesForMedication(medicationId, dateISO) {
-      // Genera dose_logs para el día según horarios
       requireUser();
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const med = state.medications.find(m => m.id === medicationId);
@@ -890,7 +900,8 @@
       state.paymentConfig = updated;
       return this.getPaymentConfigAdmin();
     },
-     // ============ AUDITORÍA ============
+
+    // ============ AUDITORÍA ============
     async getAuditLogs() {
       if (!state.connected || !state.supabase) {
         return (state.auditLogs || []).map(l => ({ ...l }));
@@ -914,7 +925,6 @@
 
     async updateOrganizationFlags(orgId, lineA, lineB, adminName) {
       requireAdmin();
-      // Las organizaciones son estáticas; el cambio queda registrado en auditoría.
       if (state.supabase) {
         try {
           await state.supabase.from('audit_logs').insert({
@@ -926,7 +936,8 @@
         } catch (_) {}
       }
       return { id: orgId, lineAEnabled: !!lineA, lineBEnabled: !!lineB };
-    },   
+    },
+
     // ============ CONTEXTO ============
     getActiveContext() {
       const baseId = state.context.activeBaseId || 'DOLORES';
@@ -962,9 +973,9 @@
     _reload: loadAllData,
     calcCarnetStatus, daysToExpire,
     INCIDENT_STATES, UNIT_STATUS, PRIORITIES, BENEFIT_STATUSES, B2B_STATUSES,
-        // ============ BRANDING ============
+
+    // ============ BRANDING ============
     getBranding() {
-      // Caché en localStorage con TTL 24h
       try {
         const raw = global.localStorage.getItem('e360_branding');
         if (raw) {
@@ -973,7 +984,6 @@
           if (age < 24 * 60 * 60 * 1000) return { ...parsed.data };
         }
       } catch (_) {}
-      // Fallback al config estático
       return {
         logoUrl: '',
         logoDarkUrl: '',
