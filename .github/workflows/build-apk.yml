@@ -56,6 +56,10 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Generate app icons from resources
+        run: npx capacitor-assets generate --android
+        continue-on-error: true
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -83,7 +87,7 @@ jobs:
             
             **Instalación:** descargá `app-debug.apk`, pasalo al teléfono Android, habilitá "orígenes desconocidos" e instalá.
             
-            **Link directo de descarga:** https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk
+            **Link directo:** https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk
           files: android/app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
