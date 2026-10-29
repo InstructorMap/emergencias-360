@@ -1,5 +1,5 @@
 /* ============================================================
-   app-socio.js v7.1 — Controlador de socio.html
+   app-socio.js v7.2 — Controlador de socio.html
    - Login DNI + contraseña, cambio obligatorio primer login
    - Credencial con logo dinámico + QR verificado + código rotativo
    - Modo público ?carnet= y ?pulsera= (sin login)
@@ -7,6 +7,7 @@
    - Historial de incidentes del socio
    - Recategorización de plan vía socio_request
    - PDF de credencial con jsPDF
+   - Botón de descarga APK desde GitHub Release
    ============================================================ */
 
 (function () {
@@ -15,6 +16,8 @@
   const Store = window.E360Store;
   const C = window.E360Config;
   const QR = window.E360QR || null;
+
+  const APK_URL = 'https://github.com/InstructorMap/emergencias-360/releases/latest/download/app-debug.apk';
 
   if (!Store || !C) {
     console.error('[app-socio] Faltan dependencias core.');
@@ -798,11 +801,11 @@
     const btn = $('#btnAddMedicacion');
     if (btn) btn.addEventListener('click', () => openMedicacionModal());
 
-    // Botón Descargar APK
+    // Botón Descargar APK — apunta al Release público (sin login)
     const btnAPK = $('#btnDescargarAPK');
     if (btnAPK) {
       btnAPK.addEventListener('click', () => {
-        window.open('https://github.com/instructormap/emergencias-360/actions', '_blank', 'noopener');
+        window.open(APK_URL, '_blank', 'noopener');
       });
     }
   }
