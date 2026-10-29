@@ -132,20 +132,22 @@
     }
 
     // ADMIN
-    if (path === 'admin.html') {
+       if (path === 'admin.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
-          'adminInput', 'orgsContainer',
-          'benefitsTbody', 'benefitsTable', 'adminMsg',
-          'btnExportAudit', 'btnResetDemo', 'auditList',
-          'extServicesForm', 'extMedicoVirtualUrl', 'extSeguroViajeroUrl',
-          'extServicesMsg', 'extServicesStatus', 'extServicesClear',
-          'paymentForm', 'payMpEnabled', 'payMpPublicKey',
-          'payCuotaBRONCE', 'payCuotaPLATA', 'payCuotaORO', 'payCuotaPLATINO',
-          'payMsg', 'payStatus',
-          'planManagerTbody', 'planManagerTable'
+          'adminLoginOverlay', 'adminLoginForm', 'adminLoginEmail', 'adminLoginPassword', 'adminLoginBtn',
+          'adminApp', 'adminHeaderBrand', 'adminLogout', 'adminMsgBar',
+          'sociosTbody', 'sociosCount', 'sociosSearch', 'sociosFilterPlan', 'sociosFilterBase', 'btnExportSociosCSV',
+          'formAltaIndividual', 'aiNombre', 'aiDni', 'btnCreateSocio', 'altaIndividualMsg',
+          'excelFile', 'btnSelectExcel', 'btnImportExcel', 'excelPreview',
+          'socioRequestsList', 'requestsCount',
+          'logoFile', 'btnUploadLogo', 'formBrandingColors',
+          'formMercadoPago', 'mpEnabled', 'mpPublicKey', 'mpAccessToken',
+          'formExtServices', 'extMedicoUrl', 'extSeguroUrl',
+          'benefitsTbody', 'adminMsg', 'b2bTbody',
+          'btnExportAudit', 'btnRefreshAudit', 'auditList'
         ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-admin.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
