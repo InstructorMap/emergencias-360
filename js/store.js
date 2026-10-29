@@ -968,7 +968,150 @@
       channel.addEventListener('message', handler);
       return () => channel.removeEventListener('message', handler);
     },
+    // ============ CENTRAL: TRIAGE Y ASIGNACIÓN ============
+    async triageIncident(incidentId, priority, clinicalNotes, operatorName) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      if (PRIORITIES.indexOf(priority) === -1) throw new Error('Prioridad inválida.');
+      const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
+      if (!current) throw new Error('Incidente no encontrado.');
+      const check = SM.canTransitionIncident(current.status, INCIDENT_STATES.CLASIFICADA);
+      if (!check.ok) throw new Error(check.reason);
+      const newHistory = (current.status_history || []).concat([{ status: INCIDENT_STATES.CLASIFICADA, ts: nowISO(), actor: operatorName || 'central', detail: 'Prioridad ' + priority }]);
+      const { data, error } = await state.supabase.from('incidents').update({
+        status: INCIDENT_STATES.CLASIFICADA,
+        priority,
+        clinical_notes: clinicalNotes || '',
+        status_history: newHistory
+      }).eq('id', incidentId).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapIncidentFromDB(data);
+      const idx = state.incidents.findIndex(i => i.id === incidentId);
+      if (idx !== -1) state.incidents[idx] = mapped;
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapped;
+    },
 
+    async assignUnitToIncident(incidentId, unitId, crewNotes, operatorName) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
+      if (!current) throw new Error('Incidente no encontrado.');
+      const check = SM.canTransitionIncident(current.status, INCIDENT_STATES.MOVIL_ASIGNADO);
+      if (!check.ok) throw new Error(check.reason);
+      const newHistory = (current.status_history || []).concat([{ status: INCIDENT_STATES.MOVIL_ASIGNADO, ts: nowISO(), actor: operatorName || 'central', detail: 'Móvil ' + unitId + ' asignado.' }]);
+      const { data, error } = await state.supabase.from('incidents').update({
+        status: INCIDENT_STATES.MOVIL_ASIGNADO,
+        assigned_unit_id: unitId,
+        crew_notes: crewNotes || '',
+        status_history: newHistory
+      }).eq('id', incidentId).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapIncidentFromDB(data);
+      const idx = state.incidents.findIndex(i => i.id === incidentId);
+      if (idx !== -1) state.incidents[idx] = mapped;
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapped;
+    },
+
+    // ============ GUARDIA ============
+    async guardiaDispatchIncident(incidentId, unitId, crewName) {
+      return this.transitionIncidentStatus(incidentId, INCIDENT_STATES.EN_CAMINO);
+    },
+
+    async guardiaMarkOnScene(incidentId, unitId, crewName) {
+      return this.transitionIncidentStatus(incidentId, INCIDENT_STATES.EN_ESCENA);
+    },
+
+    async guardiaMarkInTransit(incidentId, unitId, dest, crewName) {
+      return this.markIncidentInTransit(incidentId, dest, crewName);
+    },
+
+    async guardiaCloseIncident(incidentId, unitId, reason, notes, crewName) {
+      return this.closeIncident(incidentId, reason, notes, crewName);
+    },
+
+    async getGuardiaHistory(unitId, limit) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const n = Math.max(1, Number(limit) || 10);
+      const { data } = await state.supabase.from('incidents')
+        .select('*')
+        .eq('assigned_unit_id', unitId)
+        .in('status', ['CERRADA', 'CANCELADA'])
+        .order('created_at', { ascending: false })
+        .limit(n);
+      return (data || []).map(mapIncidentFromDB);
+    },
+
+    async requestSupportFromCrew(incidentId, unitId, type, notes, crewName) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
+      if (!current) throw new Error('Incidente no encontrado.');
+      const supportRequests = (current.support_requests || []).concat([{
+        ts: nowISO(), type, notes: notes || '', requestedBy: crewName || 'guardia', unitId
+      }]);
+      const newHistory = (current.status_history || []).concat([{
+        status: current.status, ts: nowISO(), actor: crewName || 'guardia',
+        detail: 'Solicitud de apoyo: ' + type + (notes ? ' — ' + notes : '')
+      }]);
+      const { data, error } = await state.supabase.from('incidents').update({
+        support_requests: supportRequests,
+        status_history: newHistory
+      }).eq('id', incidentId).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapIncidentFromDB(data);
+      const idx = state.incidents.findIndex(i => i.id === incidentId);
+      if (idx !== -1) state.incidents[idx] = mapped;
+      saveCache();
+      return mapped;
+    },
+
+    // ============ B2B: ALTA Y EDICIÓN ============
+    async saveB2BEstablishment(data, actorName) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const record = {
+        id: data.id || uid('b2b'),
+        name: data.name,
+        type: data.type || '',
+        base_id: data.baseId,
+        address: data.address,
+        coords: data.coords || null,
+        reference_phone: data.referencePhone || '',
+        protocol: data.protocol || '',
+        tipo_unidad_requerida: data.tipoUnidadRequerida || 'COMUN',
+        status: data.status || 'en_revision'
+      };
+      let result;
+      if (data.id) {
+        const { data: updated, error } = await state.supabase.from('b2b_establishments').update(record).eq('id', data.id).select().single();
+        if (error) throw new Error(error.message);
+        result = updated;
+        const idx = state.b2b.findIndex(e => e.id === data.id);
+        if (idx !== -1) state.b2b[idx] = mapB2BFromDB(result);
+      } else {
+        const { data: inserted, error } = await state.supabase.from('b2b_establishments').insert(record).select().single();
+        if (error) throw new Error(error.message);
+        result = inserted;
+        state.b2b.push(mapB2BFromDB(result));
+      }
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapB2BFromDB(result);
+    },
+
+    async toggleB2BStatus(id, newStatus, actorName) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      if (B2B_STATUSES.indexOf(newStatus) === -1) throw new Error('Estado B2B inválido.');
+      const { data, error } = await state.supabase.from('b2b_establishments').update({ status: newStatus }).eq('id', id).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapB2BFromDB(data);
+      const idx = state.b2b.findIndex(e => e.id === id);
+      if (idx !== -1) state.b2b[idx] = mapped;
+      saveCache();
+      return mapped;
+    },
     _getState() { return state; },
     _reload: loadAllData,
     calcCarnetStatus, daysToExpire,
