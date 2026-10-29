@@ -78,9 +78,8 @@
       const password = $('#adminLoginPassword').value;
       if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
       if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-      try {
-        const dni = email.split('@')[0];
-        const profile = await Store.login(dni, password);
+               try {
+        const profile = await Store.loginWithEmail(email, password);
         if (!profile || profile.role !== 'admin') {
           await Store.logout();
           throw new Error('Tu usuario no tiene permisos de administrador.');
@@ -92,6 +91,7 @@
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
       }
+      
     });
   }
 
