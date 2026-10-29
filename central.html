@@ -4,69 +4,99 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0B3C78" />
-  <meta name="description" content="Consola Operativa EMP - MVP Demostración. No conectada a despacho real." />
-  <title>Central Operativa EMP — MVP Demostración</title>
+  <meta name="description" content="Consola Operativa EMP — Despacho de emergencias en tiempo real." />
+  <title>Consola Operativa EMP</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="central-body theme-dark">
-  <header class="central-header" role="banner">
-    <a class="emp-brand" href="central.html" aria-label="EMP - Central Operativa">
-      <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-      <span class="emp-brand-text">
-        <span class="emp-brand-name">Consola Operativa EMP</span>
-        <span class="emp-brand-claim">Emergencias Médicas Privadas las 24 Hs</span>
-      </span>
-    </a>
-    <span class="badge-central">MODO MVP DEMOSTRACIÓN — NO CONECTADA A DESPACHO REAL</span>
-    <div class="header-controls">
-      <label>Base / Alcance
-        <select id="centralBaseSelector" aria-label="Seleccionar base o alcance">
-          <option value="DOLORES">EMP Sede Dolores</option>
-          <option value="LA_COSTA">EMP Sucursal Santa Teresita (La Costa)</option>
-          <option value="ALL">Todas las Bases (Supervisión EMP)</option>
-        </select>
-      </label>
-      <label>Operador en turno<input type="text" id="operatorInput" class="operator-input" placeholder="Ej: Téc. Juan Pérez" maxlength="80" autocomplete="off" /></label>
-      <span class="alert-counter" id="alertCounter" title="Alertas pendientes de acuse">0</span>
-      <a href="socio.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Abrir Vista Socio</a>
-    </div>
-  </header>
 
-  <div class="central-grid">
-    <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
-      <h2>Bandeja de Incidentes</h2>
-      <div class="incident-filters">
-        <button type="button" class="btn-incident-filter active" data-filter="active">Activos</button>
-        <button type="button" class="btn-incident-filter" data-filter="closed">Finalizados</button>
+  <!-- LOGIN OVERLAY -->
+  <div class="login-overlay" id="centralLoginOverlay" hidden>
+    <div class="login-card">
+      <div class="login-logo" id="centralLoginLogo">
+        <svg viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+          <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="30" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
+          <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h94" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </div>
-      <ul class="incident-list" id="incidentList"></ul>
-      <p class="empty-msg" id="incidentEmpty" hidden>No hay incidentes en esta vista.</p>
-    </section>
-    <section class="central-col central-col-2" aria-label="Panel de control del incidente">
-      <h2>Panel de Control y Despacho</h2>
-      <div id="detailContainer">
-        <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
-      </div>
-    </section>
-    <section class="central-col central-col-3" aria-label="Estado de bases y flota">
-      <h2>Bases y Flota</h2>
-      <div id="fleetContainer"></div>
-    </section>
+      <h1>Consola Operativa</h1>
+      <p class="login-sub">Ingresá con tu cuenta de operador EMP.</p>
+      <form id="centralLoginForm" novalidate>
+        <label>Email<input type="email" id="centralLoginEmail" required placeholder="operador@emp.local" autocomplete="username" /></label>
+        <label>Contraseña<input type="password" id="centralLoginPassword" required autocomplete="current-password" /></label>
+        <button type="submit" class="btn-primary" id="centralLoginBtn">Ingresar</button>
+        <p class="login-msg" id="centralLoginMsg" role="status" aria-live="polite"></p>
+      </form>
+      <p class="login-hint"><a href="index.html">← Volver al sitio</a></p>
+    </div>
   </div>
 
-  <footer class="asari-footer" role="contentinfo">
-    <div class="asari-logo">ASARI S.A.S.</div>
-    <div class="asari-line">
-      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
-      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
-      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
+  <!-- APP -->
+  <div id="centralApp" hidden>
+
+    <header class="central-header" role="banner">
+      <a class="emp-brand" href="central.html" aria-label="EMP - Consola Operativa" id="centralHeaderBrand">
+        <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+          <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
+          <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="emp-brand-text">
+          <span class="emp-brand-name">Consola Operativa EMP</span>
+          <span class="emp-brand-claim">Emergencias Médicas Privadas</span>
+        </span>
+      </a>
+      <div class="header-controls">
+        <label>Base / Alcance
+          <select id="centralBaseSelector" aria-label="Seleccionar base">
+            <option value="DOLORES">Dolores</option>
+            <option value="LA_COSTA">La Costa</option>
+            <option value="ALL">Todas las Bases</option>
+          </select>
+        </label>
+        <span class="alert-counter" id="alertCounter" title="Alertas pendientes de acuse">0</span>
+        <a href="socio.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Vista Socio</a>
+        <a href="admin.html" target="_blank" rel="noopener" class="btn-link-socio">↗ Admin</a>
+        <button type="button" class="btn-logout" id="centralLogout">Salir</button>
+      </div>
+    </header>
+
+    <div class="central-grid">
+      <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
+        <h2>Bandeja de Incidentes</h2>
+        <div class="incident-filters">
+          <button type="button" class="btn-incident-filter active" data-filter="active">Activos</button>
+          <button type="button" class="btn-incident-filter" data-filter="closed">Finalizados</button>
+        </div>
+        <ul class="incident-list" id="incidentList"></ul>
+        <p class="empty-msg" id="incidentEmpty" hidden>No hay incidentes en esta vista.</p>
+      </section>
+
+      <section class="central-col central-col-2" aria-label="Panel de control del incidente">
+        <h2>Panel de Control y Despacho</h2>
+        <div id="detailContainer">
+          <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
+        </div>
+      </section>
+
+      <section class="central-col central-col-3" aria-label="Estado de bases y flota">
+        <h2>Bases y Flota</h2>
+        <div id="fleetContainer"></div>
+      </section>
     </div>
-  </footer>
+
+    <footer class="asari-footer" role="contentinfo">
+      <div class="asari-logo">ASARI S.A.S.</div>
+      <div class="asari-line">
+        <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.<br>
+        EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.<br>
+        <span class="asari-legal">Esta app es una herramienta de gestión. Ante una urgencia real, llamá a EMP al 2245-444600 (Dolores) o 2246-529000 (La Costa). Si no tenés cobertura EMP, llamá al 107 (SAME) o 911 (Policía).</span>
+      </div>
+    </footer>
+
+  </div>
 
   <script src="js/supabase.config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
