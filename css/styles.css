@@ -2531,3 +2531,47 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 .medicacion-banner .btn-secondary:hover {
   background: #B45309;
 }
+/* ============================================================
+   v8.3 — Sombreado blanco al logo para que no se pierda
+   ============================================================ */
+
+/* Logo del header con fondo blanco sutil */
+.emp-brand img {
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* Logo en la credencial (fondo azul/bordó) con drop-shadow blanco */
+.ct-logo img,
+.ct-logo svg {
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Logo en el login overlay */
+.login-logo img {
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Botón APK en el header de socio */
+.btn-apk-header {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--emp-orange, #EA580C);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.72rem; font-weight: 700;
+  text-decoration: none;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-apk-header:hover {
+  background: var(--emp-bordo, #7A1C32);
+}
