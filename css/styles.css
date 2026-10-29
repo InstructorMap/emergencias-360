@@ -2386,3 +2386,98 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.15); }
 }
+/* ============================================================
+   v8 — Formulario "Hacete Socio" en la landing
+   ============================================================ */
+
+.form-adhesion-card {
+  max-width: 800px; margin: 0 auto;
+  background: #fff; border-radius: 20px;
+  border: 1px solid #CBD5E1;
+  padding: 32px 28px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.10);
+}
+.form-adhesion-card h3 {
+  font-family: var(--font-display, 'Montserrat', sans-serif);
+  font-size: 1.2rem; color: #0B3C78;
+  margin-bottom: 8px;
+}
+.form-adhesion-card .form-sub {
+  font-size: 0.88rem; color: #4A5568;
+  margin-bottom: 24px;
+}
+.form-adhesion-card .form-group { margin-bottom: 18px; }
+.form-adhesion-card .form-group > label {
+  display: block; font-size: 0.85rem;
+  font-weight: 600; color: #0F172A;
+  margin-bottom: 6px;
+}
+.form-adhesion-card .form-group > label.req::after {
+  content: ' *'; color: #DC2626;
+}
+.form-adhesion-card input,
+.form-adhesion-card select,
+.form-adhesion-card textarea {
+  width: 100%; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid #CBD5E1;
+  font-size: 0.92rem; font-family: inherit;
+  background: #F4F8FD;
+  transition: border-color 0.15s;
+}
+.form-adhesion-card input:focus,
+.form-adhesion-card select:focus,
+.form-adhesion-card textarea:focus {
+  outline: none; border-color: #0B3C78; background: #fff;
+}
+.form-adhesion-card .form-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+@media (max-width: 600px) { .form-adhesion-card .form-row { grid-template-columns: 1fr; } }
+.form-adhesion-card .form-row-3 {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+}
+@media (max-width: 600px) { .form-adhesion-card .form-row-3 { grid-template-columns: 1fr; } }
+.form-adhesion-card .checkbox-group {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px 16px; margin-top: 6px;
+}
+@media (max-width: 600px) { .form-adhesion-card .checkbox-group { grid-template-columns: 1fr; } }
+.form-adhesion-card .checkbox-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.88rem; color: #4A5568; cursor: pointer;
+}
+.form-adhesion-card .checkbox-item input {
+  width: auto; margin: 0; cursor: pointer;
+}
+.form-adhesion-card .form-section-title {
+  font-size: 0.85rem; font-weight: 800;
+  color: #7A1C32; text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 24px 0 12px; padding-top: 20px;
+  border-top: 2px solid #CBD5E1;
+}
+.form-adhesion-card .form-actions {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 24px;
+}
+.form-adhesion-card .payment-choice {
+  background: #F4F8FD; border-radius: 10px;
+  padding: 16px; border: 1px solid #CBD5E1;
+  margin-bottom: 12px;
+}
+.form-adhesion-card .payment-choice > label {
+  display: flex; align-items: flex-start; gap: 10px;
+  cursor: pointer; padding: 8px 0; font-size: 0.9rem;
+}
+.form-adhesion-card .payment-choice > label input[type="radio"] {
+  width: auto; margin-top: 3px; flex-shrink: 0;
+}
+.form-adhesion-card .payment-choice .payment-desc {
+  font-size: 0.8rem; color: #64748B; margin-top: 2px;
+}
+.form-adhesion-card .form-msg {
+  font-size: 0.85rem; min-height: 1.2em;
+  margin-top: 12px; text-align: center;
+}
+.form-adhesion-card .form-msg.ok { color: #16A34A; }
+.form-adhesion-card .form-msg.error { color: #DC2626; }
