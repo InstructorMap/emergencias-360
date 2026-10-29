@@ -211,7 +211,6 @@
       return;
     }
 
-    // Datos del paciente + medicación
     const patientBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Datos del Socio' })]);
     let profile = null;
     try {
@@ -230,7 +229,6 @@
       patientBlock.appendChild(kv('Patologías', profile.patologias));
       patientBlock.appendChild(kv('Contacto emergencia', profile.contacto));
 
-      // Medicación activa
       try {
         const meds = await Store.getMedicationsForProfile(profile.id);
         if (meds.length) {
@@ -248,7 +246,6 @@
       patientBlock.appendChild(el('div', { className: 'warn-operador', textContent: 'Socio sin ficha.' }));
     }
 
-    // Geolocalización
     const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación' })]);
     if (inc.location) {
       geoBlock.appendChild(kv('Coordenadas', inc.location.lat.toFixed(6) + ', ' + inc.location.lng.toFixed(6)));
@@ -259,10 +256,8 @@
     }
     if (inc.manualAddress) geoBlock.appendChild(kv('Dirección manual', inc.manualAddress));
 
-    // Acciones
     const actionsBlock = buildActions(inc);
 
-    // Bitácora
     const bitacoraBlock = el('div', { className: 'detail-block' }, [
       el('h3', { textContent: 'Bitácora' }),
       el('ul', { className: 'bitacora-list' }, (inc.statusHistory || []).slice().reverse().map(h =>
@@ -408,7 +403,6 @@
     });
   }
 
-  // ============ RENDER ALL ============
   function renderAll() {
     renderAlertCounter();
     renderIncidentList();
@@ -416,7 +410,6 @@
     renderFleet();
   }
 
-  // ============ SUBSCRIPTION ============
   function initSubscription() {
     Store.subscribe(msg => {
       if (!msg) return;
@@ -426,7 +419,6 @@
     });
   }
 
-  // ============ BOOT ============
   async function bootCentral() {
     await applyBranding();
     initBaseSelector();
