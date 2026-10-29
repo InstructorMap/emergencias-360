@@ -1,0 +1,18 @@
+{
+  "appId": "com.emp.emergencias",
+  "appName": "EMP Emergencias",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#0B3C78",
+      "sound": "beep.wav"
+    }
+  }
+}
