@@ -1,9 +1,9 @@
 /* ============================================================
-   app-socio.js v7 — Controlador de socio.html
+   app-socio.js v7.1 — Controlador de socio.html
    - Login DNI + contraseña, cambio obligatorio primer login
    - Credencial con logo dinámico + QR verificado + código rotativo
    - Modo público ?carnet= y ?pulsera= (sin login)
-   - Medicación con lista del día + CRUD
+   - Medicación con lista del día + CRUD + notificaciones nativas (F1)
    - Historial de incidentes del socio
    - Recategorización de plan vía socio_request
    - PDF de credencial con jsPDF
@@ -84,7 +84,6 @@
   async function loadBranding() {
     branding = await Store.loadBranding();
     if (branding && branding.logoUrl) {
-      // Reemplazar SVG inline por <img>
       const headerBrand = $('#headerBrand');
       if (headerBrand) {
         const svg = headerBrand.querySelector('svg');
@@ -105,7 +104,6 @@
       if (loginLogo) {
         loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" style="max-width:180px;max-height:56px;" />';
       }
-      // Favicon dinámico
       if (branding.faviconUrl) {
         let link = document.querySelector('link[rel="icon"]');
         if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
@@ -146,7 +144,6 @@
     if (!publicMode) return;
     publicMode.innerHTML = '';
 
-    // Header
     const header = el('header', { className: 'pub-header' }, [
       el('a', { href: 'index.html', className: 'emp-brand' }, [
         (function () {
@@ -180,7 +177,6 @@
     }
 
     if (isPulsera) {
-      // Pantalla de emergencia con datos clínicos
       const card = el('div', { className: 'pub-card pub-pulsera pub-sos-alert' }, [
         el('div', { className: 'pub-sos-header', textContent: '🚨 EMERGENCIA — DATOS DEL SOCIO' }),
         el('h1', { className: 'pub-name', textContent: data.nombre || '—' }),
@@ -210,7 +206,6 @@
       ].filter(Boolean));
       publicMode.appendChild(card);
     } else {
-      // Verificación de carnet (sin datos sensibles)
       const statusClass = 'pub-' + data.carnetStatus;
       const statusLabel = { activo: 'ACTIVO', vencido: 'VENCIDO', suspendido: 'SUSPENDIDO' }[data.carnetStatus] || data.carnetStatus;
       const icon = { activo: '✅', vencido: '⏰', suspendido: '⛔' }[data.carnetStatus] || '❔';
@@ -718,13 +713,24 @@
   }
 
   // ============================================================
-  // MEDICACIÓN
+  // MEDICACIÓN (con parches F1)
   // ============================================================
   function renderMedicacion() {
     const hoy = $('#medicacionHoy');
     const lista = $('#medicacionLista');
     const count = $('#medicacionCount');
     if (!hoy || !lista) return;
+
+    // Banner APK: mostrar solo si NO está en Capacitor
+    const banner = $('#medicacionBanner');
+    if (banner) {
+      if (window.E360Capacitor && window.E360Capacitor.isNative) {
+        banner.hidden = true;
+      } else {
+        banner.hidden = false;
+      }
+    }
+
     const meds = Store.getMedications();
     if (count) count.textContent = String(meds.length);
 
@@ -765,7 +771,15 @@
             el('strong', { textContent: m.nombre }),
             el('button', { type: 'button', className: 'btn-muted', textContent: '✕', title: 'Eliminar', onclick: async () => {
               if (!confirm('¿Eliminar ' + m.nombre + '?')) return;
-              try { await Store.deleteMedication(m.id); renderMedicacion(); toast('Medicación eliminada'); }
+              try {
+                await Store.deleteMedication(m.id);
+                // Cancelar notificaciones nativas si está en Capacitor (F1)
+                if (window.E360Capacitor && window.E360Capacitor.isNative) {
+                  try { await window.E360Capacitor.cancelMedicationReminders(m.id); } catch (_) {}
+                }
+                renderMedicacion();
+                toast('Medicación eliminada');
+              }
               catch (e) { toast('Error: ' + e.message); }
             }})
           ]),
@@ -782,8 +796,15 @@
 
   function initMedicacionForm() {
     const btn = $('#btnAddMedicacion');
-    if (!btn) return;
-    btn.addEventListener('click', () => openMedicacionModal());
+    if (btn) btn.addEventListener('click', () => openMedicacionModal());
+
+    // Botón Descargar APK
+    const btnAPK = $('#btnDescargarAPK');
+    if (btnAPK) {
+      btnAPK.addEventListener('click', () => {
+        window.open('https://github.com/instructormap/emergencias-360/actions', '_blank', 'noopener');
+      });
+    }
   }
 
   function openMedicacionModal(existing) {
@@ -802,18 +823,37 @@
           if (!nombre) { toast('Ingresá el nombre'); return; }
           const horarios = $('#medHorarios').value.split(',').map(s => s.trim()).filter(Boolean);
           try {
-            await Store.saveMedication({
+            const savedMed = await Store.saveMedication({
               id: existing ? existing.id : undefined,
               nombre, dosis: $('#medDosis').value.trim(),
               frecuencia: $('#medFrecuencia').value.trim(),
               horarios, notas: $('#medNotas').value.trim()
             });
+
             // Programar dosis de hoy
-            const meds = Store.getMedications();
-            const newMed = meds[meds.length - 1];
-            if (newMed && horarios.length) {
-              try { await Store.scheduleDosesForMedication(newMed.id, new Date().toISOString()); } catch (_) {}
+            if (savedMed && horarios.length) {
+              try { await Store.scheduleDosesForMedication(savedMed.id, new Date().toISOString()); } catch (_) {}
             }
+
+            // Programar notificaciones nativas si está en Capacitor (F1)
+            if (window.E360Capacitor && window.E360Capacitor.isNative) {
+              try {
+                const perm = await window.E360Capacitor.requestPermissions();
+                if (perm.granted) {
+                  await window.E360Capacitor.scheduleMedicationReminders(savedMed);
+                  if (perm.exactAlarm) {
+                    toast('Recordatorio programado. Sonará con la app cerrada.');
+                  } else {
+                    toast('Recordatorio programado (puede atrasarse unos minutos).');
+                  }
+                } else {
+                  toast('Permiso denegado. El recordatorio solo sonará con la app abierta.');
+                }
+              } catch (e) {
+                console.warn('[app-socio] Error programando notificación:', e);
+              }
+            }
+
             document.body.removeChild(overlay);
             renderMedicacion();
             toast('Medicación guardada');
@@ -961,13 +1001,10 @@
       try {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [85.6, 54] });
-        // Fondo
         doc.setFillColor(11, 60, 120);
         doc.rect(0, 0, 85.6, 54, 'F');
-        // Banda bordó
         doc.setFillColor(122, 28, 50);
         doc.rect(0, 40, 85.6, 14, 'F');
-        // Logo
         if (branding && branding.logoUrl) {
           try {
             const img = new Image(); img.crossOrigin = 'anonymous'; img.src = branding.logoUrl;
@@ -975,15 +1012,12 @@
             doc.addImage(img, 'PNG', 4, 4, 24, 8);
           } catch (_) {}
         }
-        // Plan
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(8); doc.setFont('helvetica', 'bold');
         const plan = C.PLANS[profile.plan] || { label: profile.plan };
         doc.text('PLAN ' + plan.label.toUpperCase(), 82, 8, { align: 'right' });
-        // Nombre
         doc.setFontSize(11); doc.setFont('helvetica', 'bold');
         doc.text(profile.nombre || '—', 4, 20);
-        // Datos
         doc.setFontSize(6); doc.setFont('helvetica', 'normal');
         doc.text('CUIL / DNI', 4, 28);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
@@ -1000,10 +1034,8 @@
         doc.text('SEDE', 40, 37);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
         doc.text((profile.baseId || 'DOLORES').toUpperCase(), 40, 41);
-        // Pie
         doc.setFontSize(4); doc.setTextColor(255, 255, 255);
         doc.text('ASARI S.A.S. — Proveedor Tecnológico · EMP Prestador Operativo · No sustituye 107/911', 42.8, 51.5, { align: 'center' });
-        // QR
         if (QR && typeof QR.toCanvas === 'function' && profile.carnetToken) {
           try {
             const canvas = document.createElement('canvas');
@@ -1178,7 +1210,6 @@
   // BOOT
   // ============================================================
   document.addEventListener('DOMContentLoaded', async () => {
-    // Modo público (carnet o pulsera)
     const pub = getPublicMode();
     if (pub) {
       branding = await Store.loadBranding();
@@ -1186,7 +1217,6 @@
       return;
     }
 
-    // Modo app normal
     const session = await Store.initSession();
     await loadBranding();
 
