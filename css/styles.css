@@ -2498,3 +2498,5 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 }
 .request-payment.payment-aprobado { background: #DCFCE7; border-left-color: #16A34A; }
 .request-payment.payment-rechazado { background: #FEE2E2; border-left-color: #DC2626; }
+#medicacionBanner { display: none; }
+#medicacionBanner.visible { display: block; }
