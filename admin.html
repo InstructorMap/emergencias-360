@@ -4,117 +4,277 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0B3C78" />
-  <meta name="description" content="Panel Administrativo ASARI / EMP — Convenios, Organizaciones, Servicios Tercerizados, Pagos y Auditoría." />
-  <title>Panel Admin ASARI — Emergencias 360 MVP</title>
+  <meta name="description" content="Panel Administrativo EMP — Gestión de socios, alta masiva, branding, Mercado Pago, auditoría." />
+  <title>Panel Admin — EMP Emergencias Médicas Privadas</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 </head>
 <body class="admin-body">
-  <header class="admin-header" role="banner">
-    <a class="emp-brand" href="admin.html" aria-label="ASARI / EMP - Panel Admin">
-      <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
-        <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
-        <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-      <span class="emp-brand-text">
-        <span class="emp-brand-name">Panel ASARI — Admin Multitenant</span>
-        <span class="emp-brand-claim">Proveedor Tecnológico de EMP</span>
-      </span>
-    </a>
-    <span class="badge-admin">MODO MVP DEMOSTRACIÓN — PANEL ADMINISTRATIVO MULTITENANT & AUDITORÍA</span>
-    <div class="header-controls">
-      <label>Administrador responsable<input type="text" id="adminInput" class="admin-input" placeholder="Ej: Dirección ASARI / EMP" maxlength="80" autocomplete="off" /></label>
-      <a href="socio.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
-      <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central</a>
-      <a href="b2b.html" target="_blank" rel="noopener" class="btn-link">↗ B2B</a>
+
+  <!-- LOGIN OVERLAY -->
+  <div class="login-overlay" id="adminLoginOverlay" hidden>
+    <div class="login-card">
+      <div class="login-logo" id="adminLoginLogo">
+        <svg viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+          <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="30" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
+          <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h94" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <h1>Panel de Administración</h1>
+      <p class="login-sub">Ingresá con tus credenciales de administrador.</p>
+      <form id="adminLoginForm" novalidate>
+        <label>Email<input type="email" id="adminLoginEmail" required placeholder="admin@emp.local" autocomplete="username" value="admin@emp.local" /></label>
+        <label>Contraseña<input type="password" id="adminLoginPassword" required autocomplete="current-password" placeholder="Contraseña" /></label>
+        <button type="submit" class="btn-primary" id="adminLoginBtn">Ingresar</button>
+        <p class="login-msg" id="adminLoginMsg" role="status" aria-live="polite"></p>
+      </form>
+      <p class="login-hint"><a href="index.html">← Volver al sitio</a></p>
     </div>
-  </header>
+  </div>
 
-  <main class="admin-main" role="main">
+  <!-- APP -->
+  <div id="adminApp" hidden>
 
-    <section class="admin-card" aria-label="Organizaciones y aislamiento jurídico">
-      <h2>1. Organizaciones y Aislamiento Jurídico (Línea A vs. Línea B)</h2>
-      <div id="orgsContainer"></div>
-      <p class="warn-operador" style="margin-top:10px;"><strong>Recordatorio legal:</strong> ASARI S.A.S. es Proveedor Tecnológico; EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa. La Línea A (Emergencias) y la Línea B (Red de Beneficios) deben permanecer visual y legalmente separadas.</p>
-    </section>
-
-    <section class="admin-card" aria-label="Gestor contractual de la Red de Beneficios">
-      <h2>2. Gestor Contractual de la Red de Beneficios en Salud</h2>
-      <p class="aviso-comercial"><strong>Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible instantáneamente en la app del socio (socio.html). En cualquier otro estado permanece oculto.</strong></p>
-      <div style="overflow-x:auto;">
-        <table class="admin-table" id="benefitsTable">
-          <thead><tr><th>Prestador</th><th>Categoría / Localidad</th><th>Estado</th><th>N° Convenio / Respaldo</th><th>Vigencia</th><th>Acciones</th></tr></thead>
-          <tbody id="benefitsTbody"></tbody>
-        </table>
+    <header class="admin-header" role="banner">
+      <a class="emp-brand" href="admin.html" aria-label="EMP - Panel Admin" id="adminHeaderBrand">
+        <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+          <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#0B3C78" letter-spacing="1">EMP</text>
+          <path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h74" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="emp-brand-text">
+          <span class="emp-brand-name">Panel Admin</span>
+          <span class="emp-brand-claim">EMP Emergencias Médicas Privadas</span>
+        </span>
+      </a>
+      <div class="header-controls">
+        <a href="socio.html" target="_blank" rel="noopener" class="btn-link">↗ Vista Socio</a>
+        <a href="central.html" target="_blank" rel="noopener" class="btn-link">↗ Central</a>
+        <a href="guardia.html" target="_blank" rel="noopener" class="btn-link">↗ Guardia</a>
+        <a href="b2b.html" target="_blank" rel="noopener" class="btn-link">↗ B2B</a>
+        <button type="button" class="btn-logout" id="adminLogout">Salir</button>
       </div>
-      <p class="form-msg" id="adminMsg" role="status" aria-live="polite"></p>
-    </section>
+    </header>
 
-    <section class="admin-card" aria-label="Registro inmutable de auditoría">
-      <h2>3. Registro Inmutable de Auditoría</h2>
-      <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-        <button type="button" id="btnExportAudit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">⬇ Exportar Auditoría (JSON)</button>
-        <button type="button" id="btnResetDemo" style="background:var(--color-primary); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-weight:700; cursor:pointer;">♻ Reiniciar Demo (Reset Total)</button>
-      </div>
-      <ul class="audit-list" id="auditList"></ul>
-    </section>
+    <main class="admin-main" role="main">
 
-    <section class="admin-card" aria-label="Configuración de servicios tercerizados">
-      <h2>4. Configuración de Servicios Tercerizados</h2>
-      <p class="aviso-comercial"><strong>Médico Virtual</strong> y <strong>Seguro al Viajero</strong> son prestadores tercerizados: no son operados ni garantizados por ASARI S.A.S. ni por EMP. Cargá acá las URLs oficiales. Se mostrarán en la Ficha del Socio como enlaces externos, gateados por plan (ORO/PLATINO).</p>
-      <form id="extServicesForm" class="ext-services-form" novalidate>
-        <label>URL de Médico Virtual (5 especialistas, 24/365)<input type="url" id="extMedicoVirtualUrl" maxlength="300" placeholder="https://…" autocomplete="off" /></label>
-        <label>URL de Seguro al Viajero<input type="url" id="extSeguroViajeroUrl" maxlength="300" placeholder="https://…" autocomplete="off" /></label>
-        <div class="full" style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="submit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Guardar configuración</button>
-          <button type="button" id="extServicesClear" style="background:var(--color-surface-2); color:var(--color-text); border:1px solid var(--color-border); border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Limpiar URLs</button>
+      <!-- MENSAJE GLOBAL -->
+      <div class="admin-msg-bar" id="adminMsgBar" hidden></div>
+
+      <!-- 1. SOCIOS -->
+      <section class="admin-card" aria-label="Gestión de socios">
+        <h2>1. Socios <span class="section-badge" id="sociosCount">0</span></h2>
+        <div class="admin-toolbar">
+          <input type="text" id="sociosSearch" placeholder="Buscar por nombre, DNI o N° socio..." class="admin-search" />
+          <select id="sociosFilterPlan" class="admin-select">
+            <option value="">Todos los planes</option>
+            <option value="BRONCE">Bronce</option>
+            <option value="PLATA">Plata</option>
+            <option value="ORO">Oro</option>
+            <option value="PLATINO">Platino</option>
+          </select>
+          <select id="sociosFilterBase" class="admin-select">
+            <option value="">Todas las sedes</option>
+            <option value="DOLORES">Dolores</option>
+            <option value="LA_COSTA">La Costa</option>
+          </select>
+          <button type="button" class="btn-primary" id="btnExportSociosCSV">⬇ Exportar CSV</button>
         </div>
-        <p class="form-msg" id="extServicesMsg" role="status" aria-live="polite"></p>
-        <p class="form-msg" id="extServicesStatus" role="status" aria-live="polite" style="color:var(--color-text-dim); font-size:0.78rem;"></p>
-      </form>
-    </section>
+        <div style="overflow-x:auto;">
+          <table class="admin-table" id="sociosTable">
+            <thead><tr><th>Socio</th><th>N° socio</th><th>Plan</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="sociosTbody"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="admin-card" aria-label="Configuración de pagos">
-      <h2>5. Configuración de Pagos (Mercado Pago — placeholder)</h2>
-      <p class="aviso-comercial">Integración con Mercado Pago pendiente de conexión del SDK. Cargá la Public Key y las cuotas mensuales por plan. Dejá vacío si todavía no hay valor.</p>
-      <form id="paymentForm" class="ext-services-form" novalidate>
-        <label style="flex-direction:row; align-items:center; gap:8px;">
-          <input type="checkbox" id="payMpEnabled" style="width:auto;" />
-          <span>Habilitar pago online con Mercado Pago</span>
-        </label>
-        <label>Public Key de Mercado Pago<input type="text" id="payMpPublicKey" maxlength="200" placeholder="APP_USR-…" autocomplete="off" /></label>
-        <label>Cuota mensual BRONCE<input type="text" id="payCuotaBRONCE" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
-        <label>Cuota mensual PLATA<input type="text" id="payCuotaPLATA" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
-        <label>Cuota mensual ORO<input type="text" id="payCuotaORO" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
-        <label>Cuota mensual PLATINO<input type="text" id="payCuotaPLATINO" inputmode="decimal" placeholder="Vacío" autocomplete="off" /></label>
-        <div class="full"><button type="submit" style="background:var(--color-blue); color:#fff; border:none; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer;">Guardar configuración de pagos</button></div>
-        <p class="form-msg" id="payMsg" role="status" aria-live="polite"></p>
-        <p class="form-msg" id="payStatus" role="status" aria-live="polite" style="color:var(--color-text-dim); font-size:0.78rem;"></p>
-      </form>
-    </section>
+      <!-- 2. ALTA INDIVIDUAL -->
+      <section class="admin-card" aria-label="Alta individual de socio">
+        <h2>2. Alta individual de socio</h2>
+        <p class="aviso-comercial">Creá un socio. Se le asigna contraseña inicial: <strong>EMP + últimos 4 dígitos del DNI</strong>. El socio deberá cambiarla en el primer login.</p>
+        <form id="formAltaIndividual" class="admin-form" novalidate>
+          <label>Nombre completo<input type="text" id="aiNombre" required maxlength="80" /></label>
+          <label>DNI<input type="text" id="aiDni" required maxlength="12" inputmode="numeric" /></label>
+          <label>CUIL<input type="text" id="aiCuil" maxlength="20" placeholder="20-12345678-9" /></label>
+          <label>Plan
+            <select id="aiPlan">
+              <option value="BRONCE">Bronce</option>
+              <option value="PLATA">Plata</option>
+              <option value="ORO">Oro</option>
+              <option value="PLATINO">Platino</option>
+            </select>
+          </label>
+          <label>Sede
+            <select id="aiBase">
+              <option value="DOLORES">Dolores</option>
+              <option value="LA_COSTA">La Costa</option>
+            </select>
+          </label>
+          <label>Teléfono<input type="tel" id="aiTelefono" maxlength="20" /></label>
+          <label>Grupo sanguíneo
+            <select id="aiGrupo">
+              <option value="">No informado</option>
+              <option value="O+">O+</option><option value="O-">O-</option>
+              <option value="A+">A+</option><option value="A-">A-</option>
+              <option value="B+">B+</option><option value="B-">B-</option>
+              <option value="AB+">AB+</option><option value="AB-">AB-</option>
+            </select>
+          </label>
+          <label>Alergias<input type="text" id="aiAlergias" maxlength="200" placeholder="Ej: penicilina" /></label>
+          <label>Patologías<input type="text" id="aiPatologias" maxlength="200" placeholder="Ej: diabetes" /></label>
+          <label>Contacto de emergencia<input type="text" id="aiContacto" maxlength="80" placeholder="Nombre y teléfono" /></label>
+          <label>Cuota mensual<input type="text" id="aiCuota" maxlength="20" inputmode="decimal" /></label>
+          <div class="full">
+            <button type="submit" class="btn-primary" id="btnCreateSocio">Crear socio</button>
+          </div>
+          <p class="form-msg" id="altaIndividualMsg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
 
-    <section class="admin-card" aria-label="Gestión de plan por DNI">
-      <h2>6. Gestión de Plan y Carnet por Socio</h2>
-      <p class="aviso-comercial">Cambiá el plan, renová el carnet o suspendé un socio. El N° de socio es correlativo ascendente y no se reasigna.</p>
-      <div style="overflow-x:auto;">
-        <table class="admin-table" id="planManagerTable">
-          <thead><tr><th>Socio</th><th>N° socio</th><th>Plan</th><th>Carnet</th><th>Acciones</th></tr></thead>
-          <tbody id="planManagerTbody"></tbody>
-        </table>
+      <!-- 3. ALTA MASIVA -->
+      <section class="admin-card" aria-label="Alta masiva por Excel">
+        <h2>3. Alta masiva por Excel</h2>
+        <p class="aviso-comercial">
+          Subí un archivo <code>.xlsx</code> o <code>.csv</code> con las columnas:<br>
+          <code>nombre | dni | cuil | plan | base_id | telefono | grupo_sanguineo | alergias | patologias | contacto | cuota</code><br>
+          Las columnas obligatorias son <strong>nombre</strong> y <strong>dni</strong>. El plan por defecto es BRONCE, la base DOLORES.
+        </p>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" hidden />
+          <button type="button" class="btn-secondary" id="btnSelectExcel">📎 Seleccionar archivo</button>
+          <span class="upload-filename" id="excelFileName">Ningún archivo seleccionado</span>
+        </div>
+        <div id="excelPreview" class="excel-preview" hidden></div>
+        <div class="full" id="excelActions" hidden>
+          <button type="button" class="btn-primary" id="btnImportExcel">Importar socios</button>
+          <button type="button" class="btn-secondary" id="btnCancelExcel">Cancelar</button>
+        </div>
+        <div id="importResult" class="import-result" hidden></div>
+      </section>
+
+      <!-- 4. SOLICITUDES -->
+      <section class="admin-card" aria-label="Solicitudes de socios">
+        <h2>4. Solicitudes "Hacete Socio" y recategorización <span class="section-badge" id="requestsCount">0</span></h2>
+        <div id="socioRequestsList"></div>
+      </section>
+
+      <!-- 5. BRANDING -->
+      <section class="admin-card" aria-label="Branding">
+        <h2>5. Branding (logo y colores)</h2>
+        <p class="aviso-comercial">El logo se muestra en la app del socio, credencial, PDF, login y todas las vistas. Subí una imagen con fondo transparente (PNG o SVG, idealmente 400×140 px).</p>
+        <div class="branding-preview">
+          <div class="branding-slot">
+            <span class="branding-label">Logo actual</span>
+            <div id="currentLogoPreview" class="logo-preview">—</div>
+            <input type="file" id="logoFile" accept="image/*" hidden />
+            <button type="button" class="btn-secondary" id="btnUploadLogo">Subir logo</button>
+          </div>
+          <div class="branding-slot">
+            <span class="branding-label">Favicon</span>
+            <div id="currentFaviconPreview" class="logo-preview">—</div>
+            <input type="file" id="faviconFile" accept="image/*" hidden />
+            <button type="button" class="btn-secondary" id="btnUploadFavicon">Subir favicon</button>
+          </div>
+        </div>
+        <form id="formBrandingColors" class="admin-form" novalidate>
+          <label>Color primario<input type="color" id="brandColorPrimary" value="#0B3C78" /></label>
+          <label>Color secundario<input type="color" id="brandColorSecondary" value="#7A1C32" /></label>
+          <label>Color acento<input type="color" id="brandColorAccent" value="#EA580C" /></label>
+          <label>Color SOS<input type="color" id="brandColorSos" value="#DC2626" /></label>
+          <div class="full"><button type="submit" class="btn-primary">Guardar colores</button></div>
+        </form>
+      </section>
+
+      <!-- 6. MERCADO PAGO -->
+      <section class="admin-card" aria-label="Mercado Pago">
+        <h2>6. Mercado Pago</h2>
+        <p class="aviso-comercial">Configurá las credenciales de Mercado Pago. El Access Token es secreto (solo admin). El socio ve las cuotas y la Public Key.</p>
+        <form id="formMercadoPago" class="admin-form" novalidate>
+          <label class="full" style="flex-direction:row;align-items:center;gap:8px;">
+            <input type="checkbox" id="mpEnabled" style="width:auto;" />
+            <span>Habilitar pago online con Mercado Pago</span>
+          </label>
+          <label>Public Key<input type="text" id="mpPublicKey" maxlength="200" placeholder="APP_USR-…" autocomplete="off" /></label>
+          <label>Access Token (secreto)<input type="password" id="mpAccessToken" maxlength="200" placeholder="APP_USR-…" autocomplete="off" /></label>
+          <label>Cuota BRONCE<input type="text" id="mpCuotaBronce" inputmode="decimal" /></label>
+          <label>Cuota PLATA<input type="text" id="mpCuotaPlata" inputmode="decimal" /></label>
+          <label>Cuota ORO<input type="text" id="mpCuotaOro" inputmode="decimal" /></label>
+          <label>Cuota PLATINO<input type="text" id="mpCuotaPlatino" inputmode="decimal" /></label>
+          <div class="full"><button type="submit" class="btn-primary">Guardar configuración</button></div>
+          <p class="form-msg" id="mpMsg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 7. SERVICIOS TERCERIZADOS -->
+      <section class="admin-card" aria-label="Servicios tercerizados">
+        <h2>7. Servicios Tercerizados</h2>
+        <p class="aviso-comercial">Médico Virtual y Seguro al Viajero son prestadores tercerizados. Se muestran en la ficha del socio, gateados por plan (Oro y Platino).</p>
+        <form id="formExtServices" class="admin-form" novalidate>
+          <label>URL de Médico Virtual<input type="url" id="extMedicoUrl" maxlength="300" placeholder="https://…" /></label>
+          <label>URL de Seguro al Viajero<input type="url" id="extSeguroUrl" maxlength="300" placeholder="https://…" /></label>
+          <div class="full"><button type="submit" class="btn-primary">Guardar configuración</button></div>
+          <p class="form-msg" id="extServicesMsg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 8. BENEFICIOS -->
+      <section class="admin-card" aria-label="Beneficios">
+        <h2>8. Red de Beneficios</h2>
+        <p class="aviso-comercial">Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible en la app del socio.</p>
+        <div style="overflow-x:auto;">
+          <table class="admin-table" id="benefitsTable">
+            <thead><tr><th>Prestador</th><th>Categoría / Localidad</th><th>Estado</th><th>Convenio</th><th>Vigencia</th><th>Acciones</th></tr></thead>
+            <tbody id="benefitsTbody"></tbody>
+          </table>
+        </div>
+        <p class="form-msg" id="adminMsg" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- 9. B2B -->
+      <section class="admin-card" aria-label="Establecimientos B2B">
+        <h2>9. Establecimientos B2B</h2>
+        <div style="overflow-x:auto;">
+          <table class="admin-table" id="b2bTable">
+            <thead><tr><th>Nombre</th><th>Rubro</th><th>Sede</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="b2bTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 10. AUDITORÍA -->
+      <section class="admin-card" aria-label="Auditoría">
+        <h2>10. Auditoría</h2>
+        <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <button type="button" id="btnExportAudit" class="btn-secondary">⬇ Exportar Auditoría JSON</button>
+          <button type="button" id="btnRefreshAudit" class="btn-secondary">🔄 Refrescar</button>
+        </div>
+        <ul class="audit-list" id="auditList"></ul>
+      </section>
+
+      <!-- 11. RECORDATORIO LEGAL -->
+      <section class="admin-card" aria-label="Recordatorio legal">
+        <h2>Recordatorio legal</h2>
+        <p class="warn-operador">
+          <strong>ASARI S.A.S.</strong> es el proveedor tecnológico de la plataforma (desarrolla y opera el software).
+          <strong>EMP - Emergencias Médicas Privadas</strong> es el prestador operativo del servicio de emergencias médicas.
+          La app es una herramienta de gestión: <strong>no reemplaza la llamada telefónica al servicio de emergencias</strong>.
+        </p>
+      </section>
+
+    </main>
+
+    <footer class="asari-footer" role="contentinfo">
+      <div class="asari-logo">ASARI S.A.S.</div>
+      <div class="asari-line">
+        <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.<br>
+        EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.<br>
+        <span class="asari-legal">Esta app es una herramienta de gestión. Ante una urgencia real, llamá a EMP al 2245-444600 (Dolores) o 2246-529000 (La Costa). Si no tenés cobertura EMP, llamá al 107 (SAME) o 911 (Policía).</span>
       </div>
-    </section>
+    </footer>
 
-  </main>
-
-  <footer class="asari-footer" role="contentinfo">
-    <div class="asari-logo">ASARI S.A.S.</div>
-    <div class="asari-line">
-      <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.
-      EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
-      <span class="asari-legal">Esta app NO sustituye al 107 / 911 / Bomberos.</span>
-    </div>
-  </footer>
+  </div>
 
   <script src="js/supabase.config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
