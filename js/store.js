@@ -926,7 +926,90 @@
     _reload: loadAllData,
     calcCarnetStatus, daysToExpire,
     INCIDENT_STATES, UNIT_STATUS, PRIORITIES, BENEFIT_STATUSES, B2B_STATUSES,
-    PLAN_IDS: C.PLAN_IDS, PLANS: C.PLANS
+        // ============ BRANDING ============
+    getBranding() {
+      // Caché en localStorage con TTL 24h
+      try {
+        const raw = global.localStorage.getItem('e360_branding');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const age = Date.now() - new Date(parsed.cachedAt).getTime();
+          if (age < 24 * 60 * 60 * 1000) return { ...parsed.data };
+        }
+      } catch (_) {}
+      // Fallback al config estático
+      return {
+        logoUrl: '',
+        logoDarkUrl: '',
+        faviconUrl: '',
+        colorPrimary: '#0B3C78',
+        colorSecondary: '#7A1C32',
+        colorAccent: '#EA580C',
+        colorSos: '#DC2626'
+      };
+    },
+
+    async loadBranding() {
+      if (!state.connected || !state.supabase) {
+        return this.getBranding();
+      }
+      try {
+        const { data } = await state.supabase.from('branding').select('*').eq('id', 1).maybeSingle();
+        if (!data) return this.getBranding();
+        const branding = {
+          logoUrl: data.logo_url || '',
+          logoDarkUrl: data.logo_dark_url || '',
+          faviconUrl: data.favicon_url || '',
+          colorPrimary: data.color_primary || '#0B3C78',
+          colorSecondary: data.color_secondary || '#7A1C32',
+          colorAccent: data.color_accent || '#EA580C',
+          colorSos: data.color_sos || '#DC2626'
+        };
+        try {
+          global.localStorage.setItem('e360_branding', JSON.stringify({ cachedAt: new Date().toISOString(), data: branding }));
+        } catch (_) {}
+        state.branding = branding;
+        return { ...branding };
+      } catch (_) {
+        return this.getBranding();
+      }
+    },
+
+    async setBranding(data) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const record = {
+        logo_url: data.logoUrl || '',
+        logo_dark_url: data.logoDarkUrl || '',
+        favicon_url: data.faviconUrl || '',
+        color_primary: data.colorPrimary || '#0B3C78',
+        color_secondary: data.colorSecondary || '#7A1C32',
+        color_accent: data.colorAccent || '#EA580C',
+        color_sos: data.colorSos || '#DC2626',
+        updated_at: nowISO(),
+        updated_by: state.profile.dni
+      };
+      const { data: updated, error } = await state.supabase.from('branding').update(record).eq('id', 1).select().single();
+      if (error) throw new Error(error.message);
+      try {
+        global.localStorage.removeItem('e360_branding');
+      } catch (_) {}
+      return this.loadBranding();
+    },
+
+    async uploadBrandingFile(file, tipo) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      if (!file) throw new Error('No se seleccionó archivo.');
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const fileName = `${tipo}_${Date.now()}.${ext}`;
+      const { data, error } = await state.supabase.storage
+        .from('branding')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+      if (error) throw new Error(error.message);
+      const { data: urlData } = state.supabase.storage.from('branding').getPublicUrl(fileName);
+      return urlData.publicUrl;
+    },
   };
 
   global.E360Store = E360Store;
