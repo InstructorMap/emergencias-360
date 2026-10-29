@@ -1,8 +1,9 @@
 /* ============================================================
-   app-admin.js v8 — Controlador de admin.html
+   app-admin.js v8.1 — Controlador de admin.html
    Login admin, gestión de socios, alta individual, alta masiva,
-   bandeja de solicitudes, branding, Mercado Pago, servicios
-   tercerizados, beneficios, B2B, auditoría, export CSV.
+   bandeja de solicitudes con datos clínicos y estado de pago,
+   branding, Mercado Pago, servicios tercerizados, beneficios,
+   B2B, auditoría, export CSV.
    ============================================================ */
 
 (function () {
@@ -42,6 +43,11 @@
     try { return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }); }
     catch (_) { return iso; }
   }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('es-AR'); }
+    catch (_) { return iso; }
+  }
 
   function showMsgBar(text, isError) {
     const bar = $('#adminMsgBar');
@@ -61,7 +67,6 @@
     setTimeout(() => t.classList.remove('show'), 2600);
   }
 
-  let editingMedicationProfileId = null;
   let excelRows = [];
 
   // ============================================================
@@ -78,7 +83,7 @@
       const password = $('#adminLoginPassword').value;
       if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
       if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-               try {
+      try {
         const profile = await Store.loginWithEmail(email, password);
         if (!profile || profile.role !== 'admin') {
           await Store.logout();
@@ -91,7 +96,6 @@
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
       }
-      
     });
   }
 
@@ -188,10 +192,8 @@
         el('td', {}, [
           el('div', { className: 'row-actions' }, [
             el('button', { type: 'button', textContent: '💾 Guardar plan', onclick: async () => {
-              try {
-                await Store.setProfilePlan(p.dni, planSel.value, 'admin');
-                toast('Plan actualizado'); renderSocios();
-              } catch (e) { toast('Error: ' + e.message); }
+              try { await Store.setProfilePlan(p.dni, planSel.value, 'admin'); toast('Plan actualizado'); renderSocios(); }
+              catch (e) { toast('Error: ' + e.message); }
             }}),
             el('button', { type: 'button', className: 'btn-muted', textContent: '🗓 Renovar', onclick: async () => {
               try { await Store.renewCarnet(p.dni, 'admin'); toast('Carnet renovado'); renderSocios(); }
@@ -503,7 +505,7 @@
   }
 
   // ============================================================
-  // SOLICITUDES
+  // SOLICITUDES (con datos clínicos y estado de pago — parche E1)
   // ============================================================
   function renderSocioRequests() {
     const list = $('#socioRequestsList');
@@ -517,7 +519,20 @@
       return;
     }
     reqs.forEach(r => {
-      list.appendChild(el('div', { className: 'request-card' }, [
+      // Antecedentes clínicos como texto legible
+      const clinicaLabels = {
+        hipertension: 'Hipertensión', cardiaca: 'Cardíaca', motriz: 'Motriz',
+        congenita: 'Congénita', dolor_cronico: 'Dolor crónico',
+        epilepsia: 'Epilepsia', diabetes: 'Diabetes', asma: 'Asma'
+      };
+      const clinicaActivos = [];
+      if (r.datos_clinicos) {
+        Object.keys(clinicaLabels).forEach(k => {
+          if (r.datos_clinicos[k]) clinicaActivos.push(clinicaLabels[k]);
+        });
+      }
+
+      const card = el('div', { className: 'request-card' }, [
         el('div', { className: 'request-head' }, [
           el('strong', { textContent: r.nombre || '—' }),
           el('span', { className: 'request-tipo', textContent: r.tipo === 'recategorizacion' ? 'RECATEGORIZACIÓN' : 'ADHESIÓN' })
@@ -525,9 +540,31 @@
         el('div', { className: 'request-meta' }, [
           'DNI ' + (r.dni || '—') + ' · ' + (r.telefono || 'sin tel') + (r.email ? ' · ' + r.email : '')
         ]),
+        r.fecha ? el('div', { className: 'request-meta', textContent: 'Fecha solicitud: ' + fmtDate(r.fecha) }) : null,
+        r.direccion ? el('div', { className: 'request-meta', textContent: 'Dirección: ' + r.direccion }) : null,
+        r.localidad ? el('div', { className: 'request-meta', textContent: 'Localidad: ' + r.localidad }) : null,
+        r.fecha_nacimiento ? el('div', { className: 'request-meta', textContent: 'Nacimiento: ' + fmtDate(r.fecha_nacimiento) + (r.edad ? ' · ' + r.edad + ' años' : '') }) : null,
+        r.obra_social ? el('div', { className: 'request-meta', textContent: 'Obra social: ' + r.obra_social }) : null,
+        r.medico_cabecera ? el('div', { className: 'request-meta', textContent: 'Médico de cabecera: ' + r.medico_cabecera }) : null,
+        r.lugar_derivacion ? el('div', { className: 'request-meta', textContent: 'Derivación: ' + r.lugar_derivacion }) : null,
+        r.contacto_familiar ? el('div', { className: 'request-meta', textContent: 'Contacto familiar: ' + r.contacto_familiar }) : null,
+        (r.grupo_familiar_cantidad || r.grupo_familiar_constitucion) ? el('div', { className: 'request-meta', textContent:
+          'Grupo familiar: ' + (r.grupo_familiar_cantidad || '—') + ' integrantes' + (r.grupo_familiar_constitucion ? ' (' + r.grupo_familiar_constitucion + ')' : '')
+        }) : null,
         r.tipo === 'recategorizacion' ? el('div', { className: 'request-meta', textContent: 'De ' + (r.plan_actual || '—') + ' → ' + (r.plan_solicitado || '—') }) : null,
         r.plan_interes ? el('div', { className: 'request-meta', textContent: 'Plan interés: ' + r.plan_interes }) : null,
-        r.localidad ? el('div', { className: 'request-meta', textContent: 'Localidad: ' + r.localidad }) : null,
+        clinicaActivos.length ? el('div', { className: 'request-clinica' }, [
+          el('strong', { textContent: '🩺 Antecedentes: ' }),
+          el('span', { textContent: clinicaActivos.join(', ') })
+        ]) : null,
+        (r.datos_clinicos && r.datos_clinicos.otra) ? el('div', { className: 'request-clinica' }, [
+          el('strong', { textContent: 'Otra: ' }),
+          el('span', { textContent: r.datos_clinicos.otra })
+        ]) : null,
+        el('div', { className: 'request-payment payment-' + (r.payment_status || 'pendiente') }, [
+          el('strong', { textContent: '💳 Pago: ' }),
+          el('span', { textContent: (r.payment_status || 'pendiente').toUpperCase() + (r.payment_method ? ' · ' + r.payment_method : '') + (r.payment_amount ? ' · $' + r.payment_amount : '') })
+        ]),
         r.mensaje ? el('div', { className: 'request-msg', textContent: r.mensaje }) : null,
         el('div', { className: 'request-actions' }, [
           r.tipo === 'recategorizacion' ?
@@ -551,7 +588,8 @@
             catch (e) { toast('Error: ' + e.message); }
           }})
         ])
-      ]));
+      ]);
+      list.appendChild(card);
     });
   }
 
@@ -720,12 +758,8 @@
         el('td', {}, [validInput]),
         el('td', {}, [
           el('div', { className: 'row-actions' }, [
-            el('button', { type: 'button', textContent: '💾 Guardar', onclick: async () => {
-              try {
-                // En v8 no hay updateBenefitStatus; usamos una actualización directa vía Supabase
-                // Si falla, mostramos error
-                toast('Función en migración. Contactá a soporte.');
-              } catch (e) { toast('Error: ' + e.message); }
+            el('button', { type: 'button', textContent: '💾 Guardar', onclick: () => {
+              toast('Función en migración. Contactá a soporte.');
             }})
           ])
         ])
