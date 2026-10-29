@@ -1,42 +1,32 @@
 /* ============================================================
-   app-b2b.js — Controlador de b2b.html (Módulo 5)
-   Alta/edición de establecimientos B2B (Hoteles, Balnearios,
-   Comercios, Consultorios, Eventos) y tarjeta QR de emergencia.
+   app-b2b.js v8 — Módulo B2B EMP
+   - Login staff (admin/operador) por email
+   - Alta/edición de establecimientos
+   - Toggle status
+   - QR de emergencia por establecimiento
    ============================================================ */
 
 (function () {
   'use strict';
 
   const Store = window.E360Store;
-  if (!Store) {
-    console.error('[app-b2b] E360Store no disponible.');
-    return;
-  }
+  const QR = window.E360QR;
+  if (!Store) { console.error('[app-b2b] E360Store no disponible.'); return; }
 
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const $ = (s) => document.querySelector(s);
 
-  const uiState = {
-    baseFilter: 'ALL',
-    operatorName: '',
-    editingId: null
-  };
-
-  // ============================================================
-  // Helper el() con fix H-01
-  // ============================================================
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) {
       Object.keys(attrs).forEach((k) => {
-        const val = attrs[k];
-        if (val === null || val === undefined || val === false) return;
-        if (val === true) { node.setAttribute(k, ''); return; }
-        if (k === 'className') { node.className = val; return; }
-        if (k === 'textContent') { node.textContent = val; return; }
-        if (k === 'onclick' && typeof val === 'function') { node.addEventListener('click', val); return; }
-        if (k === 'innerHTML') { node.innerHTML = val; return; }
-        node.setAttribute(k, val);
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) return;
+        if (v === true) { node.setAttribute(k, ''); return; }
+        if (k === 'className') { node.className = v; return; }
+        if (k === 'textContent') { node.textContent = v; return; }
+        if (k === 'onclick' && typeof v === 'function') { node.addEventListener('click', v); return; }
+        if (k === 'innerHTML') { node.innerHTML = v; return; }
+        node.setAttribute(k, v);
       });
     }
     (children || []).forEach((c) => {
@@ -47,291 +37,226 @@
     return node;
   }
 
-  function fmtDate(iso) {
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleDateString('es-AR');
-    } catch (_) { return iso; }
+  function toast(text) {
+    let t = document.getElementById('e360Toast');
+    if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2600);
   }
 
-  function statusBadge(status) {
-    return el('span', {
-      className: 'badge badge-status-' + status,
-      textContent: status
+  const ui = { baseFilter: 'ALL', editingId: null };
+
+  function showLogin() {
+    const ov = $('#b2bLoginOverlay'); if (ov) ov.hidden = false;
+    const app = $('#b2bApp'); if (app) app.hidden = true;
+  }
+  function hideLogin() {
+    const ov = $('#b2bLoginOverlay'); if (ov) ov.hidden = true;
+    const app = $('#b2bApp'); if (app) app.hidden = false;
+  }
+
+  function initLogin() {
+    const form = $('#b2bLoginForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('#b2bLoginMsg');
+      const btn = $('#b2bLoginBtn');
+      const email = $('#b2bLoginEmail').value.trim();
+      const password = $('#b2bLoginPassword').value;
+      if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
+      try {
+        const profile = await Store.loginWithEmail(email, password);
+        if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+          await Store.logout();
+          throw new Error('Tu cuenta no tiene permisos.');
+        }
+        hideLogin();
+        await bootB2B();
+      } catch (err) {
+        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = '#DC2626'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      }
+    });
+    const logout = $('#b2bLogout');
+    if (logout) logout.addEventListener('click', async () => {
+      if (!confirm('¿Cerrar sesión?')) return;
+      await Store.logout();
+      location.reload();
     });
   }
 
-  // ============================================================
-  // QR SIMULADO EN SVG PURO
-  // ============================================================
-  function buildQrSvg(seedStr) {
-    // QR "visual" determinístico basado en hash del ID.
-    // NO es un QR escaneable real, es un identificador visual
-    // para el MVP. El botón "Probar Escaneo QR" hace la apertura
-    // real de index.html?b2b=ID.
-    const size = 21;
-    const cell = 3;
-    const total = size * cell;
-    let hash = 0;
-    for (let i = 0; i < seedStr.length; i++) {
-      hash = ((hash << 5) - hash + seedStr.charCodeAt(i)) | 0;
-    }
-    const bits = [];
-    let h = hash;
-    for (let i = 0; i < size * size; i++) {
-      h = (h * 1103515245 + 12345) & 0x7fffffff;
-      bits.push((h >> 8) & 1);
-    }
-    // Marcadores de posición (finder patterns) en 3 esquinas
-    function isFinder(x, y) {
-      const inTopLeft = (x < 7 && y < 7);
-      const inTopRight = (x >= size - 7 && y < 7);
-      const inBottomLeft = (x < 7 && y >= size - 7);
-      return inTopLeft || inTopRight || inBottomLeft;
-    }
-    function finderOn(x, y) {
-      // borde + centro
-      const localX = (x >= size - 7) ? x - (size - 7) : x;
-      const localY = (y >= size - 7) ? y - (size - 7) : y;
-      if (localX === 0 || localX === 6 || localY === 0 || localY === 6) return true;
-      if (localX >= 2 && localX <= 4 && localY >= 2 && localY <= 4) return true;
-      return false;
-    }
-
-    let rects = '';
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const idx = y * size + x;
-        let on = bits[idx] === 1;
-        if (isFinder(x, y)) on = finderOn(x, y);
-        if (on) {
-          rects += '<rect x="' + (x * cell) + '" y="' + (y * cell) + '" width="' + cell + '" height="' + cell + '" fill="#000"/>';
+  async function applyBranding() {
+    try {
+      const b = await Store.loadBranding();
+      if (b && b.logoUrl) {
+        const brand = $('#b2bHeaderBrand');
+        if (brand) {
+          const svg = brand.querySelector('svg');
+          if (svg) {
+            const img = document.createElement('img');
+            img.src = b.logoUrl;
+            img.alt = 'EMP';
+            img.style.height = '38px';
+            svg.replaceWith(img);
+          }
         }
       }
-    }
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' ' + total + '" width="72" height="72" role="img" aria-label="QR de emergencia (visual demostrativo)">' +
-      '<rect width="' + total + '" height="' + total + '" fill="#fff"/>' +
-      rects +
-      '</svg>';
+    } catch (_) {}
   }
 
-  // ============================================================
-  // FORM
-  // ============================================================
-  function initForm() {
-    const form = $('#b2bForm');
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const msg = $('#b2bMsg');
-      msg.textContent = '';
-      msg.style.color = '';
-
-      if (!uiState.operatorName) {
-        msg.style.color = 'var(--color-red)';
-        msg.textContent = 'Ingresá tu nombre de operador / comercial responsable en la cabecera.';
-        return;
-      }
-
-      const lat = $('#b2bLat').value ? parseFloat($('#b2bLat').value) : null;
-      const lng = $('#b2bLng').value ? parseFloat($('#b2bLng').value) : null;
-      const coords = (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng))
-        ? { lat, lng }
-        : null;
-
-      const data = {
-        id: uiState.editingId || undefined,
-        name: $('#b2bName').value.trim(),
-        type: $('#b2bType').value,
-        baseId: $('#b2bBase').value,
-        address: $('#b2bAddress').value.trim(),
-        status: $('#b2bStatus').value,
-        referencePhone: $('#b2bPhone').value.trim(),
-        protocol: $('#b2bProtocol').value.trim(),
-        coords
-      };
-
-      if (!data.name || !data.address) {
-        msg.style.color = 'var(--color-red)';
-        msg.textContent = 'Completá nombre y dirección.';
-        return;
-      }
-
-      try {
-        Store.saveB2BEstablishment(data, uiState.operatorName);
-        msg.style.color = 'var(--color-green)';
-        msg.textContent = uiState.editingId ? 'Establecimiento actualizado.' : 'Establecimiento creado.';
-        resetForm();
-        renderList();
-      } catch (err) {
-        msg.style.color = 'var(--color-red)';
-        msg.textContent = 'Error: ' + err.message;
-      }
-    });
-
-    $('#b2bCancelEdit').addEventListener('click', () => resetForm());
+  function initBaseFilter() {
+    const sel = $('#b2bBaseSelector');
+    if (!sel) return;
+    sel.value = ui.baseFilter;
+    sel.addEventListener('change', () => { ui.baseFilter = sel.value; renderList(); });
   }
 
   function resetForm() {
-    uiState.editingId = null;
-    $('#b2bId').value = '';
-    $('#b2bName').value = '';
-    $('#b2bType').value = 'Hotel / Complejo';
-    $('#b2bBase').value = 'DOLORES';
-    $('#b2bStatus').value = 'en_revision';
-    $('#b2bAddress').value = '';
-    $('#b2bLat').value = '';
-    $('#b2bLng').value = '';
-    $('#b2bPhone').value = '';
-    $('#b2bProtocol').value = '';
-    $('#b2bSubmit').textContent = 'Crear establecimiento';
-    $('#b2bCancelEdit').hidden = true;
-    $('#formTitle').textContent = 'Dar de alta un nuevo establecimiento / evento';
+    ui.editingId = null;
+    if ($('#b2bId')) $('#b2bId').value = '';
+    if ($('#b2bName')) $('#b2bName').value = '';
+    if ($('#b2bType')) $('#b2bType').value = 'Hotel / Complejo';
+    if ($('#b2bBase')) $('#b2bBase').value = 'DOLORES';
+    if ($('#b2bStatus')) $('#b2bStatus').value = 'en_revision';
+    if ($('#b2bAddress')) $('#b2bAddress').value = '';
+    if ($('#b2bPhone')) $('#b2bPhone').value = '';
+    if ($('#b2bTipoUnidad')) $('#b2bTipoUnidad').value = 'COMUN';
+    if ($('#b2bProtocol')) $('#b2bProtocol').value = '';
+    if ($('#b2bSubmit')) $('#b2bSubmit').textContent = 'Crear establecimiento';
+    if ($('#b2bCancelEdit')) $('#b2bCancelEdit').hidden = true;
+    if ($('#formTitle')) $('#formTitle').textContent = 'Nuevo establecimiento B2B';
+  }
+
+  function initForm() {
+    const form = $('#b2bForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('#b2bMsg');
+      if (msg) msg.textContent = '';
+      const data = {
+        id: ui.editingId || undefined,
+        name: $('#b2bName').value.trim(),
+        type: $('#b2bType').value,
+        baseId: $('#b2bBase').value,
+        status: $('#b2bStatus').value,
+        address: $('#b2bAddress').value.trim(),
+        referencePhone: $('#b2bPhone').value.trim(),
+        tipoUnidadRequerida: $('#b2bTipoUnidad').value,
+        protocol: $('#b2bProtocol').value.trim()
+      };
+      if (!data.name || !data.address) {
+        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Nombre y dirección obligatorios.'; }
+        return;
+      }
+      try {
+        await Store.saveB2BEstablishment(data, 'admin');
+        if (msg) { msg.style.color = '#16A34A'; msg.textContent = ui.editingId ? 'Actualizado.' : 'Creado.'; }
+        resetForm();
+        renderList();
+      } catch (err) {
+        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + err.message; }
+      }
+    });
+    const cancel = $('#b2bCancelEdit');
+    if (cancel) cancel.addEventListener('click', () => resetForm());
   }
 
   function loadIntoForm(est) {
-    uiState.editingId = est.id;
-    $('#b2bId').value = est.id;
-    $('#b2bName').value = est.name || '';
-    $('#b2bType').value = est.type || 'Hotel / Complejo';
-    $('#b2bBase').value = est.baseId || 'DOLORES';
-    $('#b2bStatus').value = est.status || 'en_revision';
-    $('#b2bAddress').value = est.address || '';
-    $('#b2bLat').value = (est.coords && est.coords.lat !== undefined && est.coords.lat !== null)
-      ? String(est.coords.lat) : '';
-    $('#b2bLng').value = (est.coords && est.coords.lng !== undefined && est.coords.lng !== null)
-      ? String(est.coords.lng) : '';
-    $('#b2bPhone').value = est.referencePhone || '';
-    $('#b2bProtocol').value = est.protocol || '';
-    $('#b2bSubmit').textContent = 'Guardar cambios';
-    $('#b2bCancelEdit').hidden = false;
-    $('#formTitle').textContent = 'Editar establecimiento: ' + est.name;
+    ui.editingId = est.id;
+    if ($('#b2bId')) $('#b2bId').value = est.id;
+    if ($('#b2bName')) $('#b2bName').value = est.name || '';
+    if ($('#b2bType')) $('#b2bType').value = est.type || 'Hotel / Complejo';
+    if ($('#b2bBase')) $('#b2bBase').value = est.baseId || 'DOLORES';
+    if ($('#b2bStatus')) $('#b2bStatus').value = est.status || 'en_revision';
+    if ($('#b2bAddress')) $('#b2bAddress').value = est.address || '';
+    if ($('#b2bPhone')) $('#b2bPhone').value = est.referencePhone || '';
+    if ($('#b2bTipoUnidad')) $('#b2bTipoUnidad').value = est.tipoUnidadRequerida || 'COMUN';
+    if ($('#b2bProtocol')) $('#b2bProtocol').value = est.protocol || '';
+    if ($('#b2bSubmit')) $('#b2bSubmit').textContent = 'Guardar cambios';
+    if ($('#b2bCancelEdit')) $('#b2bCancelEdit').hidden = false;
+    if ($('#formTitle')) $('#formTitle').textContent = 'Editar: ' + est.name;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // ============================================================
-  // LISTADO
-  // ============================================================
+  function buildQRBox(est) {
+    const url = 'socio.html?b2b=' + encodeURIComponent(est.id);
+    const box = el('div', { className: 'qr-box' });
+    if (QR && typeof QR.toSvg === 'function') {
+      try { box.innerHTML = QR.toSvg(url, 90); } catch (_) {}
+    }
+    box.appendChild(el('div', { className: 'qr-info' }, [
+      el('strong', { textContent: 'QR de Emergencia' }),
+      el('div', { textContent: 'ID: ' + est.id }),
+      el('div', { textContent: 'Apunta a: ' + url })
+    ]));
+    return box;
+  }
+
   function renderList() {
     const list = $('#b2bList');
     const empty = $('#b2bEmpty');
+    if (!list) return;
     list.innerHTML = '';
-
-    const items = Store.getB2BEstablishments(uiState.baseFilter);
-    if (!items.length) {
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-
-    items.forEach((est) => {
-      const url = 'index.html?b2b=' + encodeURIComponent(est.id);
-      const coordsText = est.coords
-        ? (est.coords.lat.toFixed(5) + ', ' + est.coords.lng.toFixed(5))
-        : 'Sin coordenadas';
-
-      const qrBox = el('div', { className: 'qr-box' });
-      qrBox.innerHTML = buildQrSvg(est.id);
-      qrBox.appendChild(el('div', { className: 'qr-info' }, [
-        el('strong', { textContent: 'QR de Emergencia del Establecimiento' }),
-        el('div', { textContent: 'ID: ' }),
-        el('code', { textContent: est.id }),
-        el('div', { textContent: 'Apunta a: ' + url })
-      ]));
-
+    const items = Store.getB2BEstablishments(ui.baseFilter);
+    if (!items.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    items.forEach(est => {
       const card = el('div', { className: 'b2b-est-card' }, [
         el('div', { className: 'est-top' }, [
           el('div', { className: 'est-name', textContent: est.name }),
-          statusBadge(est.status)
+          el('span', { className: 'badge badge-status-' + est.status, textContent: est.status })
         ]),
         el('div', { className: 'est-meta' }, [
           el('div', {}, [el('strong', { textContent: 'Rubro: ' }), el('span', { textContent: est.type })]),
           el('div', {}, [el('strong', { textContent: 'Base: ' }), el('span', { textContent: est.baseId })]),
           el('div', {}, [el('strong', { textContent: 'Dirección: ' }), el('span', { textContent: est.address })]),
-          el('div', {}, [el('strong', { textContent: 'Coordenadas: ' }), el('span', { textContent: coordsText })]),
-          el('div', {}, [el('strong', { textContent: 'Teléfono referente: ' }), el('span', { textContent: est.referencePhone || '—' })]),
-          el('div', {}, [el('strong', { textContent: 'Alta: ' }), el('span', { textContent: fmtDate(est.createdAt) })])
+          el('div', {}, [el('strong', { textContent: 'Teléfono: ' }), el('span', { textContent: est.referencePhone || '—' })])
         ]),
-        el('div', { className: 'est-proto', textContent: 'Protocolo de ingreso: ' + (est.protocol || 'Sin protocolo registrado.') }),
-        qrBox,
+        el('div', { className: 'est-proto', textContent: 'Protocolo: ' + (est.protocol || 'Sin protocolo.') }),
+        buildQRBox(est),
         el('div', { className: 'row-actions' }, [
-          el('button', {
-            type: 'button',
-            textContent: '🔗 Probar Escaneo QR (Abrir Vista Socio con este Punto Fijo)',
-            onclick: () => {
-              window.open(url, '_blank', 'noopener');
-            }
-          }),
-          el('button', {
-            type: 'button', className: 'btn-muted',
-            textContent: '✎ Editar',
-            onclick: () => loadIntoForm(est)
-          }),
-          el('button', {
-            type: 'button', className: est.status === 'activo' ? 'btn-danger' : '',
-            textContent: est.status === 'activo' ? 'Suspender' : 'Activar',
-            onclick: () => {
-              const msg = $('#b2bMsg');
-              if (!uiState.operatorName) {
-                msg.style.color = 'var(--color-red)';
-                msg.textContent = 'Ingresá tu nombre de operador / comercial responsable primero.';
-                return;
-              }
-              try {
-                const next = est.status === 'activo' ? 'suspendido' : 'activo';
-                Store.toggleB2BStatus(est.id, next, uiState.operatorName);
-                msg.style.color = 'var(--color-green)';
-                msg.textContent = 'Estado cambiado a ' + next + '.';
-                renderList();
-              } catch (err) {
-                msg.style.color = 'var(--color-red)';
-                msg.textContent = 'Error: ' + err.message;
-              }
-            }
-          })
+          el('button', { type: 'button', textContent: '🔗 Probar QR', onclick: () => window.open('socio.html?b2b=' + encodeURIComponent(est.id), '_blank', 'noopener') }),
+          el('button', { type: 'button', className: 'btn-muted', textContent: '✎ Editar', onclick: () => loadIntoForm(est) }),
+          el('button', { type: 'button', className: est.status === 'activo' ? 'btn-danger' : '', textContent: est.status === 'activo' ? 'Suspender' : 'Activar', onclick: async () => {
+            try {
+              const next = est.status === 'activo' ? 'suspendido' : 'activo';
+              await Store.toggleB2BStatus(est.id, next, 'admin');
+              toast('Estado: ' + next);
+              renderList();
+            } catch (err) { toast('Error: ' + err.message); }
+          }})
         ])
       ]);
-
       list.appendChild(card);
     });
   }
 
-  // ============================================================
-  // OPERADOR / BASE
-  // ============================================================
-  function initOperatorInput() {
-    const input = $('#b2bOperatorInput');
-    input.addEventListener('input', () => {
-      uiState.operatorName = input.value.trim();
-    });
-  }
-
-  function initBaseSelector() {
-    const sel = $('#b2bBaseSelector');
-    sel.addEventListener('change', () => {
-      uiState.baseFilter = sel.value;
-      renderList();
-    });
-  }
-
-  // ============================================================
-  // SUSCRIPCIÓN
-  // ============================================================
-  function initSubscription() {
-    Store.subscribe((msg) => {
-      if (!msg || msg.type !== 'STATE_CHANGED') return;
-      renderList();
-    });
-  }
-
-  // ============================================================
-  // BOOT
-  // ============================================================
-  document.addEventListener('DOMContentLoaded', () => {
-    initOperatorInput();
-    initBaseSelector();
+  async function bootB2B() {
+    await applyBranding();
+    initBaseFilter();
     initForm();
-    initSubscription();
     resetForm();
     renderList();
+    Store.subscribe(msg => {
+      if (!msg || msg.type === 'AUTH_CHANGED') { if (msg && msg.type === 'AUTH_CHANGED') location.reload(); return; }
+      if (msg.type === 'STATE_CHANGED') renderList();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    initLogin();
+    const session = await Store.initSession();
+    if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
+      hideLogin();
+      await bootB2B();
+    } else {
+      if (session.loggedIn) await Store.logout();
+      showLogin();
+    }
   });
 })();
