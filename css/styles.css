@@ -2348,3 +2348,41 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
   border-radius: 8px; font-size: 0.85rem;
   line-height: 1.6;
 }
+/* ============================================================
+   v8 — Guardia y B2B: login, header, ficha con medicación
+   ============================================================ */
+
+/* Login overlay ya existe en v7, se reutiliza */
+
+/* Botón Salir en headers de central/guardia/b2b */
+.btn-logout {
+  background: #FEE2E2; color: #DC2626;
+  border: 1px solid #FCA5A5;
+  border-radius: 999px; padding: 6px 12px;
+  font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.btn-logout:hover { background: #FECACA; }
+
+/* Medicación en ficha de central/guardia */
+.med-line {
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(100,116,139,0.3);
+  font-size: 0.82rem;
+}
+.med-line:last-child { border-bottom: none; }
+.med-line strong { color: #0F172A; }
+
+/* Header de central con logo dinámico */
+.central-header .emp-brand img,
+.guardia-header .emp-brand img,
+.b2b-header .emp-brand img {
+  max-height: 38px; width: auto; display: block;
+}
+
+/* Alert pulse en contador */
+.alert-counter.pulse { animation: counterPulse 0.9s infinite; }
+@keyframes counterPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
