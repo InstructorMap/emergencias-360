@@ -2500,3 +2500,34 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 .request-payment.payment-rechazado { background: #FEE2E2; border-left-color: #DC2626; }
 #medicacionBanner { display: none; }
 #medicacionBanner.visible { display: block; }
+/* ============================================================
+   v8.2 — Banner de APK para notificaciones nativas
+   ============================================================ */
+
+.medicacion-banner {
+  background: #FEF3C7;
+  border-left: 4px solid #D97706;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.medicacion-banner p {
+  font-size: 0.85rem;
+  color: #78350F;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.medicacion-banner .btn-secondary {
+  background: #D97706;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+.medicacion-banner .btn-secondary:hover {
+  background: #B45309;
+}
