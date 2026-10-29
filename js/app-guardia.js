@@ -1,7 +1,10 @@
 /* ============================================================
-   app-guardia.js — Controlador de guardia.html (v2)
-   Alertas, GPS con throttle 20s, apoyo a central, plan del socio.
-   Fix H-01 + limpieza del no-op patientCard.parentNode.
+   app-guardia.js v8 — Guardia Móvil EMP
+   - Login staff (admin/operador) por email
+   - Incidente asignado en vivo (realtime)
+   - Ficha del paciente + medicación + alergias
+   - GPS con throttle, navegación, acciones, apoyo
+   - Historial de la unidad
    ============================================================ */
 
 (function () {
@@ -9,34 +12,22 @@
 
   const Store = window.E360Store;
   const C = window.E360Config;
-  const SM = window.E360StateMachine;
-  if (!Store || !C || !SM) { console.error('[app-guardia] Faltan config/state-machine/store.'); return; }
+  if (!Store) { console.error('[app-guardia] E360Store no disponible.'); return; }
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
-
-  const THROTTLE_MS = 20000;
-  const STORAGE_UI_KEY = 'e360_guardia_ui_v2';
-
-  const uiState = {
-    baseId: 'DOLORES', unitId: null, crewName: '',
-    lastIncidentId: null, lastStatus: null, lastPendingAssignedId: null,
-    audioCtx: null, watchId: null, lastPositionUpdateAt: 0,
-    notificationPermission: (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported',
-    refreshTimer: null
-  };
 
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) {
       Object.keys(attrs).forEach((k) => {
-        const val = attrs[k];
-        if (val === null || val === undefined || val === false) return;
-        if (val === true) { node.setAttribute(k, ''); return; }
-        if (k === 'className') { node.className = val; return; }
-        if (k === 'textContent') { node.textContent = val; return; }
-        if (k === 'onclick' && typeof val === 'function') { node.addEventListener('click', val); return; }
-        node.setAttribute(k, val);
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) return;
+        if (v === true) { node.setAttribute(k, ''); return; }
+        if (k === 'className') { node.className = v; return; }
+        if (k === 'textContent') { node.textContent = v; return; }
+        if (k === 'onclick' && typeof v === 'function') { node.addEventListener('click', v); return; }
+        node.setAttribute(k, v);
       });
     }
     (children || []).forEach((c) => {
@@ -47,29 +38,53 @@
     return node;
   }
 
-  function fmtDateTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }); } catch (_) { return iso; } }
-
-  function saveUiState() {
-    try { localStorage.setItem(STORAGE_UI_KEY, JSON.stringify({ baseId: uiState.baseId, unitId: uiState.unitId, crewName: uiState.crewName })); } catch (_) {}
+  function fmtDateTime(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+    catch (_) { return iso; }
   }
-  function loadUiState() {
+  function toast(text) {
+    let t = document.getElementById('e360Toast');
+    if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  const THROTTLE_MS = 20000;
+  const UI_KEY = 'e360_guardia_ui_v8';
+
+  const ui = {
+    baseId: 'DOLORES',
+    unitId: null,
+    crewName: '',
+    watchId: null,
+    lastPositionAt: 0,
+    audioCtx: null,
+    lastIncidentId: null
+  };
+
+  function saveUI() {
+    try { localStorage.setItem(UI_KEY, JSON.stringify({ baseId: ui.baseId, unitId: ui.unitId, crewName: ui.crewName })); } catch (_) {}
+  }
+  function loadUI() {
     try {
-      const raw = localStorage.getItem(STORAGE_UI_KEY); if (!raw) return;
+      const raw = localStorage.getItem(UI_KEY); if (!raw) return;
       const p = JSON.parse(raw);
-      if (p.baseId) uiState.baseId = p.baseId;
-      if (p.unitId) uiState.unitId = p.unitId;
-      if (p.crewName) uiState.crewName = p.crewName;
+      if (p.baseId) ui.baseId = p.baseId;
+      if (p.unitId) ui.unitId = p.unitId;
+      if (p.crewName) ui.crewName = p.crewName;
     } catch (_) {}
   }
 
   function ensureAudio() {
-    if (uiState.audioCtx) return uiState.audioCtx;
-    const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null;
-    try { uiState.audioCtx = new Ctx(); } catch (_) {}
-    return uiState.audioCtx;
+    if (ui.audioCtx) return ui.audioCtx;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try { ui.audioCtx = new Ctx(); } catch (_) {}
+    return ui.audioCtx;
   }
-
-  function playNewAssignmentAlert() {
+  function playAlert() {
     const ctx = ensureAudio();
     if (ctx) {
       try {
@@ -87,352 +102,438 @@
       } catch (_) {}
     }
     if (navigator.vibrate) { try { navigator.vibrate([200,100,200,100,400]); } catch (_) {} }
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try { new Notification('🚨 Nuevo incidente asignado', { body:'Central Operativa te asignó un móvil. Abrí la app para confirmar salida.', tag:'e360-guardia', requireInteraction: true }); } catch (_) {}
-    }
   }
 
-  function requestNotificationPermissionOnce() {
-    if (typeof Notification === 'undefined') return;
-    if (Notification.permission !== 'default') return;
-    Notification.requestPermission().then((perm) => { uiState.notificationPermission = perm; }).catch(() => {});
+  function showLogin() {
+    const ov = $('#guardiaLoginOverlay'); if (ov) ov.hidden = false;
+    const app = $('#guardiaApp'); if (app) app.hidden = true;
+  }
+  function hideLogin() {
+    const ov = $('#guardiaLoginOverlay'); if (ov) ov.hidden = true;
+    const app = $('#guardiaApp'); if (app) app.hidden = false;
+  }
+
+  function initLogin() {
+    const form = $('#guardiaLoginForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('#guardiaLoginMsg');
+      const btn = $('#guardiaLoginBtn');
+      const email = $('#guardiaLoginEmail').value.trim();
+      const password = $('#guardiaLoginPassword').value;
+      if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
+      try {
+        const profile = await Store.loginWithEmail(email, password);
+        if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+          await Store.logout();
+          throw new Error('Tu cuenta no tiene permisos de guardia.');
+        }
+        ui.crewName = profile.nombre || profile.dni;
+        hideLogin();
+        await bootGuardia();
+      } catch (err) {
+        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = '#DC2626'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      }
+    });
+    const logout = $('#guardiaLogout');
+    if (logout) logout.addEventListener('click', async () => {
+      if (!confirm('¿Cerrar sesión?')) return;
+      stopWatch();
+      await Store.logout();
+      location.reload();
+    });
+  }
+
+  async function applyBranding() {
+    try {
+      const b = await Store.loadBranding();
+      if (b && b.logoUrl) {
+        const brand = $('#guardiaHeaderBrand');
+        if (brand) {
+          const svg = brand.querySelector('svg');
+          if (svg) {
+            const img = document.createElement('img');
+            img.src = b.logoUrl;
+            img.alt = 'EMP';
+            img.style.height = '38px';
+            svg.replaceWith(img);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   function populateUnitSelector() {
-    const sel = $('#guardiaUnitSelector'); if (!sel) return;
+    const sel = $('#guardiaUnitSelector');
+    if (!sel) return;
     sel.innerHTML = '';
-    const units = Store.getFleet(uiState.baseId);
-    if (!units.length) { sel.appendChild(el('option', { value:'', textContent:'— Sin móviles en esta base —' })); uiState.unitId = null; return; }
-    units.forEach((u) => {
-      const opt = el('option', { value:u.id, textContent: u.unit + ' · ' + u.tipoUnidad + ' · ' + u.status.toUpperCase() });
-      if (u.id === uiState.unitId) opt.selected = true;
+    const units = Store.getFleet(ui.baseId);
+    if (!units.length) { sel.appendChild(el('option', { value: '', textContent: '— Sin móviles —' })); ui.unitId = null; return; }
+    units.forEach(u => {
+      const opt = el('option', { value: u.id, textContent: u.unit + ' · ' + u.tipoUnidad + ' · ' + u.status.toUpperCase() });
+      if (u.id === ui.unitId) opt.selected = true;
       sel.appendChild(opt);
     });
-    if (!units.some(u => u.id === uiState.unitId)) { uiState.unitId = units[0].id; sel.value = uiState.unitId; }
+    if (!units.some(u => u.id === ui.unitId)) { ui.unitId = units[0].id; sel.value = ui.unitId; }
   }
 
   function initSelectors() {
-    loadUiState();
-    const baseSel = $('#guardiaBaseSelector'), unitSel = $('#guardiaUnitSelector'), nameInput = $('#guardiaNameInput');
-    baseSel.value = uiState.baseId; nameInput.value = uiState.crewName;
-    populateUnitSelector(); if (uiState.unitId) unitSel.value = uiState.unitId;
-    baseSel.addEventListener('change', () => { uiState.baseId = baseSel.value; uiState.unitId = null; populateUnitSelector(); saveUiState(); stopWatchPosition(); render(); });
-    unitSel.addEventListener('change', () => { uiState.unitId = unitSel.value; saveUiState(); stopWatchPosition(); render(); });
-    nameInput.addEventListener('input', () => { uiState.crewName = nameInput.value.trim(); saveUiState(); });
-    nameInput.addEventListener('blur', () => { if (uiState.crewName) requestNotificationPermissionOnce(); });
+    loadUI();
+    const baseSel = $('#guardiaBaseSelector');
+    const unitSel = $('#guardiaUnitSelector');
+    if (baseSel) baseSel.value = ui.baseId;
+    populateUnitSelector();
+    if (unitSel && ui.unitId) unitSel.value = ui.unitId;
+
+    if (baseSel) baseSel.addEventListener('change', () => {
+      ui.baseId = baseSel.value;
+      ui.unitId = null;
+      populateUnitSelector();
+      saveUI();
+      stopWatch();
+      render();
+    });
+    if (unitSel) unitSel.addEventListener('change', () => {
+      ui.unitId = unitSel.value;
+      saveUI();
+      stopWatch();
+      render();
+    });
   }
 
+  // ============ GPS ============
   function updateGpsStatus(text, color) {
-    const node = document.getElementById('gpsStatusText'); if (!node) return;
+    const node = document.getElementById('gpsStatusText');
+    if (!node) return;
     node.textContent = text;
-    node.style.color = color === 'green' ? 'var(--color-green)' : color === 'red' ? 'var(--color-red)' : 'var(--color-amber)';
+    node.style.color = color === 'green' ? '#16A34A' : color === 'red' ? '#DC2626' : '#D97706';
   }
 
-  function startWatchPosition() {
-    if (!navigator.geolocation) { updateGpsStatus('GPS no disponible en este dispositivo.', 'red'); return; }
-    if (!uiState.crewName) { alert('Ingresá tu nombre primero.'); return; }
-    const inc = Store.getActiveIncidentForUnit(uiState.unitId);
-    if (!inc) { alert('Sin incidente activo asignado a este móvil.'); return; }
-    if (uiState.watchId) return;
-    uiState.lastPositionUpdateAt = 0;
-    uiState.watchId = navigator.geolocation.watchPosition(
+  function startWatch() {
+    if (!navigator.geolocation) { updateGpsStatus('GPS no disponible.', 'red'); return; }
+    const inc = Store.getActiveIncidentForUnit(ui.unitId);
+    if (!inc) { alert('Sin incidente activo.'); return; }
+    if (ui.watchId) return;
+    ui.lastPositionAt = 0;
+    ui.watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const now = Date.now();
-        if (now - uiState.lastPositionUpdateAt < THROTTLE_MS) return;
-        const active = Store.getActiveIncidentForUnit(uiState.unitId);
+        if (now - ui.lastPositionAt < THROTTLE_MS) return;
+        const active = Store.getActiveIncidentForUnit(ui.unitId);
         if (!active) return;
         if (active.status !== 'EN_CAMINO' && active.status !== 'EN_ESCENA') return;
-        uiState.lastPositionUpdateAt = now;
-        try {
-          Store.updateCrewPosition(active.id, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }, uiState.crewName);
-          updateGpsStatus('GPS activo — última actualización ' + new Date().toLocaleTimeString('es-AR'), 'green');
+        ui.lastPositionAt = now;
+        Store.updateCrewPosition(active.id, {
+          lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy
+        }, ui.crewName).then(() => {
+          updateGpsStatus('GPS activo — ' + new Date().toLocaleTimeString('es-AR'), 'green');
           render();
-        } catch (err) { console.warn('[app-guardia] updateCrewPosition error', err); }
+        }).catch(err => console.warn('GPS error', err));
       },
-      (err) => { updateGpsStatus('GPS error: ' + err.message, 'red'); },
+      (err) => updateGpsStatus('GPS error: ' + err.message, 'red'),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
-    updateGpsStatus('GPS activo — actualización cada ' + (THROTTLE_MS / 1000) + 's', 'green');
+    updateGpsStatus('GPS activo — cada ' + (THROTTLE_MS/1000) + 's', 'green');
     render();
   }
 
-  function stopWatchPosition() {
-    if (uiState.watchId) { try { navigator.geolocation.clearWatch(uiState.watchId); } catch (_) {} uiState.watchId = null; }
+  function stopWatch() {
+    if (ui.watchId) { try { navigator.geolocation.clearWatch(ui.watchId); } catch (_) {} ui.watchId = null; }
     updateGpsStatus('GPS inactivo.', 'amber');
   }
 
   function updatePositionManual() {
     if (!navigator.geolocation) { alert('GPS no disponible.'); return; }
-    if (!uiState.crewName) { alert('Ingresá tu nombre primero.'); return; }
-    const inc = Store.getActiveIncidentForUnit(uiState.unitId);
+    const inc = Store.getActiveIncidentForUnit(ui.unitId);
     if (!inc) { alert('Sin incidente activo.'); return; }
     updateGpsStatus('Obteniendo GPS…', 'amber');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        try {
-          Store.updateCrewPosition(inc.id, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }, uiState.crewName);
-          uiState.lastPositionUpdateAt = Date.now();
-          updateGpsStatus('Posición enviada (manual).', 'green');
+        Store.updateCrewPosition(inc.id, {
+          lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy
+        }, ui.crewName).then(() => {
+          updateGpsStatus('Posición enviada.', 'green');
           render();
-        } catch (err) { updateGpsStatus('Error: ' + err.message, 'red'); }
+        }).catch(err => updateGpsStatus('Error: ' + err.message, 'red'));
       },
-      (err) => { updateGpsStatus('GPS error: ' + err.message, 'red'); },
+      (err) => updateGpsStatus('GPS error: ' + err.message, 'red'),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
   }
 
-  function ensureSupportMethod() {
-    if (Store.requestSupportFromCrew) return;
-    Store.requestSupportFromCrew = function (incidentId, unitId, supportType, notes, crewName) {
-      const actor = String(crewName || '').trim();
-      if (!actor) throw new Error('Se requiere identificación del personal de guardia.');
-      const type = String(supportType || '').trim();
-      if (!type) throw new Error('Seleccioná un tipo de apoyo.');
-      const state = this._getState();
-      const inc = state.incidents.find(i => i.id === incidentId);
-      if (!inc) throw new Error('Incidente no encontrado.');
-      if (inc.assignedUnitId !== unitId) throw new Error('El incidente no está asignado a tu móvil.');
-      if (inc.status !== 'EN_CAMINO' && inc.status !== 'EN_ESCENA') throw new Error('Solo se puede solicitar apoyo en EN_CAMINO o EN_ESCENA.');
-      const ts = new Date().toISOString();
-      inc.supportRequests = inc.supportRequests || [];
-      inc.supportRequests.push({ ts, type, notes: notes || '', requestedBy: actor });
-      inc.statusHistory.push({ status: inc.status, ts, actor, detail:'Solicitud de apoyo: ' + type + (notes ? ' — ' + notes : '') });
-      state.audit_logs.unshift({ id:'aud_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8), ts, action:'REQUEST_SUPPORT', payload:{ incidentId, unitId, supportType:type, notes:notes || '' }, actor });
-      if (state.audit_logs.length > C.AUDIT_MAX_ENTRIES) state.audit_logs.length = C.AUDIT_MAX_ENTRIES;
-      localStorage.setItem(C.STORAGE_KEY, JSON.stringify(state));
-      try { const ch = new BroadcastChannel(C.CHANNEL_NAME); ch.postMessage({ type:'STATE_CHANGED', ts: Date.now() }); ch.close(); } catch (_) {}
-      return JSON.parse(JSON.stringify(inc));
-    };
-  }
-
+  // ============ APOYO ============
   function openSupportDialog(incident) {
-    const types = ['Segunda unidad médica EMP','Apoyo Policial 911','Bomberos / Rescate'];
-    const overlay = el('div', { className:'guardia-modal-overlay' });
-    const dialog = el('div', { className:'guardia-modal' }, [
-      el('h3', { textContent:'🚨 Solicitar Apoyo / Refuerzo a Central' }),
-      el('p', { className:'guardia-modal-sub', textContent:'Seleccioná el tipo de apoyo y agregá notas si corresponde. Queda registrado en el historial y auditoría.' }),
-      el('label', {}, [ el('span', { textContent:'Tipo de apoyo' }), (function () {
-        const sel = el('select', { id:'supportType' });
-        types.forEach(t => sel.appendChild(el('option', { value:t, textContent:t })));
-        return sel;
-      })() ]),
-      el('label', {}, [ el('span', { textContent:'Notas adicionales (opcional)' }), el('textarea', { id:'supportNotes', rows:'3', maxlength:'200', placeholder:'Ej: paciente politraumatizado.' }) ]),
-      el('div', { className:'guardia-modal-actions' }, [
-        el('button', { type:'button', className:'btn-cancel', textContent:'Cancelar', onclick: () => document.body.removeChild(overlay) }),
-        el('button', { type:'button', className:'btn-confirm', textContent:'Enviar solicitud', onclick: () => {
+    const overlay = el('div', { className: 'guardia-modal-overlay' });
+    const dialog = el('div', { className: 'guardia-modal' }, [
+      el('h3', { textContent: '🚨 Solicitar Apoyo' }),
+      el('p', { className: 'guardia-modal-sub', textContent: 'Seleccioná tipo de apoyo. Queda en bitácora.' }),
+      el('label', {}, [
+        el('span', { textContent: 'Tipo de apoyo' }),
+        (function () {
+          const sel = el('select', { id: 'supportType' });
+          ['Segunda unidad médica EMP','Apoyo Policial 911','Bomberos / Rescate'].forEach(t => sel.appendChild(el('option', { value: t, textContent: t })));
+          return sel;
+        })()
+      ]),
+      el('label', {}, [
+        el('span', { textContent: 'Notas (opcional)' }),
+        el('textarea', { id: 'supportNotes', rows: '3', maxlength: '200' })
+      ]),
+      el('div', { className: 'guardia-modal-actions' }, [
+        el('button', { type: 'button', className: 'btn-cancel', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
+        el('button', { type: 'button', className: 'btn-confirm', textContent: 'Enviar', onclick: async () => {
           try {
-            if (!uiState.crewName) throw new Error('Ingresá tu nombre primero.');
-            Store.requestSupportFromCrew(incident.id, uiState.unitId, document.getElementById('supportType').value, document.getElementById('supportNotes').value.trim(), uiState.crewName);
-            document.body.removeChild(overlay); render();
+            await Store.requestSupportFromCrew(incident.id, ui.unitId, document.getElementById('supportType').value, document.getElementById('supportNotes').value.trim(), ui.crewName);
+            document.body.removeChild(overlay);
+            render();
+            toast('Solicitud enviada');
           } catch (err) { alert('Error: ' + err.message); }
-        } })
+        }})
       ])
     ]);
-    overlay.appendChild(dialog); document.body.appendChild(overlay);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
   }
 
-  function buildNavigationUrl(incident) {
+  // ============ NAVEGACIÓN ============
+  function navUrl(incident) {
     if (incident.location && typeof incident.location.lat === 'number')
       return 'https://www.google.com/maps/dir/?api=1&destination=' + incident.location.lat + ',' + incident.location.lng + '&travelmode=driving';
     if (incident.manualAddress) return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(incident.manualAddress) + '&travelmode=driving';
     return null;
   }
-  function buildOsmUrl(incident) {
+  function osmUrl(incident) {
     if (incident.location && typeof incident.location.lat === 'number')
       return 'https://www.openstreetmap.org/?mlat=' + incident.location.lat + '&mlon=' + incident.location.lng + '#map=17/' + incident.location.lat + '/' + incident.location.lng;
     if (incident.manualAddress) return 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(incident.manualAddress);
     return null;
   }
 
+  // ============ RENDER ============
   function renderUnitStatus() {
-    const container = $('#unitStatus'); if (!container) return; container.innerHTML = '';
-    if (!uiState.unitId) { container.appendChild(el('span', { className:'unit-status-text', textContent:'Seleccioná base y móvil.' })); return; }
-    const unit = Store.getFleet(uiState.baseId).find(u => u.id === uiState.unitId);
-    if (!unit) { container.appendChild(el('span', { className:'unit-status-text', textContent:'Móvil no encontrado.' })); return; }
-    container.appendChild(el('div', { className:'unit-status-row' }, [
-      el('span', { className:'unit-status-label', textContent:'Estado de la unidad' }),
-      el('span', { className:'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad + ' · ' + unit.status.toUpperCase() })
+    const container = $('#unitStatus');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!ui.unitId) { container.appendChild(el('span', { textContent: 'Seleccioná móvil.' })); return; }
+    const unit = Store.getFleet(ui.baseId).find(u => u.id === ui.unitId);
+    if (!unit) { container.appendChild(el('span', { textContent: 'Móvil no encontrado.' })); return; }
+    container.appendChild(el('div', { className: 'unit-status-row' }, [
+      el('span', { className: 'unit-status-label', textContent: 'Unidad' }),
+      el('span', { className: 'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad + ' · ' + unit.status.toUpperCase() })
     ]));
-    container.appendChild(el('div', { className:'unit-status-hint', textContent: uiState.crewName ? 'Guardia: ' + uiState.crewName : '⚠ Ingresá tu nombre en la cabecera para operar.' }));
+    container.appendChild(el('div', { className: 'unit-status-hint', textContent: ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.' }));
   }
 
-  function kv(k, v) { return el('div', { className:'kv' }, [ el('span', { className:'k', textContent:k }), el('span', { className:'v', textContent:v }) ]); }
+  function kv(k, v) {
+    return el('div', { className: 'kv' }, [
+      el('span', { className: 'k', textContent: k }),
+      el('span', { className: 'v', textContent: v || '—' })
+    ]);
+  }
 
-  function renderActiveIncident() {
-    const container = $('#activeIncidentContainer'), emptyPanel = $('#noIncidentPanel');
-    if (!container || !emptyPanel) return;
-    if (!uiState.unitId) { container.hidden = true; emptyPanel.hidden = false; return; }
-    const incident = Store.getActiveIncidentForUnit(uiState.unitId);
-    if (!incident) { container.hidden = true; emptyPanel.hidden = false; return; }
-    container.hidden = false; emptyPanel.hidden = true; container.innerHTML = '';
+  async function renderActiveIncident() {
+    const container = $('#activeIncidentContainer');
+    const empty = $('#noIncidentPanel');
+    if (!container || !empty) return;
+    if (!ui.unitId) { container.hidden = true; empty.hidden = false; return; }
+    const incident = Store.getActiveIncidentForUnit(ui.unitId);
+    if (!incident) { container.hidden = true; empty.hidden = false; return; }
+    container.hidden = false; empty.hidden = true; container.innerHTML = '';
 
-    if (incident.id !== uiState.lastIncidentId || incident.status !== uiState.lastStatus) {
-      if (uiState.lastIncidentId && incident.id !== uiState.lastIncidentId) playNewAssignmentAlert();
-      uiState.lastIncidentId = incident.id; uiState.lastStatus = incident.status;
-    }
+    if (ui.lastIncidentId && incident.id !== ui.lastIncidentId) playAlert();
+    ui.lastIncidentId = incident.id;
 
-    const header = el('div', { className:'guardia-card-header' }, [
-      el('div', { className:'guardia-card-id' }, [ el('span', { textContent: incident.id }), el('span', { className:'guardia-card-time', textContent: fmtDateTime(incident.createdAt) }) ]),
-      el('div', { className:'guardia-card-badges' }, [ el('span', { className:'badge badge-state-' + incident.status, textContent: incident.status }), incident.priority ? el('span', { className:'badge badge-priority-' + incident.priority, textContent:'CÓDIGO ' + incident.priority }) : null ].filter(Boolean))
+    const header = el('div', { className: 'guardia-card-header' }, [
+      el('div', { className: 'guardia-card-id' }, [
+        el('span', { textContent: incident.id }),
+        el('span', { className: 'guardia-card-time', textContent: fmtDateTime(incident.createdAt) })
+      ]),
+      el('div', { className: 'guardia-card-badges' }, [
+        el('span', { className: 'badge badge-state-' + incident.status, textContent: incident.status }),
+        incident.priority ? el('span', { className: 'badge badge-priority-' + incident.priority, textContent: incident.priority }) : null
+      ].filter(Boolean))
     ]);
 
-    const profile = incident.profileDni ? Store.getProfile(incident.profileDni) : null;
-    const patientCard = el('div', { className:'guardia-card-block' }, [ el('h3', { textContent:'Datos del paciente' }) ]);
+    // Paciente
+    const profiles = Store.listProfiles();
+    const profile = profiles.find(p => p.dni === incident.profileDni);
+    const patientCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Datos del paciente' })]);
     if (profile) {
-      patientCard.appendChild(kv('Nombre', profile.nombre || '—'));
-      patientCard.appendChild(kv('DNI', profile.dni || '—'));
-      if (profile.socioNumber) patientCard.appendChild(kv('N° socio', profile.socioNumber));
-      if (profile.plan) {
-        const plan = C.PLANS[profile.plan] || { label: profile.plan };
-        patientCard.appendChild(el('div', { className:'kv' }, [
-          el('span', { className:'k', textContent:'Plan' }),
-          el('span', { className:'v' }, [ el('span', { className:'plan-badge plan-badge-' + profile.plan.toLowerCase(), textContent: plan.label }) ])
-        ]));
-      }
-      if (profile.telefono) {
-        patientCard.appendChild(el('div', { className:'kv' }, [
-          el('span', { className:'k', textContent:'Teléfono' }),
-          el('span', { className:'v' }, [ el('a', { href:'tel:' + profile.telefono, className:'guardia-link', textContent:'📞 Llamar ' + profile.telefono }) ])
-        ]));
-      }
-      patientCard.appendChild(el('div', { className:'guardia-alert' }, [
-        el('strong', { textContent:'⚠ Alerta clínica' }),
-        el('div', { textContent:'Grupo sanguíneo: ' + (profile.grupoSanguineo || 'No informado') }),
-        el('div', { textContent:'Alergias críticas: ' + (profile.alergias || 'Sin registro') }),
-        el('div', { textContent:'Patologías: ' + (profile.patologias || 'Sin registro') }),
-        el('div', { textContent:'Contacto emergencia: ' + (profile.contacto || '—') })
+      patientCard.appendChild(kv('Nombre', profile.nombre));
+      patientCard.appendChild(kv('DNI', profile.dni));
+      patientCard.appendChild(kv('N° socio', profile.socioNumber));
+      patientCard.appendChild(kv('Plan', (C.PLANS[profile.plan] || {}).label || profile.plan));
+      if (profile.telefono) patientCard.appendChild(el('div', { className: 'kv' }, [
+        el('span', { className: 'k', textContent: 'Teléfono' }),
+        el('span', { className: 'v' }, [el('a', { href: 'tel:' + profile.telefono, className: 'guardia-link', textContent: '📞 ' + profile.telefono })])
       ]));
-      if (profile.plan) {
-        const p = C.PLANS[profile.plan];
-        if (p) {
-          const missing = [];
-          if (!p.hasRemis) missing.push('sin remis');
-          if (!p.hasVirtualDoc) missing.push('sin médico virtual');
-          if (missing.length) patientCard.appendChild(el('div', { className:'guardia-warn', textContent:'Plan ' + p.label + ': ' + missing.join(' / ') + '.' }));
+      patientCard.appendChild(el('div', { className: 'guardia-alert' }, [
+        el('strong', { textContent: '⚠ Alerta clínica' }),
+        el('div', { textContent: 'Grupo sanguíneo: ' + (profile.grupoSanguineo || 'No informado') }),
+        el('div', { textContent: 'Alergias: ' + (profile.alergias || 'Sin registro') }),
+        el('div', { textContent: 'Patologías: ' + (profile.patologias || 'Sin registro') }),
+        el('div', { textContent: 'Contacto: ' + (profile.contacto || '—') })
+      ]));
+      try {
+        const meds = await Store.getMedicationsForProfile(profile.id);
+        if (meds.length) {
+          const medsBlock = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '💊 Medicación activa' })]);
+          meds.forEach(m => {
+            medsBlock.appendChild(el('div', { className: 'kv' }, [
+              el('span', { className: 'k', textContent: m.nombre }),
+              el('span', { className: 'v', textContent: (m.dosis || '') + (m.frecuencia ? ' · ' + m.frecuencia : '') })
+            ]));
+          });
+          patientCard.appendChild(medsBlock);
         }
-      }
+      } catch (_) {}
     } else {
-      patientCard.appendChild(el('div', { className:'guardia-warn', textContent:'El socio no completó ficha. Solicitá datos por teléfono a la Central.' }));
+      patientCard.appendChild(el('div', { className: 'guardia-warn', textContent: 'Socio sin ficha.' }));
     }
 
-    const locationCard = el('div', { className:'guardia-card-block' }, [ el('h3', { textContent:'Ubicación del incidente' }) ]);
+    // Ubicación
+    const locationCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Ubicación' })]);
     if (incident.location) {
       locationCard.appendChild(kv('Coordenadas', incident.location.lat.toFixed(6) + ', ' + incident.location.lng.toFixed(6)));
-      locationCard.appendChild(kv('Precisión', '± ' + Math.round(incident.location.accuracy) + ' m'));
-    } else locationCard.appendChild(el('div', { className:'guardia-warn', textContent:'Sin GPS del socio. Solo dirección manual.' }));
-    if (incident.manualAddress) locationCard.appendChild(kv('Dirección manual', incident.manualAddress));
-    const navUrl = buildNavigationUrl(incident);
-    if (navUrl) locationCard.appendChild(el('a', { className:'btn-nav-big', href: navUrl, target:'_blank', rel:'noopener', textContent:'🧭 Abrir Navegación (Google Maps)' }));
-    const osmUrl = buildOsmUrl(incident);
-    if (osmUrl) locationCard.appendChild(el('a', { className:'guardia-link', href: osmUrl, target:'_blank', rel:'noopener', textContent:'🗺 Ver punto en OpenStreetMap' }));
+      locationCard.appendChild(kv('Precisión', '± ' + Math.round(incident.location.accuracy) + 'm'));
+    }
+    if (incident.manualAddress) locationCard.appendChild(kv('Dirección', incident.manualAddress));
+    const nav = navUrl(incident);
+    if (nav) locationCard.appendChild(el('a', { href: nav, target: '_blank', rel: 'noopener', className: 'btn-nav-big', textContent: '🧭 Navegar (Google Maps)' }));
+    const osm = osmUrl(incident);
+    if (osm) locationCard.appendChild(el('a', { href: osm, target: '_blank', rel: 'noopener', className: 'guardia-link', textContent: '🗺 OpenStreetMap' }));
 
-    const gpsCard = el('div', { className:'guardia-card-block' }, [
-      el('h3', { textContent:'GPS de la unidad' }),
-      el('div', { id:'gpsStatusText', className:'guardia-gps-status', textContent: uiState.watchId ? 'GPS activo.' : 'GPS inactivo.' }),
-      el('div', { className:'guardia-gps-actions' }, [
-        el('button', { type:'button', className: uiState.watchId ? 'btn-gps-stop' : 'btn-gps-start', textContent: uiState.watchId ? '⏹ Detener GPS en vivo' : '▶ Activar GPS en vivo', onclick: () => { if (uiState.watchId) stopWatchPosition(); else startWatchPosition(); render(); } }),
-        el('button', { type:'button', className:'btn-gps-manual', textContent:'📍 Actualizar mi posición ahora', onclick: () => updatePositionManual() })
+    // GPS
+    const gpsCard = el('div', { className: 'guardia-card-block' }, [
+      el('h3', { textContent: 'GPS de la unidad' }),
+      el('div', { id: 'gpsStatusText', className: 'guardia-gps-status', textContent: ui.watchId ? 'GPS activo.' : 'GPS inactivo.' }),
+      el('div', { className: 'guardia-gps-actions' }, [
+        el('button', { type: 'button', className: ui.watchId ? 'btn-gps-stop' : 'btn-gps-start', textContent: ui.watchId ? '⏹ Detener GPS' : '▶ Activar GPS', onclick: () => { ui.watchId ? stopWatch() : startWatch(); render(); } }),
+        el('button', { type: 'button', className: 'btn-gps-manual', textContent: '📍 Actualizar ahora', onclick: () => updatePositionManual() })
       ])
     ]);
+    if (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA') {
+      gpsCard.appendChild(el('button', { type: 'button', className: 'btn-support', textContent: '🚨 Solicitar Apoyo', onclick: () => openSupportDialog(incident) }));
+    }
 
-    const canSupport = incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA';
-    if (canSupport) gpsCard.appendChild(el('button', { type:'button', className:'btn-support', textContent:'🚨 Solicitar Apoyo / Refuerzo a Central', onclick: () => openSupportDialog(incident) }));
-
-    const actionsCard = el('div', { className:'guardia-card-block guardia-actions-block' }, [ el('h3', { textContent:'Acciones del incidente' }) ]);
-    const requireCrew = () => { if (!uiState.crewName) throw new Error('Ingresá tu nombre en la cabecera antes de operar.'); return uiState.crewName; };
-    const runAction = (fn) => { try { fn(); render(); } catch (err) { alert('Acción rechazada: ' + err.message); } };
+    // Acciones
+    const actionsCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Acciones' })]);
+    const run = async (fn) => { try { await fn(); render(); } catch (err) { alert('Error: ' + err.message); } };
 
     switch (incident.status) {
       case 'MOVIL_ASIGNADO':
-        actionsCard.appendChild(el('button', { type:'button', className:'btn-action-big btn-action-go', textContent:'▶ Confirmar Salida (Móvil en Camino)', onclick: () => runAction(() => { const crew = requireCrew(); Store.guardiaDispatchIncident(incident.id, uiState.unitId, crew); }) }));
+        actionsCard.appendChild(el('button', { type: 'button', className: 'btn-action-big btn-action-go', textContent: '▶ Confirmar salida', onclick: () => run(() => Store.guardiaDispatchIncident(incident.id, ui.unitId, ui.crewName)) }));
         break;
       case 'EN_CAMINO':
-        actionsCard.appendChild(el('button', { type:'button', className:'btn-action-big btn-action-go', textContent:'📍 Marcar Arribo (EN_ESCENA)', onclick: () => runAction(() => { const crew = requireCrew(); Store.guardiaMarkOnScene(incident.id, uiState.unitId, crew); }) }));
+        actionsCard.appendChild(el('button', { type: 'button', className: 'btn-action-big btn-action-go', textContent: '📍 Marcar arribo', onclick: () => run(() => Store.guardiaMarkOnScene(incident.id, ui.unitId, ui.crewName)) }));
         break;
-      case 'EN_ESCENA': {
-        const destInput = el('input', { type:'text', id:'guardiaDestCenter', maxlength:'120', placeholder:'Ej: Hospital San Roque Dolores' });
-        const closeReasonSel = el('select', { id:'guardiaCloseReason' });
-        ['Atención en domicilio sin traslado','Traslado efectivo a centro de salud','Falsa alarma / Error de usuario','Derivado a sistema público 107/911'].forEach(r => closeReasonSel.appendChild(el('option', { value:r, textContent:r })));
-        actionsCard.appendChild(el('label', { className:'guardia-label' }, [ el('span', { textContent:'Centro receptor (si hay traslado)' }), destInput ]));
-        actionsCard.appendChild(el('button', { type:'button', className:'btn-action-big btn-action-blue', textContent:'🚑 Iniciar Traslado (EN_TRASLADO)', onclick: () => runAction(() => { const crew = requireCrew(); Store.guardiaMarkInTransit(incident.id, uiState.unitId, destInput.value.trim(), crew); }) }));
-        actionsCard.appendChild(el('label', { className:'guardia-label' }, [ el('span', { textContent:'Motivo de cierre' }), closeReasonSel ]));
-        const closeNotes = el('textarea', { id:'guardiaCloseNotes', rows:'2', maxlength:'400', placeholder:'Notas de cierre obligatorias' });
-        actionsCard.appendChild(el('label', { className:'guardia-label' }, [ el('span', { textContent:'Notas de cierre (obligatorias)' }), closeNotes ]));
-        actionsCard.appendChild(el('button', { type:'button', className:'btn-action-big btn-action-close', textContent:'✔ Cerrar Intervención (CERRADA)', onclick: () => runAction(() => {
-          const crew = requireCrew();
-          Store.guardiaCloseIncident(incident.id, uiState.unitId, closeReasonSel.value, closeNotes.value.trim(), crew);
-          stopWatchPosition();
-        }) }));
+      case 'EN_ESCENA':
+        const destInput = el('input', { type: 'text', id: 'destCenter', maxlength: '120', placeholder: 'Ej: Hospital San Roque' });
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Centro receptor (si hay traslado)' }), destInput]));
+        actionsCard.appendChild(el('button', { type: 'button', className: 'btn-action-big btn-action-blue', textContent: '🚑 Iniciar traslado', onclick: () => run(() => Store.guardiaMarkInTransit(incident.id, ui.unitId, destInput.value.trim(), ui.crewName)) }));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
+          const sel = el('select', { id: 'closeReason' });
+          ['Atención en domicilio sin traslado','Traslado efectivo','Falsa alarma','Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+          return sel;
+        })()]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
+        actionsCard.appendChild(el('button', { type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención', onclick: () => run(() => Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName)) }));
         break;
-      }
-      case 'EN_TRASLADO': {
-        const closeReasonSel = el('select', { id:'guardiaCloseReason2' });
-        ['Traslado efectivo a centro de salud','Derivado a sistema público 107/911'].forEach(r => closeReasonSel.appendChild(el('option', { value:r, textContent:r })));
-        const closeNotes = el('textarea', { id:'guardiaCloseNotes2', rows:'2', maxlength:'400', placeholder:'Notas de cierre obligatorias' });
-        actionsCard.appendChild(el('div', { className:'guardia-info', textContent:'Traslado en curso hacia: ' + (incident.destinationCenter || '—') }));
-        actionsCard.appendChild(el('label', { className:'guardia-label' }, [ el('span', { textContent:'Motivo de cierre' }), closeReasonSel ]));
-        actionsCard.appendChild(el('label', { className:'guardia-label' }, [ el('span', { textContent:'Notas de cierre' }), closeNotes ]));
-        actionsCard.appendChild(el('button', { type:'button', className:'btn-action-big btn-action-close', textContent:'✔ Cerrar Intervención (CERRADA)', onclick: () => runAction(() => {
-          const crew = requireCrew();
-          Store.guardiaCloseIncident(incident.id, uiState.unitId, closeReasonSel.value, closeNotes.value.trim(), crew);
-          stopWatchPosition();
-        }) }));
+      case 'EN_TRASLADO':
+        actionsCard.appendChild(el('div', { className: 'guardia-info', textContent: 'Traslado hacia: ' + (incident.destinationCenter || '—') }));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
+          const sel = el('select', { id: 'closeReason' });
+          ['Traslado efectivo','Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+          return sel;
+        })()]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
+        actionsCard.appendChild(el('button', { type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención', onclick: () => run(() => Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName)) }));
         break;
-      }
       default:
-        actionsCard.appendChild(el('div', { className:'guardia-warn', textContent:'Estado no operable por guardia en este momento: ' + incident.status }));
+        actionsCard.appendChild(el('div', { className: 'guardia-warn', textContent: 'Estado: ' + incident.status }));
     }
 
-    const bitacoraCard = el('div', { className:'guardia-card-block' }, [
-      el('h3', { textContent:'Bitácora' }),
-      el('ul', { className:'guardia-bitacora' }, incident.statusHistory.slice().reverse().map(h =>
-        el('li', {}, [ el('strong', { textContent: h.status }), el('span', { textContent:' · ' + fmtDateTime(h.ts) + ' · ' + (h.actor || 'system') }), h.detail ? el('div', { className:'guardia-bitacora-detail', textContent: h.detail }) : null ].filter(Boolean))
+    // Bitácora
+    const bitacoraCard = el('div', { className: 'guardia-card-block' }, [
+      el('h3', { textContent: 'Bitácora' }),
+      el('ul', { className: 'guardia-bitacora' }, (incident.statusHistory || []).slice().reverse().map(h =>
+        el('li', {}, [
+          el('strong', { textContent: h.status }),
+          el('span', { textContent: ' · ' + fmtDateTime(h.ts) + ' · ' + (h.actor || 'system') }),
+          h.detail ? el('div', { className: 'guardia-bitacora-detail', textContent: h.detail }) : null
+        ].filter(Boolean))
       ))
     ]);
 
-    container.appendChild(el('div', { className:'guardia-card guardia-card-main' }, [header]));
-    container.appendChild(el('div', { className:'guardia-card' }, [patientCard]));
-    container.appendChild(el('div', { className:'guardia-card' }, [locationCard]));
-    container.appendChild(el('div', { className:'guardia-card' }, [gpsCard]));
-    container.appendChild(el('div', { className:'guardia-card' }, [actionsCard]));
-    container.appendChild(el('div', { className:'guardia-card' }, [bitacoraCard]));
+    container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
+    container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
+    container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
+    container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
+    container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
+    container.appendChild(el('div', { className: 'guardia-card' }, [bitacoraCard]));
   }
 
-  function renderHistory() {
-    const list = $('#historyList'), empty = $('#historyEmpty'); if (!list || !empty) return;
+  async function renderHistory() {
+    const list = $('#historyList');
+    const empty = $('#historyEmpty');
+    if (!list) return;
     list.innerHTML = '';
-    if (!uiState.unitId) { empty.hidden = false; return; }
-    const items = Store.getGuardiaHistory(uiState.unitId, 10);
-    if (!items.length) { empty.hidden = false; return; }
-    empty.hidden = true;
-    items.forEach((inc) => {
-      list.appendChild(el('li', { className:'guardia-history-item' }, [
-        el('div', { className:'ghi-top' }, [ el('span', { className:'ghi-id', textContent: inc.id }), el('span', { className:'ghi-status', textContent: inc.status }) ]),
-        el('div', { className:'ghi-meta' }, [ el('span', { textContent: fmtDateTime(inc.createdAt) + ' · ' }), el('span', { textContent: inc.closureReason || 'Sin motivo de cierre' }) ])
-      ]));
-    });
+    if (!ui.unitId) { if (empty) empty.hidden = false; return; }
+    try {
+      const items = await Store.getGuardiaHistory(ui.unitId, 10);
+      if (!items.length) { if (empty) empty.hidden = false; return; }
+      if (empty) empty.hidden = true;
+      items.forEach(inc => {
+        list.appendChild(el('li', { className: 'guardia-history-item' }, [
+          el('div', { className: 'ghi-top' }, [
+            el('span', { className: 'ghi-id', textContent: inc.id }),
+            el('span', { className: 'ghi-status', textContent: inc.status })
+          ]),
+          el('div', { className: 'ghi-meta', textContent: fmtDateTime(inc.createdAt) + ' · ' + (inc.closureReason || 'Sin motivo') })
+        ]));
+      });
+    } catch (_) { if (empty) empty.hidden = false; }
   }
 
-  function render() { renderUnitStatus(); renderActiveIncident(); renderHistory(); }
+  async function render() {
+    renderUnitStatus();
+    await renderActiveIncident();
+    await renderHistory();
+  }
 
-  function initLiveUpdates() {
-    Store.subscribe((msg) => {
-      if (!msg || msg.type !== 'STATE_CHANGED') return;
-      const incident = uiState.unitId ? Store.getActiveIncidentForUnit(uiState.unitId) : null;
-      if (!incident && uiState.watchId) stopWatchPosition();
+  function initSubscription() {
+    Store.subscribe(msg => {
+      if (!msg) return;
+      if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
+      if (msg.type !== 'STATE_CHANGED') return;
       render();
     });
-    uiState.refreshTimer = setInterval(() => { render(); }, 5000);
+    setInterval(() => render(), 5000);
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    ensureSupportMethod();
+  async function bootGuardia() {
+    await applyBranding();
     initSelectors();
-    initLiveUpdates();
-    render();
-    const nameInput = $('#guardiaNameInput');
-    if (nameInput) nameInput.addEventListener('change', () => { if (uiState.crewName) requestNotificationPermissionOnce(); });
+    initSubscription();
+    await render();
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    initLogin();
+    const session = await Store.initSession();
+    if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
+      ui.crewName = session.profile.nombre || session.profile.dni;
+      hideLogin();
+      await bootGuardia();
+    } else {
+      if (session.loggedIn) await Store.logout();
+      showLogin();
+    }
   });
 
-  window.addEventListener('beforeunload', () => { stopWatchPosition(); if (uiState.refreshTimer) clearInterval(uiState.refreshTimer); });
+  window.addEventListener('beforeunload', () => { stopWatch(); });
 })();
