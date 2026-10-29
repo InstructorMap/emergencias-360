@@ -114,27 +114,38 @@
       };
     }
     // GUARDIA
-    if (path === 'guardia.html') {
+        if (path === 'guardia.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
-        requiredIds: ['guardiaBaseSelector', 'guardiaUnitSelector', 'guardiaNameInput', 'unitStatus', 'noIncidentPanel', 'activeIncidentContainer', 'historyList', 'historyEmpty'],
+        requiredIds: [
+          'guardiaLoginOverlay', 'guardiaLoginForm', 'guardiaLoginEmail', 'guardiaLoginPassword', 'guardiaLoginBtn', 'guardiaLoginMsg',
+          'guardiaApp', 'guardiaHeaderBrand', 'guardiaLogout',
+          'guardiaBaseSelector', 'guardiaUnitSelector',
+          'unitStatus', 'noIncidentPanel', 'activeIncidentContainer',
+          'historyList', 'historyEmpty'
+        ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-guardia.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
       };
     }
 
-    // B2B
     if (path === 'b2b.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
-        requiredIds: ['b2bBaseSelector', 'b2bOperatorInput', 'b2bForm', 'b2bId', 'b2bName', 'b2bType', 'b2bBase', 'b2bStatus', 'b2bAddress', 'b2bLat', 'b2bLng', 'b2bPhone', 'b2bProtocol', 'b2bSubmit', 'b2bCancelEdit', 'b2bMsg', 'b2bList', 'b2bEmpty', 'formTitle'],
-        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-b2b.js', 'css/styles.css'],
+        requiredIds: [
+          'b2bLoginOverlay', 'b2bLoginForm', 'b2bLoginEmail', 'b2bLoginPassword', 'b2bLoginBtn', 'b2bLoginMsg',
+          'b2bApp', 'b2bHeaderBrand', 'b2bLogout',
+          'b2bBaseSelector',
+          'b2bForm', 'b2bId', 'b2bName', 'b2bType', 'b2bBase', 'b2bStatus', 'b2bAddress',
+          'b2bPhone', 'b2bTipoUnidad', 'b2bProtocol', 'b2bSubmit', 'b2bCancelEdit', 'b2bMsg',
+          'b2bList', 'b2bEmpty', 'formTitle'
+        ],
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/qr.js', 'js/app-b2b.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
       };
     }
-
     // ADMIN
        if (path === 'admin.html') {
       return {
