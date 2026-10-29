@@ -99,16 +99,20 @@
     }
 
     // CENTRAL
-    if (path === 'central.html') {
+       if (path === 'central.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
-        requiredIds: ['centralBaseSelector', 'operatorInput', 'alertCounter', 'incidentList', 'incidentEmpty', 'detailContainer', 'fleetContainer'],
+        requiredIds: [
+          'centralLoginOverlay', 'centralLoginForm', 'centralLoginEmail', 'centralLoginPassword', 'centralLoginBtn', 'centralLoginMsg',
+          'centralApp', 'centralHeaderBrand', 'centralLogout',
+          'centralBaseSelector', 'alertCounter', 'incidentList', 'incidentEmpty',
+          'detailContainer', 'fleetContainer'
+        ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-central.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
       };
     }
-
     // GUARDIA
     if (path === 'guardia.html') {
       return {
