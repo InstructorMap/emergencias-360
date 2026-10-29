@@ -2117,3 +2117,234 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
   display: flex; gap: 8px; margin-top: 16px;
 }
 .credencial-actions .btn-secondary { flex: 1; }
+/* ============================================================
+   v8 — Admin: login, socios, alta masiva, branding, MP,
+        modales, bandeja de solicitudes, exports
+   ============================================================ */
+
+/* LOGIN overlay admin reutiliza .login-overlay de v7 */
+
+/* HEADER ADMIN */
+.admin-header {
+  background: var(--color-surface, #fff);
+  border-bottom: 2px solid var(--emp-blue, #0B3C78);
+  padding: 10px 16px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 60;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+}
+.admin-header .emp-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.admin-header .emp-brand img { max-height: 38px; }
+.admin-header .emp-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.admin-header .emp-brand-name { font-family: var(--font-display, 'Montserrat', sans-serif); font-weight: 900; font-size: 1rem; color: var(--emp-blue, #0B3C78); }
+.admin-header .emp-brand-claim { font-size: 0.65rem; color: var(--emp-bordo, #7A1C32); font-weight: 600; }
+.admin-header .header-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+.admin-header .btn-link {
+  background: var(--emp-blue, #0B3C78); color: #fff; border: none;
+  border-radius: 6px; padding: 8px 12px; font-size: 0.78rem;
+  font-weight: 700; cursor: pointer; text-decoration: none;
+  font-family: inherit;
+}
+.admin-header .btn-logout {
+  background: #FEE2E2; color: #DC2626; border: 1px solid #FCA5A5;
+  border-radius: 999px; padding: 6px 12px; font-size: 0.78rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+.admin-main {
+  padding: 16px; max-width: 1300px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.admin-card {
+  background: #fff; border-radius: 12px;
+  border: 1px solid #E2E8F0; padding: 16px;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.06);
+}
+.admin-card h2 {
+  font-family: var(--font-display, 'Montserrat', sans-serif);
+  font-size: 0.95rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-text-dim, #4A5568);
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-badge {
+  background: var(--emp-orange, #EA580C); color: #fff;
+  font-size: 0.65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 999px;
+}
+.admin-msg-bar {
+  background: #DCFCE7; color: #14532D; border-left: 4px solid #16A34A;
+  padding: 10px 14px; border-radius: 8px;
+  font-weight: 600; font-size: 0.88rem;
+}
+.admin-msg-bar.error { background: #FEE2E2; color: #7F1D1D; border-left-color: #DC2626; }
+.admin-toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.admin-search,
+.admin-select,
+.admin-input-sm {
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #CBD5E1;
+  font-size: 0.85rem; font-family: inherit;
+  background: #F8FAFC; color: var(--color-text, #0F172A);
+}
+.admin-search { flex: 1; min-width: 180px; }
+.admin-select { min-width: 130px; }
+.admin-input-sm { width: 100%; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.admin-table th, .admin-table td {
+  text-align: left; padding: 10px 8px;
+  border-bottom: 1px solid #E2E8F0; vertical-align: top;
+}
+.admin-table th {
+  color: #64748B; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  font-family: var(--font-display, 'Montserrat', sans-serif);
+  background: #F8FAFC;
+}
+.admin-table .row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.admin-table .row-actions button {
+  background: var(--emp-blue, #0B3C78); color: #fff; border: none;
+  border-radius: 6px; padding: 5px 8px; font-size: 0.7rem;
+  cursor: pointer; font-weight: 700; font-family: inherit;
+  white-space: nowrap;
+}
+.admin-table .row-actions button.btn-muted { background: #F1F5F9; color: #0B3C78; border: 1px solid #CBD5E1; }
+.admin-table .row-actions button.btn-danger { background: #DC2626; }
+
+.admin-form {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) { .admin-form { grid-template-columns: 1fr; } }
+.admin-form label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--color-text-dim, #4A5568);
+}
+.admin-form input,
+.admin-form select {
+  padding: 10px; border-radius: 8px;
+  border: 1px solid #CBD5E1;
+  font-size: 0.9rem; font-family: inherit;
+  background: #F8FAFC;
+}
+.admin-form .full { grid-column: 1 / -1; }
+.admin-form .btn-primary {
+  width: 100%; padding: 12px;
+  background: var(--emp-blue, #0B3C78); color: #fff;
+  border: none; border-radius: 8px;
+  font-weight: 700; font-size: 0.95rem; cursor: pointer;
+}
+.upload-zone {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px; background: #F8FAFC;
+  border: 2px dashed #CBD5E1; border-radius: 10px;
+  margin-bottom: 12px;
+}
+.upload-filename {
+  font-size: 0.85rem; color: #64748B;
+  font-family: monospace;
+}
+.excel-preview {
+  background: #F8FAFC; border-radius: 10px;
+  padding: 12px; margin-bottom: 12px;
+}
+.preview-title {
+  font-size: 0.8rem; font-weight: 700;
+  color: #4A5568; margin-bottom: 8px;
+}
+.import-result {
+  background: #F0F9FF; border-left: 4px solid #0284C7;
+  padding: 12px; border-radius: 8px; margin-top: 12px;
+  font-size: 0.85rem;
+}
+.import-ok { color: #16A34A; font-weight: 700; }
+.import-skip { color: #D97706; font-weight: 700; }
+.import-error { color: #DC2626; font-weight: 700; }
+.import-errors {
+  font-size: 0.78rem; color: #7F1D1D;
+  margin-top: 8px; padding-left: 20px;
+  max-height: 200px; overflow-y: auto;
+}
+.branding-preview {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.branding-slot {
+  background: #F8FAFC; padding: 12px;
+  border-radius: 10px; border: 1px solid #E2E8F0;
+  text-align: center; min-width: 180px;
+}
+.branding-label {
+  display: block; font-size: 0.75rem;
+  color: #64748B; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.logo-preview {
+  min-height: 56px; display: flex;
+  align-items: center; justify-content: center;
+  margin-bottom: 8px; color: #94A3B8;
+  font-size: 0.75rem;
+}
+.request-card {
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  border-radius: 10px; padding: 12px;
+  margin-bottom: 10px;
+}
+.request-head {
+  display: flex; justify-content: space-between;
+  align-items: center; gap: 8px;
+  margin-bottom: 6px;
+}
+.request-head strong {
+  font-size: 0.92rem; color: #0F172A;
+}
+.request-tipo {
+  background: var(--emp-orange, #EA580C);
+  color: #fff; font-size: 0.65rem;
+  font-weight: 800; padding: 2px 8px;
+  border-radius: 999px; letter-spacing: 0.06em;
+}
+.request-meta {
+  font-size: 0.8rem; color: #4A5568;
+  margin-bottom: 4px;
+}
+.request-msg {
+  font-size: 0.8rem; color: #4A5568;
+  font-style: italic; padding: 6px 8px;
+  background: #fff; border-radius: 6px;
+  border-left: 3px solid #CBD5E1;
+  margin: 6px 0;
+}
+.request-actions {
+  display: flex; gap: 6px; margin-top: 10px;
+}
+.request-actions button {
+  flex: 1; padding: 8px 12px;
+  border-radius: 8px; font-size: 0.82rem;
+  font-weight: 700; cursor: pointer;
+  border: none; font-family: inherit;
+}
+.request-actions .btn-primary { background: #16A34A; color: #fff; }
+.request-actions .btn-danger { background: #DC2626; color: #fff; }
+.audit-list {
+  list-style: none; max-height: 400px;
+  overflow-y: auto; font-size: 0.78rem;
+  font-family: ui-monospace, monospace;
+  padding: 0; margin: 0;
+}
+.audit-list li {
+  padding: 8px 10px;
+  border-bottom: 1px dashed #CBD5E1;
+  color: #4A5568;
+}
+.warn-operador {
+  background: #FEF3C7; border-left: 4px solid #D97706;
+  color: #78350F; padding: 12px 16px;
+  border-radius: 8px; font-size: 0.85rem;
+  line-height: 1.6;
+}
