@@ -2481,3 +2481,20 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 }
 .form-adhesion-card .form-msg.ok { color: #16A34A; }
 .form-adhesion-card .form-msg.error { color: #DC2626; }
+/* ============================================================
+   v8.1 — Estilos de solicitudes con datos clínicos y pago
+   ============================================================ */
+
+.request-clinica {
+  font-size: 0.8rem; color: #4A5568;
+  margin-top: 6px; padding: 6px 8px;
+  background: #FEF3C7; border-radius: 6px;
+  border-left: 3px solid #D97706;
+}
+.request-payment {
+  font-size: 0.8rem; margin-top: 6px; padding: 6px 8px;
+  background: #F0F9FF; border-radius: 6px;
+  border-left: 3px solid #0284C7;
+}
+.request-payment.payment-aprobado { background: #DCFCE7; border-left-color: #16A34A; }
+.request-payment.payment-rechazado { background: #FEE2E2; border-left-color: #DC2626; }
