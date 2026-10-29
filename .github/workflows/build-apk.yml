@@ -10,7 +10,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
@@ -68,3 +71,19 @@ jobs:
           name: emp-emergencias-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "EMP Emergencias v1.0.${{ github.run_number }}"
+          body: |
+            APK generada automáticamente desde el commit ${{ github.sha }}.
+            
+            **Instalación:** descargá `app-debug.apk`, pasalo al teléfono Android, habilitá "orígenes desconocidos" e instalá.
+            
+            **Link directo de descarga:** https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
