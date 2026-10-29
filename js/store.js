@@ -890,7 +890,43 @@
       state.paymentConfig = updated;
       return this.getPaymentConfigAdmin();
     },
+     // ============ AUDITORÍA ============
+    async getAuditLogs() {
+      if (!state.connected || !state.supabase) {
+        return (state.auditLogs || []).map(l => ({ ...l }));
+      }
+      try {
+        const { data } = await state.supabase.from('audit_logs').select('*').order('ts', { ascending: false }).limit(200);
+        if (data) state.auditLogs = data;
+        return (state.auditLogs || []).map(l => ({ ...l }));
+      } catch (_) {
+        return (state.auditLogs || []).map(l => ({ ...l }));
+      }
+    },
 
+    // ============ ORGANIZACIONES ============
+    getOrganizations() {
+      return [
+        { id: 'org_asari', name: 'ASARI S.A.S.', role: 'platform_owner', lineAEnabled: true, lineBEnabled: true },
+        { id: 'org_emp', name: 'EMP - Emergencias Médicas Privadas', role: 'emergency_provider', lineAEnabled: true, lineBEnabled: true }
+      ];
+    },
+
+    async updateOrganizationFlags(orgId, lineA, lineB, adminName) {
+      requireAdmin();
+      // Las organizaciones son estáticas; el cambio queda registrado en auditoría.
+      if (state.supabase) {
+        try {
+          await state.supabase.from('audit_logs').insert({
+            id: uid('aud'),
+            action: 'UPDATE_ORG_FLAGS',
+            payload: { orgId, lineA: !!lineA, lineB: !!lineB },
+            actor: adminName || state.profile.dni
+          });
+        } catch (_) {}
+      }
+      return { id: orgId, lineAEnabled: !!lineA, lineBEnabled: !!lineB };
+    },   
     // ============ CONTEXTO ============
     getActiveContext() {
       const baseId = state.context.activeBaseId || 'DOLORES';
