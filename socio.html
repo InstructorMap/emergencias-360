@@ -295,6 +295,13 @@
 
         <div class="section-card">
           <h2 class="section-title">Mi Medicación <span class="section-badge" id="medicacionCount">0</span></h2>
+
+          <!-- Banner APK (F1) -->
+          <div class="medicacion-banner" id="medicacionBanner" hidden>
+            <p>📱 <strong>Instalá la APK de EMP</strong> para que los recordatorios de medicación suenen incluso con la app cerrada.</p>
+            <button type="button" class="btn-secondary" id="btnDescargarAPK">⬇ Descargar APK</button>
+          </div>
+
           <p class="section-hint">Recordatorios de dosis del día. El personal de guardia puede ver esta información en una emergencia.</p>
           <div id="medicacionHoy" class="dosis-hoy"></div>
           <div id="medicacionLista" class="medicacion-list"></div>
@@ -362,6 +369,7 @@
   <script src="js/state-machine.js"></script>
   <script src="js/store.js"></script>
   <script src="js/qr.js"></script>
+  <script src="js/capacitor-bridge.js"></script>
   <script src="js/app-socio.js"></script>
   <script src="js/healthcheck.js"></script>
 </body>
