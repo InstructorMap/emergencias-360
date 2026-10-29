@@ -8,14 +8,12 @@
   <meta name="keywords" content="emergencias médicas, ambulancias, urgencias médicas, traslados sanitarios, cobertura médica, emergencias 24 horas, ambulancia privada, Dolores, Santa Teresita, La Costa" />
   <title>EMP - Emergencias Médicas Privadas | Atención Médica 24 hs</title>
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="EMP - Emergencias Médicas Privadas | Atención Médica 24 hs" />
   <meta property="og:description" content="Servicio de emergencias médicas, urgencias, traslados y cobertura sanitaria integral. Más de 16 años brindando atención médica profesional." />
   <meta property="og:url" content="https://instructormap.github.io/emergencias-360/" />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <!-- JSON-LD LocalBusiness -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -82,7 +80,6 @@
     img { max-width: 100%; display: block; }
     .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
 
-    /* ============ HEADER ============ */
     .site-header {
       position: sticky; top: 0; z-index: 50;
       background: rgba(255,255,255,0.96);
@@ -129,23 +126,14 @@
       padding: 10px 14px; border-radius: 999px;
       font-weight: 800; font-size: 0.82rem;
     }
-    @media (min-width: 900px) {
-      .nav-desktop { display: flex; }
-    }
+    @media (min-width: 900px) { .nav-desktop { display: flex; } }
 
-    /* ============ HERO ============ */
     .hero {
-      background:
-        radial-gradient(ellipse at top right, rgba(234,88,12,0.15), transparent 60%),
-        linear-gradient(180deg, #EAF2FB 0%, #FFFFFF 100%);
+      background: radial-gradient(ellipse at top right, rgba(234,88,12,0.15), transparent 60%), linear-gradient(180deg, #EAF2FB 0%, #FFFFFF 100%);
       padding: 60px 0 80px;
     }
-    .hero .wrap {
-      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
-    }
-    @media (min-width: 900px) {
-      .hero .wrap { grid-template-columns: 1.15fr 1fr; }
-    }
+    .hero .wrap { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
+    @media (min-width: 900px) { .hero .wrap { grid-template-columns: 1.15fr 1fr; } }
     .hero-eyebrow {
       display: inline-block;
       background: var(--emp-orange-bg); color: var(--emp-orange);
@@ -153,24 +141,18 @@
       text-transform: uppercase; padding: 6px 12px; border-radius: 999px;
       margin-bottom: 18px;
     }
-    .hero h1 {
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      color: var(--emp-blue); font-weight: 900;
-      margin-bottom: 16px;
-    }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); color: var(--emp-blue); font-weight: 900; margin-bottom: 16px; }
     .hero h1 span { color: var(--emp-orange); }
-    .hero-sub {
-      font-size: 1.1rem; color: var(--emp-text-dim);
-      max-width: 560px; margin-bottom: 28px;
-    }
+    .hero-sub { font-size: 1.1rem; color: var(--emp-text-dim); max-width: 560px; margin-bottom: 28px; }
     .hero-ctas { display: flex; flex-wrap: wrap; gap: 12px; }
     .btn-primary {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--emp-orange); color: #fff;
       padding: 14px 26px; border-radius: 999px;
       font-weight: 700; font-size: 1rem;
-      box-shadow: var(--shadow-md);
+      box-shadow: var(--shadow-md); cursor: pointer; border: none;
       transition: background 0.15s, transform 0.15s;
+      font-family: inherit;
     }
     .btn-primary:hover { background: var(--emp-bordo); transform: translateY(-2px); }
     .btn-secondary {
@@ -180,14 +162,13 @@
       border: 2px solid var(--emp-blue);
       font-weight: 700; font-size: 1rem;
       transition: background 0.15s, color 0.15s;
+      cursor: pointer; font-family: inherit;
     }
     .btn-secondary:hover { background: var(--emp-blue); color: #fff; }
     .hero-call {
       display: inline-flex; align-items: center; gap: 10px;
-      margin-top: 24px;
-      background: #fff; border: 1px solid var(--emp-border);
-      padding: 12px 18px; border-radius: 14px;
-      box-shadow: var(--shadow-sm);
+      margin-top: 24px; background: #fff; border: 1px solid var(--emp-border);
+      padding: 12px 18px; border-radius: 14px; box-shadow: var(--shadow-sm);
     }
     .hero-call .dot-pulse {
       width: 10px; height: 10px; border-radius: 50%;
@@ -222,37 +203,16 @@
       background: var(--emp-orange); border-radius: 3px;
       animation: scan 2.5s infinite;
     }
-    @keyframes scan {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(300%); }
-    }
-    .hero-visual-placeholder .ph-title {
-      font-family: var(--font-display); font-size: 1.2rem; font-weight: 800;
-      letter-spacing: 0.04em;
-    }
+    @keyframes scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+    .hero-visual-placeholder .ph-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; letter-spacing: 0.04em; }
     .hero-visual-placeholder .ph-sub { font-size: 0.85rem; opacity: 0.85; margin-top: 4px; }
 
-    /* ============ TRUST BAR ============ */
-    .trust-bar {
-      background: var(--emp-blue); color: #fff;
-      padding: 22px 0;
-    }
-    .trust-bar .wrap {
-      display: grid; grid-template-columns: repeat(2, 1fr);
-      gap: 20px; text-align: center;
-    }
-    @media (min-width: 700px) {
-      .trust-bar .wrap { grid-template-columns: repeat(4, 1fr); }
-    }
-    .trust-item .ti-num {
-      font-family: var(--font-display); font-size: 1.6rem; font-weight: 900;
-      color: var(--emp-orange);
-    }
-    .trust-item .ti-label {
-      font-size: 0.8rem; opacity: 0.9; margin-top: 2px;
-    }
+    .trust-bar { background: var(--emp-blue); color: #fff; padding: 22px 0; }
+    .trust-bar .wrap { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; text-align: center; }
+    @media (min-width: 700px) { .trust-bar .wrap { grid-template-columns: repeat(4, 1fr); } }
+    .trust-item .ti-num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 900; color: var(--emp-orange); }
+    .trust-item .ti-label { font-size: 0.8rem; opacity: 0.9; margin-top: 2px; }
 
-    /* ============ SECCIONES ============ */
     .section { padding: 80px 0; }
     .section-alt { background: var(--emp-offwhite); }
     .section-head { max-width: 720px; margin: 0 auto 50px; text-align: center; }
@@ -261,18 +221,10 @@
       font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
       margin-bottom: 12px; display: inline-block;
     }
-    .section-head h2 {
-      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
-      color: var(--emp-blue); font-weight: 900; margin-bottom: 12px;
-    }
-    .section-head p {
-      color: var(--emp-text-dim); font-size: 1rem; line-height: 1.6;
-    }
+    .section-head h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); color: var(--emp-blue); font-weight: 900; margin-bottom: 12px; }
+    .section-head p { color: var(--emp-text-dim); font-size: 1rem; line-height: 1.6; }
 
-    /* ============ SERVICIOS ============ */
-    .services-grid {
-      display: grid; grid-template-columns: 1fr; gap: 20px;
-    }
+    .services-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
     @media (min-width: 600px) { .services-grid { grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1000px) { .services-grid { grid-template-columns: repeat(3, 1fr); } }
     .service-card {
@@ -280,26 +232,17 @@
       border-radius: var(--radius); padding: 28px 24px;
       transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
     }
-    .service-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-md);
-      border-color: var(--emp-orange);
-    }
+    .service-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--emp-orange); }
     .service-icon {
       width: 52px; height: 52px; border-radius: 12px;
       background: var(--emp-orange-bg);
       display: flex; align-items: center; justify-content: center;
       font-size: 1.6rem; margin-bottom: 16px;
     }
-    .service-card h3 {
-      font-size: 1.1rem; color: var(--emp-blue); margin-bottom: 8px;
-    }
+    .service-card h3 { font-size: 1.1rem; color: var(--emp-blue); margin-bottom: 8px; }
     .service-card p { font-size: 0.92rem; color: var(--emp-text-dim); }
 
-    /* ============ PLANES ============ */
-    .plans-grid {
-      display: grid; grid-template-columns: 1fr; gap: 20px;
-    }
+    .plans-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
     @media (min-width: 700px) { .plans-grid { grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1100px) { .plans-grid { grid-template-columns: repeat(4, 1fr); } }
     .plan-card {
@@ -310,10 +253,7 @@
       transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
     }
     .plan-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
-    .plan-card.featured {
-      border-color: var(--emp-orange);
-      box-shadow: var(--shadow-md);
-    }
+    .plan-card.featured { border-color: var(--emp-orange); box-shadow: var(--shadow-md); }
     .plan-card.featured::before {
       content: 'Más elegido';
       position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
@@ -322,10 +262,7 @@
       text-transform: uppercase; padding: 4px 12px; border-radius: 999px;
       white-space: nowrap;
     }
-    .plan-name {
-      font-family: var(--font-display); font-size: 1.5rem;
-      font-weight: 900; margin-bottom: 6px;
-    }
+    .plan-name { font-family: var(--font-display); font-size: 1.5rem; font-weight: 900; margin-bottom: 6px; }
     .plan-bronce .plan-name { color: #92400E; }
     .plan-plata .plan-name { color: #475569; }
     .plan-oro .plan-name { color: #B45309; }
@@ -338,10 +275,7 @@
       border-bottom: 1px dashed rgba(203,213,225,0.6);
     }
     .plan-features li:last-child { border-bottom: none; }
-    .plan-features li::before {
-      content: '✓'; color: var(--emp-green);
-      font-weight: 900; flex-shrink: 0;
-    }
+    .plan-features li::before { content: '✓'; color: var(--emp-green); font-weight: 900; flex-shrink: 0; }
     .plan-features li.no { color: #94A3B8; }
     .plan-features li.no::before { content: '✕'; color: #CBD5E1; }
     .plan-cta {
@@ -355,19 +289,109 @@
     .plan-card.featured .plan-cta { background: var(--emp-orange); }
     .plan-card.featured .plan-cta:hover { background: var(--emp-bordo); }
 
-    /* ============ SOS BANNER ============ */
-    .sos-section {
-      background: linear-gradient(135deg, var(--emp-orange), var(--emp-bordo));
-      color: #fff; padding: 70px 0;
+    /* ===== FORMULARIO HACETE SOCIO ===== */
+    .form-adhesion-card {
+      max-width: 800px; margin: 0 auto;
+      background: #fff; border-radius: var(--radius-lg);
+      border: 1px solid var(--emp-border);
+      padding: 32px 28px;
+      box-shadow: var(--shadow-md);
     }
-    .sos-section .wrap {
-      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
+    .form-adhesion-card h3 {
+      font-size: 1.2rem; color: var(--emp-blue);
+      margin-bottom: 8px;
     }
+    .form-adhesion-card .form-sub {
+      font-size: 0.88rem; color: var(--emp-text-dim);
+      margin-bottom: 24px;
+    }
+    .form-adhesion-card .form-group {
+      margin-bottom: 18px;
+    }
+    .form-adhesion-card .form-group > label {
+      display: block; font-size: 0.85rem;
+      font-weight: 600; color: var(--emp-text);
+      margin-bottom: 6px;
+    }
+    .form-adhesion-card .form-group > label.req::after {
+      content: ' *'; color: var(--emp-sos);
+    }
+    .form-adhesion-card input,
+    .form-adhesion-card select,
+    .form-adhesion-card textarea {
+      width: 100%; padding: 10px 12px;
+      border-radius: 10px; border: 1px solid var(--emp-border);
+      font-size: 0.92rem; font-family: inherit;
+      background: var(--emp-offwhite);
+      transition: border-color 0.15s;
+    }
+    .form-adhesion-card input:focus,
+    .form-adhesion-card select:focus,
+    .form-adhesion-card textarea:focus {
+      outline: none; border-color: var(--emp-blue);
+      background: #fff;
+    }
+    .form-adhesion-card .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    @media (max-width: 600px) { .form-adhesion-card .form-row { grid-template-columns: 1fr; } }
+    .form-adhesion-card .form-row-3 {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+    }
+    @media (max-width: 600px) { .form-adhesion-card .form-row-3 { grid-template-columns: 1fr; } }
+    .form-adhesion-card .checkbox-group {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px 16px; margin-top: 6px;
+    }
+    @media (max-width: 600px) { .form-adhesion-card .checkbox-group { grid-template-columns: 1fr; } }
+    .form-adhesion-card .checkbox-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.88rem; color: var(--emp-text-dim);
+      cursor: pointer;
+    }
+    .form-adhesion-card .checkbox-item input {
+      width: auto; margin: 0; cursor: pointer;
+    }
+    .form-adhesion-card .form-section-title {
+      font-size: 0.85rem; font-weight: 800;
+      color: var(--emp-bordo); text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 24px 0 12px; padding-top: 20px;
+      border-top: 2px solid var(--emp-border);
+    }
+    .form-adhesion-card .form-actions {
+      display: flex; flex-direction: column; gap: 12px;
+      margin-top: 24px;
+    }
+    .form-adhesion-card .payment-choice {
+      background: var(--emp-offwhite);
+      border-radius: 10px; padding: 16px;
+      border: 1px solid var(--emp-border);
+      margin-bottom: 12px;
+    }
+    .form-adhesion-card .payment-choice > label {
+      display: flex; align-items: flex-start; gap: 10px;
+      cursor: pointer; padding: 8px 0;
+      font-size: 0.9rem;
+    }
+    .form-adhesion-card .payment-choice > label input[type="radio"] {
+      width: auto; margin-top: 3px; flex-shrink: 0;
+    }
+    .form-adhesion-card .payment-choice .payment-desc {
+      font-size: 0.8rem; color: var(--emp-text-soft, #64748B);
+      margin-top: 2px;
+    }
+    .form-adhesion-card .form-msg {
+      font-size: 0.85rem; min-height: 1.2em;
+      margin-top: 12px; text-align: center;
+    }
+    .form-adhesion-card .form-msg.ok { color: var(--emp-green); }
+    .form-adhesion-card .form-msg.error { color: var(--emp-sos); }
+
+    .sos-section { background: linear-gradient(135deg, var(--emp-orange), var(--emp-bordo)); color: #fff; padding: 70px 0; }
+    .sos-section .wrap { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
     @media (min-width: 900px) { .sos-section .wrap { grid-template-columns: 1.2fr 1fr; } }
-    .sos-section h2 {
-      font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900;
-      margin-bottom: 16px;
-    }
+    .sos-section h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900; margin-bottom: 16px; }
     .sos-section p { font-size: 1rem; opacity: 0.95; margin-bottom: 24px; line-height: 1.65; }
     .sos-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
     .btn-white {
@@ -389,17 +413,13 @@
     .sos-visual {
       background: rgba(255,255,255,0.12);
       border: 2px solid rgba(255,255,255,0.3);
-      border-radius: var(--radius-lg); padding: 32px;
-      text-align: center;
+      border-radius: var(--radius-lg); padding: 32px; text-align: center;
     }
     .sos-visual .sv-icon { font-size: 3rem; margin-bottom: 12px; }
     .sos-visual .sv-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
     .sos-visual .sv-sub { font-size: 0.9rem; opacity: 0.9; }
 
-    /* ============ QUIÉNES SOMOS ============ */
-    .about-grid {
-      display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center;
-    }
+    .about-grid { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
     @media (min-width: 900px) { .about-grid { grid-template-columns: 1fr 1fr; } }
     .about-grid h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); color: var(--emp-blue); font-weight: 900; margin-bottom: 16px; }
     .about-grid p { color: var(--emp-text-dim); font-size: 1rem; line-height: 1.7; margin-bottom: 14px; }
@@ -412,37 +432,21 @@
     }
     .about-visual .ph-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; }
 
-    /* ============ CTA FINAL ============ */
-    .cta-final {
-      background: var(--emp-blue); color: #fff;
-      padding: 80px 0; text-align: center;
-    }
-    .cta-final h2 {
-      font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900;
-      margin-bottom: 16px; max-width: 720px; margin-left: auto; margin-right: auto;
-    }
+    .cta-final { background: var(--emp-blue); color: #fff; padding: 80px 0; text-align: center; }
+    .cta-final h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 900; margin-bottom: 16px; max-width: 720px; margin-left: auto; margin-right: auto; }
     .cta-final p { font-size: 1rem; opacity: 0.9; margin-bottom: 28px; max-width: 600px; margin-left: auto; margin-right: auto; }
     .cta-final .hero-ctas { justify-content: center; }
     .cta-final .btn-secondary { background: transparent; color: #fff; border-color: #fff; }
     .cta-final .btn-secondary:hover { background: #fff; color: var(--emp-blue); }
 
-    /* ============ FOOTER ============ */
-    .site-footer {
-      background: var(--emp-bordo-dark); color: #fff;
-      padding: 50px 0 30px;
-    }
-    .footer-grid {
-      display: grid; grid-template-columns: 1fr; gap: 32px;
-      margin-bottom: 32px;
-    }
+    .site-footer { background: var(--emp-bordo-dark); color: #fff; padding: 50px 0 30px; }
+    .footer-grid { display: grid; grid-template-columns: 1fr; gap: 32px; margin-bottom: 32px; }
     @media (min-width: 700px) { .footer-grid { grid-template-columns: 1.3fr 1fr 1fr; } }
     .footer-col h4 {
       font-size: 0.85rem; text-transform: uppercase;
       letter-spacing: 0.06em; margin-bottom: 12px; color: var(--emp-orange);
     }
-    .footer-col p, .footer-col a {
-      font-size: 0.85rem; opacity: 0.9; line-height: 1.7;
-    }
+    .footer-col p, .footer-col a { font-size: 0.85rem; opacity: 0.9; line-height: 1.7; }
     .footer-col a:hover { opacity: 1; text-decoration: underline; }
     .footer-legal {
       border-top: 1px solid rgba(255,255,255,0.15);
@@ -455,14 +459,11 @@
       color: var(--emp-orange); opacity: 1; font-weight: 700;
     }
 
-    @media (max-width: 899px) {
-      .header-actions .btn-credential span.lbl { display: none; }
-    }
+    @media (max-width: 899px) { .header-actions .btn-credential span.lbl { display: none; } }
   </style>
 </head>
 <body>
 
-  <!-- HEADER -->
   <header class="site-header">
     <div class="wrap">
       <a class="brand" href="index.html" aria-label="EMP - Emergencias Médicas Privadas">
@@ -472,25 +473,23 @@
           <span class="brand-claim">Emergencias Médicas Privadas</span>
         </div>
       </a>
-
       <nav class="nav-desktop" aria-label="Navegación principal">
         <a href="#servicios">Servicios</a>
         <a href="#planes">Planes</a>
+        <a href="#hacete-socio">Hacete socio</a>
         <a href="#sos">SOS</a>
         <a href="#nosotros">Quiénes somos</a>
         <a href="#contacto">Contacto</a>
       </nav>
-
       <div class="header-actions">
         <a class="btn-sos-mini" href="tel:2245444600" aria-label="Llamar emergencias 24 hs">🚨 24 hs</a>
-        <a class="btn-credential" href="socio.html" aria-label="Acceder a mi credencial y SOS">
+        <a class="btn-credential" href="socio.html" aria-label="Acceder a mi credencial">
           🪪 <span class="lbl">Mi Credencial</span>
         </a>
       </div>
     </div>
   </header>
 
-  <!-- HERO -->
   <section class="hero">
     <div class="wrap">
       <div class="hero-text">
@@ -519,29 +518,15 @@
     </div>
   </section>
 
-  <!-- TRUST BAR -->
   <section class="trust-bar">
     <div class="wrap">
-      <div class="trust-item">
-        <div class="ti-num">16+</div>
-        <div class="ti-label">Años de trayectoria</div>
-      </div>
-      <div class="trust-item">
-        <div class="ti-num">24/7</div>
-        <div class="ti-label">Emergencias y urgencias</div>
-      </div>
-      <div class="trust-item">
-        <div class="ti-num">2</div>
-        <div class="ti-label">Sedes operativas</div>
-      </div>
-      <div class="trust-item">
-        <div class="ti-num">4</div>
-        <div class="ti-label">Planes a tu medida</div>
-      </div>
+      <div class="trust-item"><div class="ti-num">16+</div><div class="ti-label">Años de trayectoria</div></div>
+      <div class="trust-item"><div class="ti-num">24/7</div><div class="ti-label">Emergencias y urgencias</div></div>
+      <div class="trust-item"><div class="ti-num">2</div><div class="ti-label">Sedes operativas</div></div>
+      <div class="trust-item"><div class="ti-num">4</div><div class="ti-label">Planes a tu medida</div></div>
     </div>
   </section>
 
-  <!-- SERVICIOS -->
   <section class="section" id="servicios">
     <div class="wrap">
       <div class="section-head">
@@ -550,56 +535,19 @@
         <p>Brindamos atención rápida, profesional y humana. Cobertura de emergencias, traslados, capacitaciones y servicios especializados pensados para cuidarte en todo momento.</p>
       </div>
       <div class="services-grid">
-        <div class="service-card">
-          <div class="service-icon">🚑</div>
-          <h3>Emergencias médicas</h3>
-          <p>Atención inmediata ante situaciones de riesgo de vida, con respuesta rápida y profesionales capacitados las 24 horas.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🩺</div>
-          <h3>Urgencias médicas</h3>
-          <p>Asistencia médica para cuadros que requieren atención rápida y segura, priorizando el bienestar del paciente.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🛏️</div>
-          <h3>Traslados programados</h3>
-          <p>Servicio de ambulancia desde el domicilio hasta centros de atención médica, clínicas y hospitales.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🏥</div>
-          <h3>Derivaciones de pacientes</h3>
-          <p>Traslados privados y por obra social entre distintas ciudades, coordinados de manera eficiente y segura.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🚨</div>
-          <h3>Ambulancias especializadas</h3>
-          <p>Unidades equipadas para diferentes necesidades: desde ambulancias comunes hasta pediátricas con incubadora.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🎪</div>
-          <h3>Cobertura de eventos</h3>
-          <p>Cobertura médica para eventos sociales, deportivos, empresariales e institucionales con personal y unidades preparadas.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">🎓</div>
-          <h3>Capacitaciones certificadas</h3>
-          <p>Cursos y entrenamientos en RCP, DEA, maniobra de Heimlich y primeros auxilios, para empresas, instituciones y público en general.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">💊</div>
-          <h3>Red de beneficios</h3>
-          <p>Descuentos en farmacias, ópticas y consultorios adheridos. Beneficios exclusivos para socios EMP según su plan.</p>
-        </div>
-        <div class="service-card">
-          <div class="service-icon">📱</div>
-          <h3>App del socio</h3>
-          <p>Credencial virtual verificable, botón SOS con GPS, ficha médica de emergencia y red de beneficios en tu teléfono.</p>
-        </div>
+        <div class="service-card"><div class="service-icon">🚑</div><h3>Emergencias médicas</h3><p>Atención inmediata ante situaciones de riesgo de vida, con respuesta rápida y profesionales capacitados las 24 horas.</p></div>
+        <div class="service-card"><div class="service-icon">🩺</div><h3>Urgencias médicas</h3><p>Asistencia médica para cuadros que requieren atención rápida y segura, priorizando el bienestar del paciente.</p></div>
+        <div class="service-card"><div class="service-icon">🛏️</div><h3>Traslados programados</h3><p>Servicio de ambulancia desde el domicilio hasta centros de atención médica, clínicas y hospitales.</p></div>
+        <div class="service-card"><div class="service-icon">🏥</div><h3>Derivaciones de pacientes</h3><p>Traslados privados y por obra social entre distintas ciudades, coordinados de manera eficiente y segura.</p></div>
+        <div class="service-card"><div class="service-icon">🚨</div><h3>Ambulancias especializadas</h3><p>Unidades equipadas para diferentes necesidades: desde ambulancias comunes hasta pediátricas con incubadora.</p></div>
+        <div class="service-card"><div class="service-icon">🎪</div><h3>Cobertura de eventos</h3><p>Cobertura médica para eventos sociales, deportivos, empresariales e institucionales con personal y unidades preparadas.</p></div>
+        <div class="service-card"><div class="service-icon">🎓</div><h3>Capacitaciones certificadas</h3><p>Cursos y entrenamientos en RCP, DEA, maniobra de Heimlich y primeros auxilios, para empresas, instituciones y público en general.</p></div>
+        <div class="service-card"><div class="service-icon">💊</div><h3>Red de beneficios</h3><p>Descuentos en farmacias, ópticas y consultorios adheridos. Beneficios exclusivos para socios EMP según su plan.</p></div>
+        <div class="service-card"><div class="service-icon">📱</div><h3>App del socio</h3><p>Credencial virtual verificable, botón SOS con GPS, ficha médica de emergencia y red de beneficios en tu teléfono.</p></div>
       </div>
     </div>
   </section>
 
-  <!-- PLANES -->
   <section class="section section-alt" id="planes">
     <div class="wrap">
       <div class="section-head">
@@ -621,7 +569,7 @@
             <li class="no">Médico virtual</li>
             <li class="no">Seguro al viajero</li>
           </ul>
-          <a class="plan-cta" href="socio.html">Elegir Bronce</a>
+          <a class="plan-cta" href="#hacete-socio" data-plan="BRONCE">Elegir Bronce</a>
         </div>
         <div class="plan-card plan-plata">
           <div class="plan-name">Plata</div>
@@ -636,7 +584,7 @@
             <li class="no">Seguro al viajero</li>
             <li class="no">Pulsera SOS</li>
           </ul>
-          <a class="plan-cta" href="socio.html">Elegir Plata</a>
+          <a class="plan-cta" href="#hacete-socio" data-plan="PLATA">Elegir Plata</a>
         </div>
         <div class="plan-card plan-oro featured">
           <div class="plan-name">Oro</div>
@@ -651,7 +599,7 @@
             <li class="no">Botón fijo en domicilio</li>
             <li class="no">Acceso completo a la app</li>
           </ul>
-          <a class="plan-cta" href="socio.html">Elegir Oro</a>
+          <a class="plan-cta" href="#hacete-socio" data-plan="ORO">Elegir Oro</a>
         </div>
         <div class="plan-card plan-platino">
           <div class="plan-name">Platino</div>
@@ -666,13 +614,179 @@
             <li>Acceso completo a la app</li>
             <li>Cobertura en Costa Atlántica</li>
           </ul>
-          <a class="plan-cta" href="socio.html">Elegir Platino</a>
+          <a class="plan-cta" href="#hacete-socio" data-plan="PLATINO">Elegir Platino</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- SOS -->
+  <!-- ============ HACETE SOCIO ============ -->
+  <section class="section" id="hacete-socio">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Hacete socio</span>
+        <h2>Completá el formulario de adhesión</h2>
+        <p>Completalo y nos pondremos en contacto. Los datos clínicos nos permiten brindarte una atención más segura.</p>
+      </div>
+      <div class="form-adhesion-card">
+        <form id="formAdhesion" novalidate>
+          <h3>Datos personales</h3>
+          <p class="form-sub">Los campos con * son obligatorios.</p>
+
+          <div class="form-group">
+            <label for="adNombre" class="req">Nombre y apellido</label>
+            <input type="text" id="adNombre" required maxlength="120" autocomplete="name" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="adDni" class="req">DNI</label>
+              <input type="text" id="adDni" required maxlength="12" inputmode="numeric" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="adTelefono" class="req">Teléfono</label>
+              <input type="tel" id="adTelefono" required maxlength="20" autocomplete="tel" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="adEmail">Email</label>
+              <input type="email" id="adEmail" maxlength="120" autocomplete="email" />
+            </div>
+            <div class="form-group">
+              <label for="adFecha">Fecha</label>
+              <input type="date" id="adFecha" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="adDireccion">Dirección</label>
+              <input type="text" id="adDireccion" maxlength="200" autocomplete="street-address" />
+            </div>
+            <div class="form-group">
+              <label for="adLocalidad">Localidad</label>
+              <select id="adLocalidad">
+                <option value="">Seleccionar...</option>
+                <option value="Dolores">Dolores</option>
+                <option value="La Costa">Partido de La Costa</option>
+                <option value="Otra">Otra</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-3">
+            <div class="form-group">
+              <label for="adFechaNac">Fecha de nacimiento</label>
+              <input type="date" id="adFechaNac" />
+            </div>
+            <div class="form-group">
+              <label for="adEdad">Edad</label>
+              <input type="number" id="adEdad" min="0" max="120" inputmode="numeric" />
+            </div>
+            <div class="form-group">
+              <label for="adObraSocial">Obra social (opcional)</label>
+              <input type="text" id="adObraSocial" maxlength="100" />
+            </div>
+          </div>
+
+          <div class="form-section-title">Datos médicos</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="adMedico">Médico de cabecera</label>
+              <input type="text" id="adMedico" maxlength="120" />
+            </div>
+            <div class="form-group">
+              <label for="adDerivacion">Lugar de derivación</label>
+              <input type="text" id="adDerivacion" maxlength="120" placeholder="Hospital, clínica o sanatorio" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="adContactoFamiliar">Contacto de familiar</label>
+            <input type="text" id="adContactoFamiliar" maxlength="120" placeholder="Nombre y teléfono" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="adGrupoCant">Grupo familiar — cantidad</label>
+              <input type="number" id="adGrupoCant" min="0" max="20" inputmode="numeric" />
+            </div>
+            <div class="form-group">
+              <label for="adGrupoConst">¿Cómo está constituido?</label>
+              <input type="text" id="adGrupoConst" maxlength="200" placeholder="Ej: 2 adultos, 1 niño" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Antecedentes clínicos</label>
+            <div class="checkbox-group">
+              <label class="checkbox-item"><input type="checkbox" id="adHipertension" /> Hipertensión</label>
+              <label class="checkbox-item"><input type="checkbox" id="adCardiaca" /> Dificultad cardíaca</label>
+              <label class="checkbox-item"><input type="checkbox" id="adMotriz" /> Dificultad motriz</label>
+              <label class="checkbox-item"><input type="checkbox" id="adCongenita" /> Enfermedad congénita</label>
+              <label class="checkbox-item"><input type="checkbox" id="adDolorCronico" /> Dolor crónico</label>
+              <label class="checkbox-item"><input type="checkbox" id="adEpilepsia" /> Epilepsia</label>
+              <label class="checkbox-item"><input type="checkbox" id="adDiabetes" /> Diabetes</label>
+              <label class="checkbox-item"><input type="checkbox" id="adAsma" /> Asma</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="adOtra">Otra (indicar)</label>
+            <textarea id="adOtra" rows="2" maxlength="300"></textarea>
+          </div>
+
+          <div class="form-section-title">Plan y pago</div>
+
+          <div class="form-group">
+            <label for="adPlan" class="req">Plan elegido</label>
+            <select id="adPlan" required>
+              <option value="">Seleccionar plan...</option>
+              <option value="BRONCE">Bronce</option>
+              <option value="PLATA">Plata</option>
+              <option value="ORO">Oro</option>
+              <option value="PLATINO">Platino</option>
+            </select>
+          </div>
+
+          <div class="payment-choice">
+            <label>
+              <input type="radio" name="paymentMethod" value="contactar" checked />
+              <div>
+                <strong>Que me contacten para abonar después</strong>
+                <div class="payment-desc">Un asesor te contactará para coordinar el pago y el alta.</div>
+              </div>
+            </label>
+            <label>
+              <input type="radio" name="paymentMethod" value="ahora" />
+              <div>
+                <strong>Abonar ahora con Mercado Pago</strong>
+                <div class="payment-desc">Te redirigiremos al pago online. El alta se confirma al acreditarse.</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="adMensaje">Mensaje (opcional)</label>
+            <textarea id="adMensaje" rows="2" maxlength="400"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" id="btnEnviarAdhesion">Enviar solicitud</button>
+            <p class="form-msg" id="adMsg" role="status" aria-live="polite"></p>
+          </div>
+
+          <p style="font-size:0.75rem;color:#64748B;margin-top:16px;text-align:center;line-height:1.5;">
+            Al enviar, aceptás que EMP te contacte. El envío del formulario no constituye alta automática: la solicitud es evaluada por un asesor.
+          </p>
+        </form>
+      </div>
+    </div>
+  </section>
+
   <section class="sos-section" id="sos">
     <div class="wrap">
       <div>
@@ -691,7 +805,6 @@
     </div>
   </section>
 
-  <!-- QUIÉNES SOMOS -->
   <section class="section" id="nosotros">
     <div class="wrap">
       <div class="about-grid">
@@ -701,14 +814,11 @@
           <p>Nuestra misión es ofrecer asistencia médica de calidad, rápida y eficiente las 24 horas del día. Con un equipo altamente capacitado y tecnología de punta, garantizamos respuestas inmediatas y seguras para cada situación de emergencia.</p>
           <p>Nuestro compromiso es brindar tranquilidad y respaldo a familias y empresas que necesitan cobertura médica confiable, priorizando siempre el bienestar de los pacientes. Nos dedicamos a la atención personalizada y humana, asegurando que nuestros servicios médicos sean profesionales y accesibles para toda la comunidad.</p>
         </div>
-        <div class="about-visual">
-          <div class="ph-title">EMP en acción</div>
-        </div>
+        <div class="about-visual"><div class="ph-title">EMP en acción</div></div>
       </div>
     </div>
   </section>
 
-  <!-- CTA FINAL -->
   <section class="cta-final" id="contacto">
     <div class="wrap">
       <h2>¿Necesitás asistencia médica o querés comunicarte con nosotros?</h2>
@@ -720,7 +830,6 @@
     </div>
   </section>
 
-  <!-- FOOTER -->
   <footer class="site-footer">
     <div class="wrap">
       <div class="footer-grid">
@@ -753,10 +862,12 @@
       <div class="footer-legal">
         <strong>Tecnología provista por ASARI S.A.S.</strong> — Proveedor Tecnológico.<br>
         EMP - Emergencias Médicas Privadas es Prestador Operativo en Dolores y Partido de La Costa.
-        <span class="disclaimer">⚠️ Esta app NO sustituye al 107 (SAME) / 911 (Policía) / 100 (Bomberos).</span>
+        <span class="disclaimer">⚠️ Esta app es una herramienta de gestión. Ante una urgencia real, llamá a EMP al 2245-444600 (Dolores) o 2246-529000 (La Costa). Si no tenés cobertura EMP, llamá al 107 (SAME) o 911 (Policía).</span>
       </div>
     </div>
   </footer>
 
+  <script src="js/supabase.config.js"></script>
+  <script src="js/app-landing.js"></script>
 </body>
 </html>
