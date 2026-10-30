@@ -1,6 +1,6 @@
 /* ============================================================
-   E360Store v8.1 — Supabase Auth + caché híbrido + público carnet/pulsera
-   - loginWithEmail(email, password): login del admin por email
+   E360Store v8.2 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
+   - loginWithEmail(email, password): login del admin y operadores por email
    - getPublicCarnetInfo / getPublicPulseraInfo
    - getIncidentsByDni, getMedicationsForProfile
    - submitRecategorizacion
@@ -8,6 +8,7 @@
    - getPaymentConfigPublic / getPaymentConfigAdmin / setPaymentConfig
    - getAuditLogs / getOrganizations / updateOrganizationFlags
    - getBranding / loadBranding / setBranding / uploadBrandingFile
+   - C1: applyBrandingToPage / notifySOSEmitted / withButtonLoading / humanizeError
    - API síncrona intacta (getProfile, getIncidents, etc.)
    - Offline: lee de localStorage con TTL 7 días.
    ============================================================ */
@@ -32,6 +33,16 @@
 
   const CACHE_KEY = 'e360_cache_v8';
   const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const DEFAULT_BRANDING = {
+    logoUrl: '',
+    logoDarkUrl: '',
+    faviconUrl: '',
+    colorPrimary: '#0B3C78',
+    colorSecondary: '#7A1C32',
+    colorAccent: '#EA580C',
+    colorSos: '#DC2626'
+  };
 
   const channel = (typeof BroadcastChannel !== 'undefined')
     ? new BroadcastChannel(CHANNEL_NAME) : null;
@@ -87,7 +98,8 @@
   }
 
   function initSupabase() {
-    const cfg = global.E360SupabaseConfig || {};
+    if (state.connected && state.supabase) return true;
+    const cfg = global.E360SupabaseConfig || (C && C.SUPABASE) || {};
     const url = String(cfg.URL || '').trim();
     const anonKey = String(cfg.ANON_KEY || '').trim();
     state.url = url;
@@ -188,13 +200,24 @@
   function mapIncidentFromDB(i) {
     if (!i) return null;
     return {
-      id: i.id, createdAt: i.created_at, baseId: i.base_id, status: i.status,
-      priority: i.priority, assignedUnitId: i.assigned_unit_id, profileDni: i.profile_dni,
-      location: i.location, manualAddress: i.manual_address || '',
-      b2bEstablishmentId: i.b2b_establishment_id, source: i.source,
-      statusHistory: i.status_history || [], clinicalNotes: i.clinical_notes || '',
-      crewNotes: i.crew_notes || '', destinationCenter: i.destination_center || '',
-      closureReason: i.closure_reason || '', outcomeNotes: i.outcome_notes || '',
+      id: i.id,
+      createdAt: i.created_at,
+      baseId: i.base_id,
+      status: i.status,
+      priority: i.priority,
+      assignedUnitId: i.assigned_unit_id,
+      profileDni: i.profile_dni,
+      location: i.location,
+      manualAddress: i.manual_address || '',
+      b2bEstablishmentId: i.b2b_establishment_id,
+      source: i.source,
+      statusHistory: i.status_history || [],
+      supportRequests: i.support_requests || [],
+      clinicalNotes: i.clinical_notes || '',
+      crewNotes: i.crew_notes || '',
+      destinationCenter: i.destination_center || '',
+      closureReason: i.closure_reason || '',
+      outcomeNotes: i.outcome_notes || '',
       unitLocation: i.unit_location
     };
   }
@@ -228,6 +251,118 @@
       protocol: e.protocol || '', tipoUnidadRequerida: e.tipo_unidad_requerida || 'COMUN',
       status: e.status || 'en_revision', createdAt: e.created_at
     };
+  }
+
+  // ============ HELPERS INTERNOS C1 (BRANDING DOM & TOAST SOS) ============
+  function applyBrandingDOM(b) {
+    if (typeof document === 'undefined' || !b) return;
+    const root = document.documentElement;
+    const primary = b.colorPrimary || DEFAULT_BRANDING.colorPrimary;
+    const secondary = b.colorSecondary || DEFAULT_BRANDING.colorSecondary;
+    const accent = b.colorAccent || DEFAULT_BRANDING.colorAccent;
+    const sos = b.colorSos || DEFAULT_BRANDING.colorSos;
+
+    root.style.setProperty('--emp-blue', primary);
+    root.style.setProperty('--emp-bordo', secondary);
+    root.style.setProperty('--emp-orange', accent);
+    root.style.setProperty('--emp-sos', sos);
+    root.style.setProperty('--color-primary', sos);
+    root.style.setProperty('--color-blue', primary);
+    root.style.setProperty('--color-amber', accent);
+
+    // Actualizar meta theme-color
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.setAttribute('content', primary);
+
+    // Actualizar favicon dinámico
+    if (b.faviconUrl) {
+      let link = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.setAttribute('rel', 'icon');
+        if (document.head) document.head.appendChild(link);
+      }
+      if (link.getAttribute('href') !== b.faviconUrl) {
+        link.setAttribute('href', b.faviconUrl);
+      }
+    }
+
+    // Actualizar imágenes de logo con chip blanco si existe URL
+    const logoSelectors = '[data-emp-logo], .emp-brand-logo, #headerLogoImg, #adminLogoPreview';
+    const logoNodes = document.querySelectorAll(logoSelectors);
+    logoNodes.forEach((node) => {
+      const useDark = node.getAttribute('data-emp-logo') === 'dark';
+      const targetUrl = (useDark && b.logoDarkUrl) ? b.logoDarkUrl : b.logoUrl;
+      if (!targetUrl) return;
+      if (node.tagName === 'IMG') {
+        node.setAttribute('src', targetUrl);
+        node.hidden = false;
+        node.classList.add('emp-logo-chip');
+      } else {
+        node.textContent = '';
+        const img = document.createElement('img');
+        img.setAttribute('src', targetUrl);
+        img.setAttribute('alt', 'EMP Emergencias Médicas Privadas');
+        img.className = 'emp-logo-img emp-logo-chip';
+        node.appendChild(img);
+      }
+    });
+  }
+
+  function showWebSOSToast(title, message, basePhone, baseLabel) {
+    if (typeof document === 'undefined' || !document.body) return;
+    const prev = document.getElementById('e360SosToast');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+    const toast = document.createElement('div');
+    toast.id = 'e360SosToast';
+    toast.className = 'e360-sos-toast';
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+
+    const header = document.createElement('div');
+    header.className = 'e360-sos-toast-header';
+
+    const titleEl = document.createElement('strong');
+    titleEl.className = 'e360-sos-toast-title';
+    titleEl.textContent = title;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'e360-sos-toast-close';
+    closeBtn.setAttribute('aria-label', 'Cerrar notificación');
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    });
+
+    header.appendChild(titleEl);
+    header.appendChild(closeBtn);
+
+    const bodyEl = document.createElement('p');
+    bodyEl.className = 'e360-sos-toast-body';
+    bodyEl.textContent = message;
+
+    const actions = document.createElement('div');
+    actions.className = 'e360-sos-toast-actions';
+
+    if (basePhone) {
+      const callLink = document.createElement('a');
+      callLink.href = 'tel:' + String(basePhone).replace(/\s+/g, '');
+      callLink.className = 'e360-sos-toast-call';
+      callLink.textContent = '📞 Llamar ahora a ' + (baseLabel || 'EMP') + ' (' + basePhone + ')';
+      actions.appendChild(callLink);
+    }
+
+    toast.appendChild(header);
+    toast.appendChild(bodyEl);
+    if (actions.childNodes.length > 0) toast.appendChild(actions);
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 10000);
   }
 
   // ============ AUTH ============
@@ -288,7 +423,12 @@
       const userId = state.user && state.user.id;
       if (userId) {
         const { data: p } = await sb.from('profiles').select('*').eq('user_id', userId).maybeSingle();
-        if (p) state.profile = mapProfileFromDB(p);
+        if (p) {
+          state.profile = mapProfileFromDB(p);
+          if (state.profile.baseId && C.BASES && C.BASES[state.profile.baseId]) {
+            state.context.activeBaseId = state.profile.baseId;
+          }
+        }
       }
 
       state.bases = Object.keys(C.BASES).map(k => ({ ...C.BASES[k], isActive: true }));
@@ -329,10 +469,12 @@
         if (pay) state.paymentConfig = pay;
       }
 
-      if (state.profile && state.profile.role === 'admin') {
+      if (state.profile && (state.profile.role === 'admin' || state.profile.role === 'operador')) {
         const { data: profs } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
         if (profs) state.profiles = profs.map(mapProfileFromDB);
+      }
 
+      if (state.profile && state.profile.role === 'admin') {
         const { data: reqs } = await sb.from('socio_requests').select('*').order('created_at', { ascending: false });
         if (reqs) state.socioRequests = reqs;
       }
@@ -351,6 +493,10 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, async () => {
           const { data } = await state.supabase.from('incidents').select('*').order('created_at', { ascending: false }).limit(200);
           if (data) state.incidents = data.map(mapIncidentFromDB);
+          if (state.profile && state.profile.dni) {
+            state.myIncidents = state.incidents.filter(i => i.profileDni === state.profile.dni).slice(0, 50);
+          }
+          saveCache();
           if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now(), source: 'realtime' });
         }).subscribe();
 
@@ -359,6 +505,7 @@
           if (!state.profile) return;
           const { data } = await state.supabase.from('medications').select('*').eq('profile_id', state.profile.id).eq('activo', true);
           if (data) state.medications = data.map(mapMedicationFromDB);
+          saveCache();
           if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now(), source: 'realtime' });
         }).subscribe();
     } catch (_) {}
@@ -388,9 +535,11 @@
     getUser() { return state.user ? { ...state.user } : null; },
     isLoggedIn() { return !!(state.session && state.profile); },
     isAdmin() { return !!(state.profile && state.profile.role === 'admin'); },
+    isStaff() { return !!(state.profile && (state.profile.role === 'admin' || state.profile.role === 'operador')); },
 
     // ============ CARNET / PULSERA PÚBLICOS ============
     async getPublicCarnetInfo(token) {
+      initSupabase();
       if (!state.connected || !state.supabase) throw new Error('Supabase no configurado.');
       const t = String(token || '').trim();
       if (!t) return null;
@@ -406,7 +555,7 @@
         nombre: data.nombre,
         socioNumber: data.dni ? ('EMP-' + String(data.dni).padStart(6, '0')) : null,
         plan: data.plan || 'BRONCE',
-        planLabel: (C.PLANS[data.plan] && C.PLANS[data.plan].label) || data.plan,
+        planLabel: (C.PLANS && C.PLANS[data.plan] && (C.PLANS[data.plan].label || C.PLANS[data.plan].name)) || data.plan,
         carnetStatus: effective,
         carnetValidUntil: data.carnet_valid_until,
         daysToExpire: data.carnet_valid_until ? Math.ceil((new Date(data.carnet_valid_until).getTime() - Date.now()) / 86400000) : null,
@@ -415,6 +564,7 @@
     },
 
     async getPublicPulseraInfo(token) {
+      initSupabase();
       if (!state.connected || !state.supabase) throw new Error('Supabase no configurado.');
       const t = String(token || '').trim();
       if (!t) return null;
@@ -435,7 +585,7 @@
         dni: data.dni,
         socioNumber: data.dni ? ('EMP-' + String(data.dni).padStart(6, '0')) : null,
         plan: data.plan || 'BRONCE',
-        planLabel: (C.PLANS[data.plan] && C.PLANS[data.plan].label) || data.plan,
+        planLabel: (C.PLANS && C.PLANS[data.plan] && (C.PLANS[data.plan].label || C.PLANS[data.plan].name)) || data.plan,
         pulseraStatus: effective,
         telefono: data.telefono || '',
         grupoSanguineo: data.grupo_sanguineo || '',
@@ -454,7 +604,10 @@
     // ============ PERFILES ============
     getActiveProfile() { return state.profile ? { ...state.profile } : null; },
     getProfile(dni) {
-      const found = state.profiles.find(p => p.dni === String(dni || '').trim());
+      const target = String(dni || '').trim();
+      if (!target) return null;
+      if (state.profile && state.profile.dni === target) return { ...state.profile };
+      const found = state.profiles.find(p => p.dni === target);
       return found ? { ...found } : null;
     },
     listProfiles() { return state.profiles.map(p => ({ ...p })); },
@@ -471,6 +624,8 @@
         patologias: data.patologias || '',
         contacto: data.contacto || ''
       };
+      if (data.homeAddress !== undefined) update.home_address = data.homeAddress || '';
+      if (data.familyGroup !== undefined) update.family_group = data.familyGroup;
       const { data: updated, error } = await state.supabase.from('profiles').update(update).eq('id', state.profile.id).select().single();
       if (error) throw new Error(error.message);
       state.profile = mapProfileFromDB(updated);
@@ -504,7 +659,7 @@
     async setProfilePlan(dni, plan, adminName) {
       requireAdmin();
       if (!state.supabase) throw new Error('Supabase no configurado.');
-      if (C.PLAN_IDS.indexOf(plan) === -1) throw new Error('Plan inválido.');
+      if (C.PLAN_IDS && C.PLAN_IDS.indexOf(plan) === -1) throw new Error('Plan inválido.');
       const { data: updated, error } = await state.supabase.from('profiles').update({ plan }).eq('dni', dni).select().single();
       if (error) throw new Error(error.message);
       const mapped = mapProfileFromDB(updated);
@@ -520,7 +675,11 @@
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const { data: updated, error } = await state.supabase.from('profiles').update({ carnet_status: status }).eq('dni', dni).select().single();
       if (error) throw new Error(error.message);
-      return mapProfileFromDB(updated);
+      const mapped = mapProfileFromDB(updated);
+      const idx = state.profiles.findIndex(p => p.dni === dni);
+      if (idx !== -1) state.profiles[idx] = mapped;
+      saveCache();
+      return mapped;
     },
 
     async renewCarnet(dni, adminName) {
@@ -530,7 +689,11 @@
       validUntil.setFullYear(validUntil.getFullYear() + 1);
       const { data: updated, error } = await state.supabase.from('profiles').update({ carnet_status: 'activo', carnet_valid_until: validUntil.toISOString() }).eq('dni', dni).select().single();
       if (error) throw new Error(error.message);
-      return mapProfileFromDB(updated);
+      const mapped = mapProfileFromDB(updated);
+      const idx = state.profiles.findIndex(p => p.dni === dni);
+      if (idx !== -1) state.profiles[idx] = mapped;
+      saveCache();
+      return mapped;
     },
 
     // ============ INCIDENTES ============
@@ -538,6 +701,13 @@
       let list = state.incidents.slice();
       if (filterBaseId && filterBaseId !== 'ALL') list = list.filter(i => i.baseId === filterBaseId);
       return list.map(i => ({ ...i }));
+    },
+    getIncidentsByDni(dni) {
+      const target = String(dni || (state.profile && state.profile.dni) || '').trim();
+      if (!target) return [];
+      const fromAll = state.incidents.filter(i => i.profileDni === target);
+      if (fromAll.length > 0) return fromAll.map(i => ({ ...i }));
+      return state.myIncidents.filter(i => i.profileDni === target).map(i => ({ ...i }));
     },
     getIncidentById(id) {
       const inc = state.incidents.find(i => i.id === id);
@@ -551,42 +721,66 @@
       return inc ? { ...inc } : null;
     },
     getIncidentEta(incidentId) {
-      const disclaimer = 'Tiempo estimado de forma referencial.';
+      const disclaimer = 'Tiempo estimado de forma referencial (sujeto a tránsito y condiciones operativas).';
       const inc = state.incidents.find(i => i.id === incidentId);
-      if (!inc) return { hasEta: false, etaMinutes: null, source: 'sin_incidente', disclaimer };
-      if (['CERRADA','CANCELADA'].indexOf(inc.status) !== -1) return { hasEta: false, etaMinutes: null, source: 'cerrado', disclaimer };
-      const o = inc.unitLocation, d = inc.location;
-      if (!o || !d || typeof o.lat !== 'number' || typeof d.lat !== 'number') return { hasEta: false, etaMinutes: null, source: 'sin_coords', disclaimer };
+      if (!inc) return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'sin_incidente', disclaimer };
+      if (['CERRADA', 'CANCELADA'].indexOf(inc.status) !== -1) return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'cerrado', disclaimer };
+      const d = inc.location;
+      if (!d || typeof d.lat !== 'number') return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'sin_coords', disclaimer };
+      const baseCfg = (C.BASES && C.BASES[inc.baseId]) || C.BASES.DOLORES;
+      const o = (inc.unitLocation && typeof inc.unitLocation.lat === 'number') ? inc.unitLocation : (baseCfg && baseCfg.coords);
+      if (!o || typeof o.lat !== 'number') return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'sin_coords', disclaimer };
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(d.lat - o.lat), dLng = toRad(d.lng - o.lng);
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(o.lat)) * Math.cos(toRad(d.lat)) * Math.sin(dLng/2)**2;
-      const km = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return { hasEta: true, etaMinutes: Math.max(1, Math.round(km / 40 * 60)), source: 'haversine_40kmh', disclaimer };
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(o.lat)) * Math.cos(toRad(d.lat)) * Math.sin(dLng / 2) ** 2;
+      const km = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const mins = Math.max(1, Math.round((km * 1.3) / 40 * 60));
+      const isGps = !!(inc.unitLocation && typeof inc.unitLocation.lat === 'number');
+      return {
+        hasEta: true,
+        etaMinutes: mins,
+        remainingMinutes: mins,
+        source: isGps ? 'gps' : 'estimated',
+        disclaimer
+      };
     },
 
     async createSOSIncident(payload) {
-      const dni = payload.profileDni || (state.profile && state.profile.dni);
+      const p = payload || {};
+      const dni = p.profileDni || (state.profile && state.profile.dni) || null;
+      const baseId = p.baseId || (state.profile && state.profile.baseId) || state.context.activeBaseId || 'DOLORES';
       const id = uid('inc');
       const record = {
-        id, base_id: state.context.activeBaseId,
-        status: INCIDENT_STATES.RECIBIDA_SERVIDOR, priority: null, assigned_unit_id: null,
-        profile_dni: dni, location: payload.location || null,
-        manual_address: payload.manualAddress || '',
-        b2b_establishment_id: payload.b2bEstablishmentId || null,
-        source: payload.source || 'socio_app',
-        status_history: [{ status: INCIDENT_STATES.RECIBIDA_SERVIDOR, ts: nowISO(), actor: payload.source || 'socio_app', detail: payload.detail || 'Alerta emitida.' }]
+        id,
+        base_id: baseId,
+        status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
+        priority: null,
+        assigned_unit_id: null,
+        profile_dni: dni,
+        location: p.location || null,
+        manual_address: p.manualAddress || '',
+        b2b_establishment_id: p.b2bEstablishmentId || null,
+        source: p.source || 'socio_app',
+        status_history: [{
+          status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
+          ts: nowISO(),
+          actor: p.source || 'socio_app',
+          detail: p.detail || 'Alerta emitida.'
+        }]
       };
       if (state.supabase && navigator.onLine) {
         const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
         if (error) throw new Error(error.message);
         const mapped = mapIncidentFromDB(data);
         state.incidents.unshift(mapped);
+        state.myIncidents.unshift(mapped);
         saveCache();
         if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
         return mapped;
       } else {
         const mapped = mapIncidentFromDB({ ...record, created_at: nowISO() });
         state.incidents.unshift(mapped);
+        state.myIncidents.unshift(mapped);
         saveCache();
         return mapped;
       }
@@ -621,6 +815,7 @@
       const idx = state.incidents.findIndex(i => i.id === id);
       if (idx !== -1) state.incidents[idx] = mapped;
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
     async closeIncident(id, reason, notes, op) {
@@ -633,6 +828,7 @@
       const idx = state.incidents.findIndex(i => i.id === id);
       if (idx !== -1) state.incidents[idx] = mapped;
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
     async cancelIncident(id, reason, op) {
@@ -645,22 +841,27 @@
       const idx = state.incidents.findIndex(i => i.id === id);
       if (idx !== -1) state.incidents[idx] = mapped;
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
     async updateCrewPosition(id, coords, crewName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
-      const { error } = await state.supabase.from('incidents').update({ unit_location: { lat: coords.lat, lng: coords.lng, accuracy: coords.accuracy || 0, ts: nowISO(), actor: crewName } }).eq('id', id);
+      const loc = { lat: coords.lat, lng: coords.lng, accuracy: coords.accuracy || 0, ts: nowISO(), actor: crewName };
+      const { error } = await state.supabase.from('incidents').update({ unit_location: loc }).eq('id', id);
       if (error) throw new Error(error.message);
+      const idx = state.incidents.findIndex(i => i.id === id);
+      if (idx !== -1) state.incidents[idx].unitLocation = loc;
+      saveCache();
       return true;
     },
 
     // ============ FLOTA ============
     getFleet(baseId) {
       const all = [
-        { id:'mov_dol_01', baseId:'DOLORES', unit:'AMB-01', tipoUnidad:'UTIM', status:UNIT_STATUS.DISPONIBLE },
-        { id:'mov_dol_02', baseId:'DOLORES', unit:'AMB-02', tipoUnidad:'COMUN', status:UNIT_STATUS.DISPONIBLE },
-        { id:'mov_cos_01', baseId:'LA_COSTA', unit:'AMB-11', tipoUnidad:'UTIM', status:UNIT_STATUS.DISPONIBLE },
-        { id:'mov_cos_02', baseId:'LA_COSTA', unit:'AMB-12', tipoUnidad:'PEDIATRICA_CON_INCUBADORA', status:UNIT_STATUS.DISPONIBLE }
+        { id: 'mov_dol_01', baseId: 'DOLORES', unit: 'AMB-01', tipoUnidad: 'UTIM', status: UNIT_STATUS.DISPONIBLE },
+        { id: 'mov_dol_02', baseId: 'DOLORES', unit: 'AMB-02', tipoUnidad: 'COMUN', status: UNIT_STATUS.DISPONIBLE },
+        { id: 'mov_cos_01', baseId: 'LA_COSTA', unit: 'AMB-11', tipoUnidad: 'UTIM', status: UNIT_STATUS.DISPONIBLE },
+        { id: 'mov_cos_02', baseId: 'LA_COSTA', unit: 'AMB-12', tipoUnidad: 'PEDIATRICA_CON_INCUBADORA', status: UNIT_STATUS.DISPONIBLE }
       ];
       if (baseId && baseId !== 'ALL') return all.filter(m => m.baseId === baseId);
       return all;
@@ -744,8 +945,13 @@
           status: 'pendiente'
         };
         const { data, error } = await state.supabase.from('dose_logs').insert(record).select().single();
-        if (!error && data) created.push(mapDoseLogFromDB(data));
+        if (!error && data) {
+          const mapped = mapDoseLogFromDB(data);
+          state.doseLogs.unshift(mapped);
+          created.push(mapped);
+        }
       }
+      saveCache();
       return created;
     },
     getDosesForDay(dateISO) {
@@ -755,6 +961,7 @@
 
     // ============ SOCIO REQUESTS ============
     async submitSocioRequest(data) {
+      initSupabase();
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const record = {
         nombre: data.nombre,
@@ -768,6 +975,8 @@
         plan_actual: data.planActual || '',
         plan_solicitado: data.planSolicitado || ''
       };
+      if (data.datosClinicos !== undefined) record.datos_clinicos = data.datosClinicos;
+      if (data.metodoPago !== undefined) record.metodo_pago = data.metodoPago;
       const { data: inserted, error } = await state.supabase.from('socio_requests').insert(record).select().single();
       if (error) throw new Error(error.message);
       return inserted;
@@ -789,7 +998,8 @@
       const result = await this.createSocio({
         nombre: req.nombre, dni: req.dni, telefono: req.telefono,
         plan: plan || req.plan_solicitado || req.plan_interes || 'BRONCE',
-        base_id: 'DOLORES', cuil: '', grupo_sanguineo: '',
+        base_id: (req.localidad && String(req.localidad).toUpperCase().includes('COSTA')) ? 'LA_COSTA' : 'DOLORES',
+        cuil: '', grupo_sanguineo: '',
         alergias: '', patologias: '', contacto: '', cuota: ''
       });
       await state.supabase.from('socio_requests').update({ status: 'aprobada', reviewed_at: nowISO(), reviewed_by: state.profile.dni }).eq('id', requestId);
@@ -808,13 +1018,58 @@
 
     // ============ BENEFICIOS ============
     getVisibleBenefits(locality) {
-      const plan = (state.profile && state.profile.plan) || C.DEFAULT_PLAN;
+      const plan = (state.profile && state.profile.plan) || C.DEFAULT_PLAN || 'BRONCE';
       return state.benefits
         .filter(b => SM.isBenefitVisibleToSocio(b))
         .filter(b => !locality || b.locality === locality)
-        .filter(b => !Array.isArray(b.plans) || b.plans.indexOf(plan) !== -1);
+        .filter(b => !Array.isArray(b.plans) || b.plans.length === 0 || b.plans.indexOf(plan) !== -1);
     },
     getAllBenefitsRaw() { return state.benefits.map(b => ({ ...b })); },
+    async updateBenefitStatus(benefitId, newStatus, agreementRef, validUntil, adminName) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const current = state.benefits.find(b => b.id === benefitId);
+      if (!current) throw new Error('Prestador no encontrado.');
+      const check = SM.canTransitionBenefit(current.status, newStatus, agreementRef);
+      if (!check.ok) throw new Error(check.reason);
+      const record = {
+        status: newStatus,
+        agreement_ref: agreementRef !== undefined ? String(agreementRef || '').trim() : current.agreementRef,
+        valid_until: validUntil || current.validUntil || null
+      };
+      const { data, error } = await state.supabase.from('benefits').update(record).eq('id', benefitId).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapBenefitFromDB(data);
+      const idx = state.benefits.findIndex(b => b.id === benefitId);
+      if (idx !== -1) state.benefits[idx] = mapped;
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapped;
+    },
+    async saveBenefit(data) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const record = {
+        id: data.id || uid('ben'),
+        name: data.name,
+        category: data.category || '',
+        locality: data.locality || 'Dolores',
+        benefit_detail: data.benefitDetail || '',
+        agreement_ref: data.agreementRef || 'Pendiente de firma',
+        valid_until: data.validUntil || null,
+        status: data.status || 'en_negociacion',
+        plans: Array.isArray(data.plans) ? data.plans : []
+      };
+      const { data: upserted, error } = await state.supabase.from('benefits').upsert(record).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapBenefitFromDB(upserted);
+      const idx = state.benefits.findIndex(b => b.id === mapped.id);
+      if (idx !== -1) state.benefits[idx] = mapped;
+      else state.benefits.push(mapped);
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapped;
+    },
 
     // ============ B2B ============
     getB2BEstablishments(baseId) {
@@ -846,13 +1101,14 @@
         medicoVirtualUrl: updated.medico_virtual_url || '',
         seguroViajeroUrl: updated.seguro_viajero_url || ''
       };
+      saveCache();
       return { ...state.externalServices };
     },
 
     // ============ PAGOS ============
     getPaymentConfigPublic() {
       const p = state.paymentConfig;
-      if (!p) return { mercadoPagoEnabled: false, mercadoPagoPublicKey: '', cuotas: { BRONCE:'', PLATA:'', ORO:'', PLATINO:'' } };
+      if (!p) return { mercadoPagoEnabled: false, mercadoPagoPublicKey: '', cuotas: { BRONCE: '', PLATA: '', ORO: '', PLATINO: '' } };
       return {
         mercadoPagoEnabled: !!p.mercado_pago_enabled,
         mercadoPagoPublicKey: p.mercado_pago_public_key || '',
@@ -888,10 +1144,10 @@
         mercado_pago_enabled: !!data.mercadoPagoEnabled,
         mercado_pago_public_key: data.mercadoPagoPublicKey || '',
         mercado_pago_access_token: data.mercadoPagoAccessToken || '',
-        cuota_bronce: data.cuotas && data.cuotas.BRONCE || '',
-        cuota_plata: data.cuotas && data.cuotas.PLATA || '',
-        cuota_oro: data.cuotas && data.cuotas.ORO || '',
-        cuota_platino: data.cuotas && data.cuotas.PLATINO || '',
+        cuota_bronce: (data.cuotas && data.cuotas.BRONCE) || '',
+        cuota_plata: (data.cuotas && data.cuotas.PLATA) || '',
+        cuota_oro: (data.cuotas && data.cuotas.ORO) || '',
+        cuota_platino: (data.cuotas && data.cuotas.PLATINO) || '',
         updated_at: nowISO(),
         updated_by: state.profile.dni
       };
@@ -941,10 +1197,10 @@
     // ============ CONTEXTO ============
     getActiveContext() {
       const baseId = state.context.activeBaseId || 'DOLORES';
-      const base = state.bases.find(b => b.id === baseId) || C.BASES.DOLORES;
+      const base = state.bases.find(b => b.id === baseId) || (C.BASES && C.BASES[baseId]) || C.BASES.DOLORES;
       return {
         activeBaseId: baseId, base: { ...base }, platformMode: state.mode,
-        organizations: [], activeProfileDni: state.profile ? state.profile.dni : null
+        organizations: this.getOrganizations(), activeProfileDni: state.profile ? state.profile.dni : null
       };
     },
     setActiveBase(baseId) {
@@ -968,6 +1224,7 @@
       channel.addEventListener('message', handler);
       return () => channel.removeEventListener('message', handler);
     },
+
     // ============ CENTRAL: TRIAGE Y ASIGNACIÓN ============
     async triageIncident(incidentId, priority, clinicalNotes, operatorName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
@@ -1063,6 +1320,7 @@
       const idx = state.incidents.findIndex(i => i.id === incidentId);
       if (idx !== -1) state.incidents[idx] = mapped;
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
 
@@ -1110,35 +1368,25 @@
       const idx = state.b2b.findIndex(e => e.id === id);
       if (idx !== -1) state.b2b[idx] = mapped;
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
-    _getState() { return state; },
-    _reload: loadAllData,
-    calcCarnetStatus, daysToExpire,
-    INCIDENT_STATES, UNIT_STATUS, PRIORITIES, BENEFIT_STATUSES, B2B_STATUSES,
 
-    // ============ BRANDING ============
+    // ============ BRANDING & C1 UI HELPERS ============
     getBranding() {
       try {
         const raw = global.localStorage.getItem('e360_branding');
         if (raw) {
           const parsed = JSON.parse(raw);
           const age = Date.now() - new Date(parsed.cachedAt).getTime();
-          if (age < 24 * 60 * 60 * 1000) return { ...parsed.data };
+          if (age < 24 * 60 * 60 * 1000) return { ...DEFAULT_BRANDING, ...parsed.data };
         }
       } catch (_) {}
-      return {
-        logoUrl: '',
-        logoDarkUrl: '',
-        faviconUrl: '',
-        colorPrimary: '#0B3C78',
-        colorSecondary: '#7A1C32',
-        colorAccent: '#EA580C',
-        colorSos: '#DC2626'
-      };
+      return { ...DEFAULT_BRANDING };
     },
 
     async loadBranding() {
+      initSupabase();
       if (!state.connected || !state.supabase) {
         return this.getBranding();
       }
@@ -1149,10 +1397,10 @@
           logoUrl: data.logo_url || '',
           logoDarkUrl: data.logo_dark_url || '',
           faviconUrl: data.favicon_url || '',
-          colorPrimary: data.color_primary || '#0B3C78',
-          colorSecondary: data.color_secondary || '#7A1C32',
-          colorAccent: data.color_accent || '#EA580C',
-          colorSos: data.color_sos || '#DC2626'
+          colorPrimary: data.color_primary || DEFAULT_BRANDING.colorPrimary,
+          colorSecondary: data.color_secondary || DEFAULT_BRANDING.colorSecondary,
+          colorAccent: data.color_accent || DEFAULT_BRANDING.colorAccent,
+          colorSos: data.color_sos || DEFAULT_BRANDING.colorSos
         };
         try {
           global.localStorage.setItem('e360_branding', JSON.stringify({ cachedAt: new Date().toISOString(), data: branding }));
@@ -1164,6 +1412,18 @@
       }
     },
 
+    async applyBrandingToPage() {
+      const cached = this.getBranding();
+      applyBrandingDOM(cached);
+      try {
+        const fresh = await this.loadBranding();
+        applyBrandingDOM(fresh);
+        return fresh;
+      } catch (_) {
+        return cached;
+      }
+    },
+
     async setBranding(data) {
       requireAdmin();
       if (!state.supabase) throw new Error('Supabase no configurado.');
@@ -1171,19 +1431,20 @@
         logo_url: data.logoUrl || '',
         logo_dark_url: data.logoDarkUrl || '',
         favicon_url: data.faviconUrl || '',
-        color_primary: data.colorPrimary || '#0B3C78',
-        color_secondary: data.colorSecondary || '#7A1C32',
-        color_accent: data.colorAccent || '#EA580C',
-        color_sos: data.colorSos || '#DC2626',
+        color_primary: data.colorPrimary || DEFAULT_BRANDING.colorPrimary,
+        color_secondary: data.colorSecondary || DEFAULT_BRANDING.colorSecondary,
+        color_accent: data.colorAccent || DEFAULT_BRANDING.colorAccent,
+        color_sos: data.colorSos || DEFAULT_BRANDING.colorSos,
         updated_at: nowISO(),
         updated_by: state.profile.dni
       };
-      const { data: updated, error } = await state.supabase.from('branding').update(record).eq('id', 1).select().single();
+      const { error } = await state.supabase.from('branding').update(record).eq('id', 1).select().single();
       if (error) throw new Error(error.message);
-      try {
-        global.localStorage.removeItem('e360_branding');
-      } catch (_) {}
-      return this.loadBranding();
+      try { global.localStorage.removeItem('e360_branding'); } catch (_) {}
+      const updated = await this.loadBranding();
+      applyBrandingDOM(updated);
+      if (channel) channel.postMessage({ type: 'BRANDING_CHANGED', ts: Date.now() });
+      return updated;
     },
 
     async uploadBrandingFile(file, tipo) {
@@ -1192,13 +1453,108 @@
       if (!file) throw new Error('No se seleccionó archivo.');
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
       const fileName = `${tipo}_${Date.now()}.${ext}`;
-      const { data, error } = await state.supabase.storage
+      const { error } = await state.supabase.storage
         .from('branding')
         .upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (error) throw new Error(error.message);
       const { data: urlData } = state.supabase.storage.from('branding').getPublicUrl(fileName);
       return urlData.publicUrl;
     },
+
+    async notifySOSEmitted(incident) {
+      const inc = incident || {};
+      const baseId = inc.baseId || state.context.activeBaseId || 'DOLORES';
+      const baseCfg = (C.BASES && C.BASES[baseId]) || C.BASES.DOLORES || {};
+      const basePhone = baseCfg.phone || (baseId === 'LA_COSTA' ? '2246-529000' : '2245-444600');
+      const baseLabel = baseCfg.name || (baseId === 'LA_COSTA' ? 'EMP La Costa' : 'EMP Dolores');
+      const title = '🚨 Alerta SOS emitida a Central EMP';
+      const body = 'Incidente ' + (inc.id || '') + ' recibido por servidor. Aguardando confirmación de un operador. Si es una urgencia crítica, llamá directo a ' + baseLabel + ' al ' + basePhone + '.';
+
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try { navigator.vibrate([300, 150, 300, 150, 400]); } catch (_) {}
+      }
+
+      // Notificación nativa vía puente Capacitor (si existe)
+      const capBridge = global.E360Capacitor || global.CapacitorBridge;
+      if (capBridge && typeof capBridge.showLocalNotification === 'function') {
+        try {
+          await capBridge.showLocalNotification({
+            title,
+            body,
+            id: Math.floor(Date.now() % 2147483000),
+            extra: { incidentId: inc.id || null, baseId }
+          });
+        } catch (_) {}
+      } else if (global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.LocalNotifications) {
+        try {
+          await global.Capacitor.Plugins.LocalNotifications.schedule({
+            notifications: [{
+              title,
+              body,
+              id: Math.floor(Date.now() % 2147483000),
+              schedule: { at: new Date(Date.now() + 300) }
+            }]
+          });
+        } catch (_) {}
+      }
+
+      // Toast Web / APK en pantalla
+      showWebSOSToast(title, body, basePhone, baseLabel);
+      return true;
+    },
+
+    async withButtonLoading(btn, asyncFn, loadingLabel) {
+      if (!btn || typeof btn.disabled === 'undefined') {
+        return await asyncFn();
+      }
+      const wasDisabled = btn.disabled;
+      const prevNodes = Array.from(btn.childNodes).map(n => n.cloneNode(true));
+      btn.disabled = true;
+      btn.classList.add('is-loading');
+      btn.setAttribute('aria-busy', 'true');
+      btn.textContent = '';
+
+      const spinner = document.createElement('span');
+      spinner.className = 'e360-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      btn.appendChild(spinner);
+
+      const txt = document.createElement('span');
+      txt.textContent = loadingLabel || 'Procesando…';
+      btn.appendChild(txt);
+
+      try {
+        return await asyncFn();
+      } finally {
+        btn.textContent = '';
+        prevNodes.forEach(n => btn.appendChild(n));
+        btn.disabled = wasDisabled;
+        btn.classList.remove('is-loading');
+        btn.removeAttribute('aria-busy');
+      }
+    },
+
+    humanizeError(err) {
+      const msg = String((err && err.message) || err || 'Error desconocido');
+      if (/Failed to fetch|NetworkError|network|offline/i.test(msg)) {
+        return 'Sin conexión a internet. Verificá tu red o llamá por teléfono a EMP (2245-444600 Dolores / 2246-529000 La Costa).';
+      }
+      if (/Invalid login credentials|incorrectos/i.test(msg)) {
+        return 'Credenciales incorrectas. Verificá tu DNI/Email y contraseña.';
+      }
+      if (/row-level security|permission denied/i.test(msg)) {
+        return 'Tu cuenta no tiene permisos para realizar esta acción.';
+      }
+      if (/duplicate key|already exists/i.test(msg)) {
+        return 'Ya existe un registro con ese DNI o identificador.';
+      }
+      return msg;
+    },
+
+    _getState() { return state; },
+    _reload: loadAllData,
+    calcCarnetStatus, daysToExpire,
+    INCIDENT_STATES, UNIT_STATUS, PRIORITIES, BENEFIT_STATUSES, B2B_STATUSES
   };
 
   global.E360Store = E360Store;
