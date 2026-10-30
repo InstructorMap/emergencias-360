@@ -2575,3 +2575,125 @@ body.modo-mayor *:focus { outline: 3px solid var(--emp-orange); outline-offset: 
 .btn-apk-header:hover {
   background: var(--emp-bordo, #7A1C32);
 }
+/* ============================================================
+   v9.0 — C1: Spinner, toast SOS, chip blanco, colores dinámicos
+   ============================================================ */
+
+/* ===== SPINNER CIRCULAR PARA BOTONES ===== */
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  opacity: 0.8;
+}
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 18px; height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btnSpin 0.7s linear infinite;
+}
+.btn-loading.btn-secondary::after,
+.btn-loading.btn-muted::after {
+  border-color: rgba(11,60,120,0.3);
+  border-top-color: var(--emp-blue, #0B3C78);
+}
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== TOAST GRANDE DE SOS ===== */
+#sosToast {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  z-index: 99999;
+  background: linear-gradient(135deg, var(--emp-sos, #DC2626), var(--emp-bordo, #7A1C32));
+  color: #fff;
+  padding: 28px 32px;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+}
+#sosToast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+#sosToast .sos-toast-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  animation: sosToastPulse 1.2s infinite;
+}
+@keyframes sosToastPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+#sosToast .sos-toast-title {
+  font-family: var(--font-display, 'Montserrat', sans-serif);
+  font-size: 1.4rem;
+  font-weight: 900;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+#sosToast .sos-toast-body {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+#sosToast .sos-toast-btn {
+  background: #fff;
+  color: var(--emp-sos, #DC2626);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 24px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* ===== CHIP BLANCO PARA LOGO EN HEADERS OSCUROS ===== */
+.central-header .emp-brand img,
+.guardia-header .emp-brand img {
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+/* Header claro: logo sin chip (fondo blanco natural) */
+.app-header .emp-brand img,
+.admin-header .emp-brand img,
+.b2b-header .emp-brand img,
+.site-header .emp-brand img {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* Credencial: logo con fondo blanco siempre */
+.ct-logo img {
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Login overlay: logo con fondo blanco */
+.login-logo img {
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
