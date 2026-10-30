@@ -3,7 +3,8 @@
    - Detecta si corre en Capacitor (APK nativa)
    - Si es así, expone funciones para programar notificaciones
      locales de medicación con @capacitor/local-notifications
-   - Si no, no hace nada (la app web sigue funcionando igual)
+   - Maneja el permiso SCHEDULE_EXACT_ALARM de Android 14+
+   - Si no es nativo, no hace nada (la web sigue igual)
    ============================================================ */
 
 (function (global) {
@@ -25,6 +26,8 @@
     return;
   }
 
+  const App = global.Capacitor.Plugins && global.Capacitor.Plugins.App;
+
   let channelReady = false;
 
   async function ensureChannel() {
@@ -44,29 +47,61 @@
     }
   }
 
+  // Intenta abrir la pantalla de ajustes de alarmas exactas (Android 12+)
+  async function openExactAlarmSettings() {
+    if (!global.Capacitor.getPlatform || global.Capacitor.getPlatform() !== 'android') return false;
+
+    // 1er intento: el plugin oficial
+    try {
+      const recheck = await LN.changeExactNotificationSetting();
+      if (recheck && recheck.exact_alarm === 'granted') return true;
+    } catch (e) {
+      console.warn('[capacitor-bridge] changeExactNotificationSetting falló:', e);
+    }
+
+    // 2do intento: abrir la configuración de la app (si el plugin App está disponible)
+    if (App && typeof App.openSettings === 'function') {
+      try {
+        await App.openSettings();
+        return false;
+      } catch (e) {
+        console.warn('[capacitor-bridge] App.openSettings falló:', e);
+      }
+    }
+
+    return false;
+  }
+
   async function requestPermissions() {
     try {
+      // 1. Pedir permiso de notificaciones (esto sí es estándar)
       const perm = await LN.requestPermissions();
       if (perm.display !== 'granted') {
         return { granted: false, reason: 'Permiso de notificaciones denegado.' };
       }
 
-      // Android 12+: verificar permiso de alarmas exactas
+      // 2. Verificar/ajustar permiso de alarmas exactas (Android 14+)
       if (global.Capacitor.getPlatform && global.Capacitor.getPlatform() === 'android') {
         try {
           const exact = await LN.checkExactNotificationSetting();
-          if (exact.exact_alarm !== 'granted') {
-            const changed = await LN.changeExactNotificationSetting();
-            if (changed.exact_alarm !== 'granted') {
-              return {
-                granted: true,
-                exactAlarm: false,
-                reason: 'Notificaciones permitidas, pero las alarmas exactas están desactivadas. Los recordatorios pueden atrasarse unos minutos.'
-              };
+          if (!exact || exact.exact_alarm !== 'granted') {
+            // Intentar abrir la pantalla de ajustes
+            const granted = await openExactAlarmSettings();
+            if (granted) {
+              return { granted: true, exactAlarm: true };
             }
+            // Si no lo activó, devolvemos que las notificaciones funcionan
+            // pero con advertencia de atraso
+            return {
+              granted: true,
+              exactAlarm: false,
+              reason: 'Notificaciones permitidas, pero las alarmas exactas están desactivadas. Los recordatorios pueden atrasarse unos minutos. Activá "Alarmas y recordatorios" en Ajustes de Android.'
+            };
           }
         } catch (e) {
           console.warn('[capacitor-bridge] No se pudo verificar exact_alarm:', e);
+          // Si falla la verificación, igual dejamos que programe
+          return { granted: true, exactAlarm: false, reason: 'No se pudo verificar el permiso de alarmas exactas.' };
         }
       }
 
