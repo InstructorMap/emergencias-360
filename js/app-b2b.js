@@ -1,8 +1,9 @@
 /* ============================================================
-   app-b2b.js v8 — Módulo B2B EMP
-   - Login staff (admin/operador) por email
-   - Alta/edición de establecimientos
-   - Toggle status
+   app-b2b.js v8.2 — Módulo B2B EMP (C1 Aplicado)
+   - Login staff (admin/operador) por email con spinner
+   - applyBrandingToPage() en el boot y pantalla de login
+   - Alta/edición de establecimientos con withButtonLoading
+   - Toggle status con spinner
    - QR de emergencia por establecimiento
    ============================================================ */
 
@@ -45,6 +46,17 @@
     setTimeout(() => t.classList.remove('show'), 2600);
   }
 
+  async function runLoading(btn, fn, label) {
+    if (typeof Store.withButtonLoading === 'function') {
+      return await Store.withButtonLoading(btn, fn, label);
+    }
+    return await fn();
+  }
+
+  function fmtErr(err) {
+    return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
   const ui = { baseFilter: 'ALL', editingId: null };
 
   function showLogin() {
@@ -65,33 +77,40 @@
       const btn = $('#b2bLoginBtn');
       const email = $('#b2bLoginEmail').value.trim();
       const password = $('#b2bLoginPassword').value;
-      if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-      try {
-        const profile = await Store.loginWithEmail(email, password);
-        if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
-          await Store.logout();
-          throw new Error('Tu cuenta no tiene permisos.');
-        }
-        hideLogin();
-        await bootB2B();
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = '#DC2626'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      if (!email || !password) {
+        if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; }
+        return;
       }
+      await runLoading(btn, async () => {
+        try {
+          const profile = await Store.loginWithEmail(email, password);
+          if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+            await Store.logout();
+            throw new Error('Tu cuenta no tiene permisos.');
+          }
+          hideLogin();
+          await bootB2B();
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
+        }
+      }, 'Ingresando…');
     });
+
     const logout = $('#b2bLogout');
     if (logout) logout.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión?')) return;
-      await Store.logout();
-      location.reload();
+      await runLoading(logout, async () => {
+        await Store.logout();
+        location.reload();
+      }, 'Saliendo…');
     });
   }
 
   async function applyBranding() {
     try {
-      const b = await Store.loadBranding();
+      const b = typeof Store.applyBrandingToPage === 'function'
+        ? await Store.applyBrandingToPage()
+        : await Store.loadBranding();
       if (b && b.logoUrl) {
         const brand = $('#b2bHeaderBrand');
         if (brand) {
@@ -100,6 +119,7 @@
             const img = document.createElement('img');
             img.src = b.logoUrl;
             img.alt = 'EMP';
+            img.className = 'emp-logo-chip';
             img.style.height = '38px';
             svg.replaceWith(img);
           }
@@ -137,6 +157,7 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = $('#b2bMsg');
+      const btn = $('#b2bSubmit');
       if (msg) msg.textContent = '';
       const data = {
         id: ui.editingId || undefined,
@@ -153,14 +174,17 @@
         if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Nombre y dirección obligatorios.'; }
         return;
       }
-      try {
-        await Store.saveB2BEstablishment(data, 'admin');
-        if (msg) { msg.style.color = '#16A34A'; msg.textContent = ui.editingId ? 'Actualizado.' : 'Creado.'; }
-        resetForm();
-        renderList();
-      } catch (err) {
-        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + err.message; }
-      }
+      await runLoading(btn, async () => {
+        try {
+          await Store.saveB2BEstablishment(data, 'admin');
+          if (msg) { msg.style.color = '#16A34A'; msg.textContent = ui.editingId ? 'Actualizado.' : 'Creado.'; }
+          toast(ui.editingId ? 'Establecimiento actualizado' : 'Establecimiento creado');
+          resetForm();
+          renderList();
+        } catch (err) {
+          if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + fmtErr(err); }
+        }
+      }, 'Guardando…');
     });
     const cancel = $('#b2bCancelEdit');
     if (cancel) cancel.addEventListener('click', () => resetForm());
@@ -206,6 +230,22 @@
     if (!items.length) { if (empty) empty.hidden = false; return; }
     if (empty) empty.hidden = true;
     items.forEach(est => {
+      const toggleBtn = el('button', {
+        type: 'button',
+        className: est.status === 'activo' ? 'btn-danger' : '',
+        textContent: est.status === 'activo' ? 'Suspender' : 'Activar',
+        onclick: async () => {
+          await runLoading(toggleBtn, async () => {
+            try {
+              const next = est.status === 'activo' ? 'suspendido' : 'activo';
+              await Store.toggleB2BStatus(est.id, next, 'admin');
+              toast('Estado: ' + next);
+              renderList();
+            } catch (err) { toast('Error: ' + fmtErr(err)); }
+          }, 'Actualizando…');
+        }
+      });
+
       const card = el('div', { className: 'b2b-est-card' }, [
         el('div', { className: 'est-top' }, [
           el('div', { className: 'est-name', textContent: est.name }),
@@ -215,21 +255,15 @@
           el('div', {}, [el('strong', { textContent: 'Rubro: ' }), el('span', { textContent: est.type })]),
           el('div', {}, [el('strong', { textContent: 'Base: ' }), el('span', { textContent: est.baseId })]),
           el('div', {}, [el('strong', { textContent: 'Dirección: ' }), el('span', { textContent: est.address })]),
-          el('div', {}, [el('strong', { textContent: 'Teléfono: ' }), el('span', { textContent: est.referencePhone || '—' })])
+          el('div', {}, [el('strong', { textContent: 'Teléfono: ' }), el('span', { textContent: est.referencePhone || '—' })]),
+          el('div', {}, [el('strong', { textContent: 'Unidad requerida: ' }), el('span', { textContent: est.tipoUnidadRequerida || 'COMUN' })])
         ]),
         el('div', { className: 'est-proto', textContent: 'Protocolo: ' + (est.protocol || 'Sin protocolo.') }),
         buildQRBox(est),
         el('div', { className: 'row-actions' }, [
           el('button', { type: 'button', textContent: '🔗 Probar QR', onclick: () => window.open('socio.html?b2b=' + encodeURIComponent(est.id), '_blank', 'noopener') }),
           el('button', { type: 'button', className: 'btn-muted', textContent: '✎ Editar', onclick: () => loadIntoForm(est) }),
-          el('button', { type: 'button', className: est.status === 'activo' ? 'btn-danger' : '', textContent: est.status === 'activo' ? 'Suspender' : 'Activar', onclick: async () => {
-            try {
-              const next = est.status === 'activo' ? 'suspendido' : 'activo';
-              await Store.toggleB2BStatus(est.id, next, 'admin');
-              toast('Estado: ' + next);
-              renderList();
-            } catch (err) { toast('Error: ' + err.message); }
-          }})
+          toggleBtn
         ])
       ]);
       list.appendChild(card);
@@ -244,11 +278,13 @@
     renderList();
     Store.subscribe(msg => {
       if (!msg || msg.type === 'AUTH_CHANGED') { if (msg && msg.type === 'AUTH_CHANGED') location.reload(); return; }
+      if (msg.type === 'BRANDING_CHANGED') applyBranding();
       if (msg.type === 'STATE_CHANGED') renderList();
     });
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    await applyBranding();
     initLogin();
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
