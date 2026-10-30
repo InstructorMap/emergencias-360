@@ -203,3 +203,23 @@
     getScheduledCount
   };
 })(typeof window !== 'undefined' ? window : globalThis);
+  async function showLocalNotification(title, body) {
+    try {
+      await ensureChannel();
+      await LN.schedule({
+        notifications: [{
+          id: Math.floor(Math.random() * 2147483647),
+          title: title || 'EMP',
+          body: body || '',
+          schedule: { at: new Date(Date.now() + 1000) }, // 1 segundo después
+          channelId: 'medicacion',
+          smallIcon: 'ic_stat_icon_config_sample',
+          autoCancel: true
+        }]
+      });
+      return true;
+    } catch (e) {
+      console.warn('[capacitor-bridge] Error showLocalNotification:', e);
+      return false;
+    }
+  }
