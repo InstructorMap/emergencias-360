@@ -1,6 +1,7 @@
 /* ============================================================
-   app-landing.js — Formulario "Hacete Socio" en la landing
-   - Submit a la Edge Function submit-socio-request
+   app-landing.js v8.2 — Formulario "Hacete Socio" + Branding C1
+   - Fetch ligero a /rest/v1/branding (favicon + colores dinámicos sin store.js)
+   - Submit a la Edge Function submit-socio-request con spinner circular
    - Maneja paymentMethod 'ahora' o 'contactar'
    - Preselecciona plan desde los botones "Elegir plan"
    ============================================================ */
@@ -15,9 +16,121 @@
   }
 
   const EDGE_URL = C.URL + '/functions/v1/submit-socio-request';
+  const BRANDING_REST_URL = C.URL + '/rest/v1/branding?id=eq.1&select=favicon_url,color_primary,color_secondary,color_accent,color_sos';
   const ANON_KEY = C.ANON_KEY;
+  const BRANDING_CACHE_KEY = 'e360_branding';
 
   const $ = (s) => document.querySelector(s);
+
+  // ============================================================
+  // C1: BRANDING DINÁMICO LIGERO (Favicon + Colores CSS)
+  // ============================================================
+  function applyLandingBrandingDOM(b) {
+    if (!b || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (b.colorPrimary) {
+      root.style.setProperty('--emp-blue', b.colorPrimary);
+      root.style.setProperty('--color-blue', b.colorPrimary);
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) metaTheme.setAttribute('content', b.colorPrimary);
+    }
+    if (b.colorSecondary) root.style.setProperty('--emp-bordo', b.colorSecondary);
+    if (b.colorAccent) {
+      root.style.setProperty('--emp-orange', b.colorAccent);
+      root.style.setProperty('--color-amber', b.colorAccent);
+    }
+    if (b.colorSos) {
+      root.style.setProperty('--emp-sos', b.colorSos);
+      root.style.setProperty('--color-primary', b.colorSos);
+    }
+    if (b.faviconUrl) {
+      let link = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        if (document.head) document.head.appendChild(link);
+      }
+      if (link.getAttribute('href') !== b.faviconUrl) {
+        link.setAttribute('href', b.faviconUrl);
+      }
+    }
+  }
+
+  async function initLandingBranding() {
+    try {
+      const raw = localStorage.getItem(BRANDING_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.data) applyLandingBrandingDOM(parsed.data);
+      }
+    } catch (_) {}
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+    try {
+      const res = await fetch(BRANDING_REST_URL, {
+        method: 'GET',
+        headers: {
+          'apikey': ANON_KEY,
+          'Authorization': 'Bearer ' + ANON_KEY,
+          'Accept': 'application/json'
+        }
+      });
+      if (!res.ok) return;
+      const rows = await res.json();
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row) return;
+      const data = {
+        faviconUrl: row.favicon_url || '',
+        colorPrimary: row.color_primary || '#0B3C78',
+        colorSecondary: row.color_secondary || '#7A1C32',
+        colorAccent: row.color_accent || '#EA580C',
+        colorSos: row.color_sos || '#DC2626'
+      };
+      applyLandingBrandingDOM(data);
+      try {
+        const prevRaw = localStorage.getItem(BRANDING_CACHE_KEY);
+        const prev = prevRaw ? (JSON.parse(prevRaw).data || {}) : {};
+        localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify({
+          cachedAt: new Date().toISOString(),
+          data: { ...prev, ...data }
+        }));
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  // Helper de botón con spinner circular (C1)
+  async function withBtnLoading(btn, fn, loadingText) {
+    if (!btn) return await fn();
+    const wasDisabled = btn.disabled;
+    const prevNodes = Array.from(btn.childNodes).map(n => n.cloneNode(true));
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = '';
+
+    const sp = document.createElement('span');
+    sp.className = 'e360-spinner';
+    sp.setAttribute('aria-hidden', 'true');
+    btn.appendChild(sp);
+
+    const tx = document.createElement('span');
+    tx.textContent = loadingText || 'Enviando…';
+    btn.appendChild(tx);
+
+    try {
+      return await fn();
+    } finally {
+      btn.textContent = '';
+      prevNodes.forEach(n => btn.appendChild(n));
+      btn.disabled = wasDisabled;
+      btn.classList.remove('is-loading');
+      btn.removeAttribute('aria-busy');
+    }
+  }
+
+  // Inicializar branding apenas arranca
+  initLandingBranding();
 
   // Preseleccionar plan al clickear "Elegir plan"
   document.querySelectorAll('.plan-cta[data-plan]').forEach(btn => {
@@ -105,42 +218,43 @@
     if (!data.telefono) { showMsg('El teléfono es obligatorio.', true); return; }
     if (!data.planInteres) { showMsg('Seleccioná un plan.', true); return; }
 
-    if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
     showMsg('', false);
 
-    try {
-      const res = await fetch(EDGE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + ANON_KEY,
-          'apikey': ANON_KEY
-        },
-        body: JSON.stringify(data)
-      });
+    await withBtnLoading(btn, async () => {
+      try {
+        const res = await fetch(EDGE_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + ANON_KEY,
+            'apikey': ANON_KEY
+          },
+          body: JSON.stringify(data)
+        });
 
-      const json = await res.json();
+        const json = await res.json();
 
-      if (!res.ok || json.error) {
-        throw new Error(json.error || 'No se pudo enviar la solicitud.');
+        if (!res.ok || json.error) {
+          throw new Error(json.error || 'No se pudo enviar la solicitud.');
+        }
+
+        if (json.paymentMethod === 'ahora') {
+          showMsg('Solicitud recibida. Te redirigimos al pago…', false);
+          setTimeout(() => {
+            showMsg('El pago online estará disponible próximamente. Un asesor de EMP te contactará.', false);
+          }, 2500);
+        } else {
+          showMsg('¡Solicitud recibida! Un asesor de EMP te contactará a la brevedad.', false);
+        }
+
+        form.reset();
+        if (fechaInput) fechaInput.value = new Date().toISOString().slice(0, 10);
+      } catch (err) {
+        const isOffline = /Failed to fetch|NetworkError/i.test(String(err && err.message));
+        showMsg(isOffline
+          ? 'Sin conexión a internet. Verificá tu red o escribinos al 2245-406323.'
+          : (err.message || 'Error al enviar. Intentá de nuevo.'), true);
       }
-
-      if (json.paymentMethod === 'ahora') {
-        showMsg('Solicitud recibida. Te redirigimos al pago…', false);
-        // TODO E2: redirigir a Mercado Pago con json.initPoint
-        setTimeout(() => {
-          showMsg('El pago online estará disponible próximamente. Un asesor te contactará.', false);
-        }, 2500);
-      } else {
-        showMsg('¡Solicitud recibida! Un asesor te contactará a la brevedad.', false);
-      }
-
-      form.reset();
-      if (fechaInput) fechaInput.value = new Date().toISOString().slice(0, 10);
-    } catch (err) {
-      showMsg(err.message || 'Error al enviar. Intentá de nuevo.', true);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Enviar solicitud'; }
-    }
+    }, 'Enviando solicitud…');
   });
 })();
