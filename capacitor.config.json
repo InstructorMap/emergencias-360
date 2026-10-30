@@ -9,6 +9,7 @@
     "webContentsDebuggingEnabled": false
   },
   "plugins": {
+    "App": {},
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
       "iconColor": "#0B3C78",
