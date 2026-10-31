@@ -1,7 +1,9 @@
 /* ============================================================
-   app-central.js v8.3 — Consola Operativa EMP (C1 + F2 Push FCM)
+   app-central.js v8.4 — Consola Operativa EMP (C1 + F2 + Mapa + Límite Velocidad)
    - Login staff (admin/operador) por email con spinner
    - F2: ui.operatorId + initPushRegistration() + profiles.on_duty + deep_link ?incident=
+   - Mapa Leaflet (OSM) con marcadores de incidentes activos y unidades asignadas
+   - Control de límite de velocidad global (leer/guardar en tabla config)
    - applyBrandingToPage() en el boot
    - Bandeja de incidentes en vivo (realtime)
    - Despacho con withButtonLoading y alertas de apoyo
@@ -68,8 +70,138 @@
     operatorId: null,
     operatorName: '',
     onDuty: true,
-    lastPendingCount: 0
+    lastPendingCount: 0,
+    map: null,
+    mapMarkers: {}
   };
+
+  // ============ MAPA LEAFLET ============
+  function initMap() {
+    const container = document.getElementById('mapContainer');
+    if (!container || typeof L === 'undefined') {
+      console.warn('[app-central] Leaflet no disponible o contenedor ausente.');
+      return;
+    }
+    const baseCfg = (C.BASES && C.BASES.DOLORES) || {};
+    const center = (baseCfg.coords && typeof baseCfg.coords.lat === 'number')
+      ? [baseCfg.coords.lat, baseCfg.coords.lng]
+      : [-36.3133, -56.9100];
+
+    ui.map = L.map(container, { zoomControl: true, attributionControl: true }).setView(center, 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(ui.map);
+
+    setTimeout(() => { try { ui.map.invalidateSize(); } catch (_) {} }, 300);
+  }
+
+  function clearMapMarkers() {
+    if (!ui.map) return;
+    Object.keys(ui.mapMarkers).forEach((key) => {
+      try { ui.map.removeLayer(ui.mapMarkers[key]); } catch (_) {}
+    });
+    ui.mapMarkers = {};
+  }
+
+  function incidentIcon(status) {
+    const colors = {
+      RECIBIDA_SERVIDOR: '#DC2626',
+      ACEPTADA_POR_CENTRAL: '#F59E0B',
+      CLASIFICADA: '#F59E0B',
+      MOVIL_ASIGNADO: '#3B82F6',
+      EN_CAMINO: '#3B82F6',
+      EN_ESCENA: '#10B981',
+      EN_TRASLADO: '#8B5CF6',
+      CERRADA: '#64748B',
+      CANCELADA: '#64748B'
+    };
+    const color = colors[status] || '#64748B';
+    return L.divIcon({
+      className: 'emp-map-incident',
+      html: '<div style="width:18px;height:18px;border-radius:50%;background:' + color + ';border:2px solid #fff;box-shadow:0 0 0 3px ' + color + '44;"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+  }
+
+  function unitIcon() {
+    return L.divIcon({
+      className: 'emp-map-unit',
+      html: '<div style="width:26px;height:26px;border-radius:6px;background:#0B3C78;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);">🚑</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+  }
+
+  function renderMapMarkers() {
+    if (!ui.map) return;
+    const incidents = Store.getIncidents(ui.baseFilter);
+    const active = incidents.filter(i => ['CERRADA', 'CANCELADA'].indexOf(i.status) === -1);
+    const seenKeys = new Set();
+    const bounds = [];
+
+    active.forEach(inc => {
+      // Marcador del incidente (ubicación del socio)
+      if (inc.location && typeof inc.location.lat === 'number') {
+        const key = 'inc_' + inc.id;
+        seenKeys.add(key);
+        const latlng = [inc.location.lat, inc.location.lng];
+        bounds.push(latlng);
+        const popupHtml = '<strong>' + inc.id + '</strong><br>' +
+          'Estado: ' + inc.status + '<br>' +
+          (inc.manualAddress ? ('Dir: ' + inc.manualAddress + '<br>') : '') +
+          (inc.profileDni ? ('DNI: ' + inc.profileDni + '<br>') : '');
+        if (ui.mapMarkers[key]) {
+          ui.mapMarkers[key].setLatLng(latlng);
+          ui.mapMarkers[key].setPopupContent(popupHtml);
+        } else {
+          ui.mapMarkers[key] = L.marker(latlng, { icon: incidentIcon(inc.status) })
+            .addTo(ui.map)
+            .bindPopup(popupHtml);
+        }
+      }
+
+      // Marcador de la unidad asignada (si tiene unitLocation)
+      if (inc.assignedUnitId && inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
+        const key = 'unit_' + inc.id;
+        seenKeys.add(key);
+        const latlng = [inc.unitLocation.lat, inc.unitLocation.lng];
+        bounds.push(latlng);
+        const speedTxt = (typeof inc.unitLocation.speed === 'number')
+          ? (inc.unitLocation.speed * 3.6).toFixed(0) + ' km/h'
+          : 'sin dato';
+        const popupHtml = '<strong>' + inc.assignedUnitId + '</strong><br>' +
+          'Incidente: ' + inc.id + '<br>' +
+          'Velocidad: ' + speedTxt + '<br>' +
+          'Actualizado: ' + (inc.unitLocation.ts ? fmtTime(inc.unitLocation.ts) : '—');
+        if (ui.mapMarkers[key]) {
+          ui.mapMarkers[key].setLatLng(latlng);
+          ui.mapMarkers[key].setPopupContent(popupHtml);
+        } else {
+          ui.mapMarkers[key] = L.marker(latlng, { icon: unitIcon() })
+            .addTo(ui.map)
+            .bindPopup(popupHtml);
+        }
+      }
+    });
+
+    // Eliminar marcadores obsoletos
+    Object.keys(ui.mapMarkers).forEach(key => {
+      if (!seenKeys.has(key)) {
+        try { ui.map.removeLayer(ui.mapMarkers[key]); } catch (_) {}
+        delete ui.mapMarkers[key];
+      }
+    });
+
+    // Ajustar vista si hay marcadores
+    if (bounds.length === 1) {
+      ui.map.setView(bounds[0], 14);
+    } else if (bounds.length > 1) {
+      ui.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+    }
+  }
 
   // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
   async function setOnDutyStatus(isOnDuty) {
@@ -220,6 +352,42 @@
     });
   }
 
+  // ============ LÍMITE DE VELOCIDAD ============
+  async function renderSpeedLimitControl() {
+    const input = $('#speedLimitInput');
+    const btn = $('#btnApplySpeedLimit');
+    const status = $('#speedLimitStatus');
+    if (!input || !btn) return;
+
+    try {
+      const current = await Store.getSpeedLimit();
+      input.value = current;
+      if (status) status.textContent = 'Límite actual: ' + current + ' km/h';
+    } catch (err) {
+      if (status) status.textContent = 'No se pudo leer el límite actual.';
+    }
+
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', async () => {
+      const val = parseInt(input.value, 10);
+      if (!val || val < 10 || val > 160) {
+        if (status) status.textContent = 'Valor inválido (10–160 km/h).';
+        return;
+      }
+      await runLoading(btn, async () => {
+        try {
+          await Store.setSpeedLimit(val);
+          if (status) status.textContent = 'Límite guardado: ' + val + ' km/h';
+          toast('Límite de velocidad actualizado a ' + val + ' km/h');
+        } catch (err) {
+          if (status) status.textContent = 'Error: ' + fmtErr(err);
+        }
+      }, 'Guardando…');
+    });
+  }
+
   // ============ BANDEJA ============
   function renderAlertCounter() {
     const counter = $('#alertCounter');
@@ -361,10 +529,23 @@
     }
     if (inc.manualAddress) geoBlock.appendChild(kv('Dirección manual', inc.manualAddress));
 
+    if (inc.assignedUnitId && inc.unitLocation) {
+      const ul = inc.unitLocation;
+      if (typeof ul.lat === 'number') {
+        geoBlock.appendChild(kv('Posición unidad', ul.lat.toFixed(6) + ', ' + ul.lng.toFixed(6)));
+      }
+      if (typeof ul.speed === 'number') {
+        geoBlock.appendChild(kv('Velocidad unidad', (ul.speed * 3.6).toFixed(0) + ' km/h'));
+      }
+      if (ul.ts) {
+        geoBlock.appendChild(kv('Última actualización GPS', fmtTime(ul.ts)));
+      }
+    }
+
     try {
       const eta = Store.getIncidentEta(inc.id);
       if (eta && eta.hasEta) {
-        geoBlock.appendChild(kv('ETA referencial', eta.etaMinutes + ' min (' + (eta.source === 'gps' ? 'GPS Móvil' : 'Estimación Base') + ')'));
+        geoBlock.appendChild(kv('ETA referencial', eta.etaMinutes + ' min (' + (eta.source === 'gps' ? 'GPS Móvil · velocidad real' : 'Estimación Base · 40 km/h') + ')'));
       }
     } catch (_) {}
 
@@ -550,7 +731,8 @@
         list.appendChild(el('li', { className: 'unit-card' }, [
           el('div', { className: 'unit-top' }, [
             el('span', { className: 'unit-name', textContent: u.unit }),
-            el('span', { className: 'unit-status-' + u.status, textContent: u.status.toUpperCase() })
+            el('span', { className: 'unit
+                           el('span', { className: 'unit-status-' + u.status, textContent: u.status.toUpperCase() })
           ]),
           el('div', { style: 'font-size:0.72rem;color:#94A3B8;', textContent: 'Tipo: ' + u.tipoUnidad })
         ]));
@@ -565,6 +747,7 @@
     renderIncidentList();
     renderDetail();
     renderFleet();
+    renderMapMarkers();
   }
 
   function initSubscription() {
@@ -582,6 +765,8 @@
     initBaseSelector();
     initIncidentFilters();
     checkDeepLinkIncident();
+    initMap();
+    await renderSpeedLimitControl();
     initSubscription();
     renderAll();
   }
@@ -600,5 +785,10 @@
       if (session.loggedIn) await Store.logout();
       showLogin();
     }
+  });
+
+  // Invalidar tamaño del mapa al redimensionar ventana
+  window.addEventListener('resize', () => {
+    if (ui.map) { try { ui.map.invalidateSize(); } catch (_) {} }
   });
 })();
