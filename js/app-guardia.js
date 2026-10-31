@@ -1,6 +1,7 @@
 /* ============================================================
-   app-guardia.js v8.2 — Guardia Móvil EMP (C1 Aplicado)
+   app-guardia.js v8.3 — Guardia Móvil EMP (C1 + F2 Push FCM)
    - Login staff (admin/operador) por email con spinner
+   - F2: ui.crewId + initPushRegistration() + sincronización de profiles.on_duty
    - applyBrandingToPage() en el boot
    - Incidente asignado en vivo (realtime) con alarma desde el 1er incidente
    - Ficha del paciente + medicación + alergias
@@ -68,7 +69,10 @@
   const ui = {
     baseId: 'DOLORES',
     unitId: null,
+    crewId: null,
     crewName: '',
+    onDuty: true,
+    pushRegistered: false,
     watchId: null,
     lastPositionAt: 0,
     audioCtx: null,
@@ -87,6 +91,52 @@
       if (p.unitId) ui.unitId = p.unitId;
       if (p.crewName) ui.crewName = p.crewName;
     } catch (_) {}
+  }
+
+  // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
+  async function setOnDutyStatus(isOnDuty) {
+    try {
+      const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
+      const sb = rawState && rawState.supabase;
+      const user = typeof Store.getUser === 'function' ? Store.getUser() : (rawState && rawState.user);
+      const profileId = ui.crewId || (rawState && rawState.profile && rawState.profile.id);
+      if (!sb || (!profileId && !user)) return false;
+
+      let query = sb.from('profiles').update({ on_duty: !!isOnDuty });
+      if (profileId) query = query.eq('id', profileId);
+      else query = query.eq('user_id', user.id);
+
+      const { error } = await query;
+      if (!error) {
+        ui.onDuty = !!isOnDuty;
+        return true;
+      }
+    } catch (e) {
+      console.warn('[app-guardia] Error actualizando on_duty:', e);
+    }
+    return false;
+  }
+
+  async function initPushRegistration() {
+    try {
+      await setOnDutyStatus(true);
+      const cap = window.E360Capacitor;
+      if (!cap || typeof cap.registerPushToken !== 'function') return;
+
+      const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
+      const sb = rawState && rawState.supabase;
+      const authUser = typeof Store.getUser === 'function' ? Store.getUser() : (rawState && rawState.user);
+      const targetUserId = (authUser && authUser.id) || ui.crewId;
+      if (!sb || !targetUserId) return;
+
+      const res = await cap.registerPushToken(sb, targetUserId);
+      if (res && res.ok) {
+        ui.pushRegistered = true;
+        renderUnitStatus();
+      }
+    } catch (err) {
+      console.warn('[app-guardia] initPushRegistration:', err);
+    }
   }
 
   function ensureAudio() {
@@ -146,8 +196,10 @@
             throw new Error('Tu cuenta no tiene permisos de guardia.');
           }
           ui.crewName = profile.nombre || profile.dni;
+          ui.crewId = profile.id;
           hideLogin();
           await bootGuardia();
+          await initPushRegistration();
         } catch (err) {
           if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
         }
@@ -155,9 +207,10 @@
     });
     const logout = $('#guardiaLogout');
     if (logout) logout.addEventListener('click', async () => {
-      if (!confirm('¿Cerrar sesión?')) return;
+      if (!confirm('¿Cerrar sesión y salir de guardia activa?')) return;
       stopWatch();
       await runLoading(logout, async () => {
+        await setOnDutyStatus(false);
         await Store.logout();
         location.reload();
       }, 'Saliendo…');
@@ -365,11 +418,27 @@
     if (!ui.unitId) { container.appendChild(el('span', { textContent: 'Seleccioná móvil.' })); return; }
     const unit = Store.getFleet(ui.baseId).find(u => u.id === ui.unitId);
     if (!unit) { container.appendChild(el('span', { textContent: 'Móvil no encontrado.' })); return; }
+
+    const dutyBtn = el('button', {
+      type: 'button',
+      className: ui.onDuty ? 'btn-gps-start' : 'btn-gps-stop',
+      style: 'padding:4px 10px;font-size:0.72rem;border-radius:999px;border:none;cursor:pointer;font-weight:700;',
+      textContent: ui.onDuty ? '🟢 En Guardia (Recibe Push)' : '🔴 Fuera de Guardia',
+      onclick: async () => {
+        await setOnDutyStatus(!ui.onDuty);
+        renderUnitStatus();
+        toast(ui.onDuty ? 'En guardia activa (Push SOS habilitado)' : 'Fuera de guardia');
+      }
+    });
+
     container.appendChild(el('div', { className: 'unit-status-row' }, [
       el('span', { className: 'unit-status-label', textContent: 'Unidad' }),
       el('span', { className: 'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad + ' · ' + unit.status.toUpperCase() })
     ]));
-    container.appendChild(el('div', { className: 'unit-status-hint', textContent: ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.' }));
+    container.appendChild(el('div', { className: 'unit-status-row', style: 'margin-top:6px;' }, [
+      el('span', { className: 'unit-status-hint', textContent: (ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.') + (ui.pushRegistered ? ' · 📱 Push FCM OK' : '') }),
+      dutyBtn
+    ]));
   }
 
   function kv(k, v) {
@@ -622,8 +691,10 @@
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
       ui.crewName = session.profile.nombre || session.profile.dni;
+      ui.crewId = session.profile.id;
       hideLogin();
       await bootGuardia();
+      await initPushRegistration();
     } else {
       if (session.loggedIn) await Store.logout();
       showLogin();
