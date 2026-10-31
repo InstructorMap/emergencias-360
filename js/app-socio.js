@@ -1,13 +1,10 @@
 /* ============================================================
-   app-socio.js v7.2 — Controlador de socio.html
-   - Login DNI + contraseña, cambio obligatorio primer login
-   - Credencial con logo dinámico + QR verificado + código rotativo
-   - Modo público ?carnet= y ?pulsera= (sin login)
-   - Medicación con lista del día + CRUD + notificaciones nativas (F1)
-   - Historial de incidentes del socio
-   - Recategorización de plan vía socio_request
-   - PDF de credencial con jsPDF
-   - Botón de descarga APK desde GitHub Release
+   app-socio.js v8.2 — Controlador de socio.html (C1 Aplicado)
+   - applyBrandingToPage() en el boot (incluyendo modo público)
+   - notifySOSEmitted(incident) al emitir SOS (Capacitor + Toast Web)
+   - withButtonLoading() con spinner en Login, Cambio Clave, Ficha, Medicación y Recategorización
+   - Aviso legal EMP corregido en PDF y verificación pública (Regla #2)
+   - Enlaces reales a Médico Virtual y Seguro Viajero desde Store.getExternalServices()
    ============================================================ */
 
 (function () {
@@ -48,6 +45,17 @@
     return node;
   }
 
+  async function runLoading(btn, fn, label) {
+    if (typeof Store.withButtonLoading === 'function') {
+      return await Store.withButtonLoading(btn, fn, label);
+    }
+    return await fn();
+  }
+
+  function fmtErr(err) {
+    return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
   let currentIncident = null;
   let currentLocation = null;
   let manualAddress = '';
@@ -82,10 +90,12 @@
   }
 
   // ============================================================
-  // BRANDING
+  // BRANDING GLOBAL (C1)
   // ============================================================
   async function loadBranding() {
-    branding = await Store.loadBranding();
+    branding = typeof Store.applyBrandingToPage === 'function'
+      ? await Store.applyBrandingToPage()
+      : await Store.loadBranding();
     if (branding && branding.logoUrl) {
       const headerBrand = $('#headerBrand');
       if (headerBrand) {
@@ -94,23 +104,22 @@
           const img = document.createElement('img');
           img.src = branding.logoUrl;
           img.alt = 'EMP';
+          img.className = 'emp-logo-chip';
           img.style.height = '38px';
           img.style.width = 'auto';
           svg.replaceWith(img);
+        } else {
+          const existingImg = headerBrand.querySelector('img');
+          if (existingImg) existingImg.src = branding.logoUrl;
         }
       }
       const ctLogo = $('#ctLogo');
       if (ctLogo) {
-        ctLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" style="max-width:140px;max-height:44px;" />';
+        ctLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" class="emp-logo-chip" style="max-width:140px;max-height:44px;" />';
       }
       const loginLogo = $('#loginLogo');
       if (loginLogo) {
-        loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" style="max-width:180px;max-height:56px;" />';
-      }
-      if (branding.faviconUrl) {
-        let link = document.querySelector('link[rel="icon"]');
-        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
-        link.href = branding.faviconUrl;
+        loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" class="emp-logo-chip" style="max-width:180px;max-height:56px;" />';
       }
     }
   }
@@ -140,7 +149,7 @@
         data = await Store.getPublicPulseraInfo(token);
         isPulsera = true;
       }
-    } catch (e) {
+    } catch (_) {
       data = null;
     }
 
@@ -154,6 +163,7 @@
             const img = document.createElement('img');
             img.src = branding.logoUrl;
             img.alt = 'EMP';
+            img.className = 'emp-logo-chip';
             img.style.height = '38px';
             return img;
           }
@@ -171,10 +181,12 @@
       publicMode.appendChild(el('div', { className: 'pub-card pub-invalid' }, [
         el('div', { className: 'pub-icon', textContent: '❌' }),
         el('h1', { textContent: isPulsera ? 'Pulsera no registrada' : 'Credencial no válida' }),
-        el('p', { textContent: isPulsera
-          ? 'El código escaneado no corresponde a una pulsera activa de EMP.'
-          : 'El código escaneado no corresponde a un socio registrado en EMP.' }),
-        el('p', { className: 'pub-hint', textContent: 'Verificá el código o consultá en administración.' })
+        el('p', {
+          textContent: isPulsera
+            ? 'El código escaneado no corresponde a una pulsera activa de EMP.'
+            : 'El código escaneado no corresponde a un socio registrado en EMP.'
+        }),
+        el('p', { className: 'pub-hint', textContent: 'Verificá el código o consultá en administración (2245-444602 Dolores / 2246-526777 La Costa).' })
       ]));
       return;
     }
@@ -202,10 +214,11 @@
           el('ul', {}, data.medications.map(m => el('li', { textContent: m.nombre + (m.dosis ? ' — ' + m.dosis : '') + (m.frecuencia ? ' · ' + m.frecuencia : '') })))
         ]) : null,
         el('div', { className: 'pub-actions' }, [
-          el('a', { href: 'tel:2245444600', className: 'btn-sos-call', textContent: '🚨 LLAMAR A EMP 2245-444600' }),
-          data.contacto ? el('a', { href: 'tel:' + String(data.contacto).replace(/[^\d+]/g, ''), className: 'btn-secondary', textContent: '📞 ' + data.contacto }) : null
+          el('a', { href: 'tel:2245444600', className: 'btn-sos-call', textContent: '🚨 LLAMAR A EMP DOLORES (2245-444600)' }),
+          el('a', { href: 'tel:2246529000', className: 'btn-sos-call', textContent: '🚨 LLAMAR A EMP LA COSTA (2246-529000)' }),
+          data.contacto ? el('a', { href: 'tel:' + String(data.contacto).replace(/[^\d+]/g, ''), className: 'btn-secondary', textContent: '📞 Contacto: ' + data.contacto }) : null
         ].filter(Boolean)),
-        el('p', { className: 'pub-hint', textContent: 'Si es una emergencia real, llamá también al 107 (SAME) o 911 (Policía).' })
+        el('p', { className: 'pub-hint', textContent: 'Esta app es una herramienta de gestión. Ante una urgencia real, llamá a EMP al 2245-444600 (Dolores) o 2246-529000 (La Costa). Si no tenés cobertura EMP, llamá al 107 (SAME) o 911 (Policía).' })
       ].filter(Boolean));
       publicMode.appendChild(card);
     } else {
@@ -223,7 +236,7 @@
         pubInfoRow('DNI', data.dniMasked),
         pubInfoRow('Vigencia', validUntilTxt),
         data.carnetStatus === 'activo' && data.daysToExpire !== null ? pubInfoRow('Días restantes', String(data.daysToExpire)) : null,
-        el('p', { className: 'pub-hint', textContent: 'Datos mínimos de verificación. No se exponen datos clínicos.' })
+        el('p', { className: 'pub-hint', textContent: 'Datos mínimos de verificación de Socio Activo EMP. No se exponen datos clínicos.' })
       ].filter(Boolean));
       publicMode.appendChild(card);
     }
@@ -264,22 +277,24 @@
       const btn = $('#loginBtn');
       const dni = $('#loginDni').value.trim();
       const password = $('#loginPassword').value;
-      if (!dni || !password) { if (msg) { msg.textContent = 'Completá DNI y contraseña.'; msg.style.color = 'var(--emp-sos)'; } return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-      try {
-        const profile = await Store.login(dni, password);
-        if (msg) { msg.textContent = ''; }
-        if (profile && profile.mustChangePassword) {
-          showChangePassword();
-        } else {
-          hideLogin();
-          renderAll();
-        }
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = 'var(--emp-sos)'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      if (!dni || !password) {
+        if (msg) { msg.textContent = 'Completá DNI y contraseña.'; msg.style.color = 'var(--emp-sos)'; }
+        return;
       }
+      await runLoading(btn, async () => {
+        try {
+          const profile = await Store.login(dni, password);
+          if (msg) { msg.textContent = ''; }
+          if (profile && profile.mustChangePassword) {
+            showChangePassword();
+          } else {
+            hideLogin();
+            renderAll();
+          }
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = 'var(--emp-sos)'; }
+        }
+      }, 'Ingresando…');
     });
   }
 
@@ -303,18 +318,17 @@
       const p2 = $('#newPasswordConfirm').value;
       if (p1.length < 6) { if (msg) { msg.textContent = 'Mínimo 6 caracteres.'; msg.style.color = 'var(--emp-sos)'; } return; }
       if (p1 !== p2) { if (msg) { msg.textContent = 'Las contraseñas no coinciden.'; msg.style.color = 'var(--emp-sos)'; } return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Cambiando…'; }
-      try {
-        await Store.changePassword(p1);
-        hideChangePassword();
-        hideLogin();
-        renderAll();
-        toast('Contraseña cambiada');
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || 'Error al cambiar contraseña.'; msg.style.color = 'var(--emp-sos)'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Cambiar contraseña'; }
-      }
+      await runLoading(btn, async () => {
+        try {
+          await Store.changePassword(p1);
+          hideChangePassword();
+          hideLogin();
+          renderAll();
+          toast('Contraseña actualizada correctamente');
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = 'var(--emp-sos)'; }
+        }
+      }, 'Cambiando…');
     });
   }
 
@@ -323,8 +337,10 @@
     if (!btn) return;
     btn.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión?')) return;
-      await Store.logout();
-      location.reload();
+      await runLoading(btn, async () => {
+        await Store.logout();
+        location.reload();
+      }, 'Saliendo…');
     });
   }
 
@@ -424,7 +440,7 @@
       return;
     }
     const st = Store.calcCarnetStatus(profile);
-    if (st === 'activo') { pill.textContent = '✓ Socio Habilitado'; pill.className = 'pill-socio-habilitado pill-socio-ok'; }
+    if (st === 'activo') { pill.textContent = '✓ Socio Activo'; pill.className = 'pill-socio-habilitado pill-socio-ok'; }
     else if (st === 'suspendido') { pill.textContent = '⛔ Suspendido'; pill.className = 'pill-socio-habilitado pill-socio-bad'; }
     else { pill.textContent = '⏰ Vencido'; pill.className = 'pill-socio-habilitado pill-socio-warn'; }
 
@@ -481,23 +497,30 @@
     btn.addEventListener('click', () => {
       if (!navigator.geolocation) { if (status) status.textContent = 'GPS: no disponible.'; if (fallback) fallback.hidden = false; return; }
       if (status) status.textContent = 'GPS: obteniendo ubicación…';
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-          if (status) status.textContent = 'GPS: ' + currentLocation.lat.toFixed(5) + ', ' + currentLocation.lng.toFixed(5) + ' (±' + Math.round(currentLocation.accuracy) + 'm)';
-          if (fallback) fallback.hidden = true;
-        },
-        () => { if (status) status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.'; if (fallback) fallback.hidden = false; },
-        { enableHighAccuracy: true, timeout: C.GPS_TIMEOUT_MS, maximumAge: C.GPS_MAX_AGE_MS }
-      );
+      runLoading(btn, () => new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+            if (status) status.textContent = 'GPS: ' + currentLocation.lat.toFixed(5) + ', ' + currentLocation.lng.toFixed(5) + ' (±' + Math.round(currentLocation.accuracy) + 'm)';
+            if (fallback) fallback.hidden = true;
+            resolve();
+          },
+          () => {
+            if (status) status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.';
+            if (fallback) fallback.hidden = false;
+            resolve();
+          },
+          { enableHighAccuracy: true, timeout: C.GPS_TIMEOUT_MS, maximumAge: C.GPS_MAX_AGE_MS }
+        );
+      }), 'Obteniendo GPS…');
     });
     if (manualInput) manualInput.addEventListener('input', () => { manualAddress = manualInput.value.trim(); });
   }
 
   // ============================================================
-  // SOS
+  // SOS (Con Notificación Nativa + Toast C1 y Loading State)
   // ============================================================
-  const HOLD_MS = C.SOS_HOLD_MS;
+  const HOLD_MS = C.SOS_HOLD_MS || 1500;
   let holdTimer = null, holdStart = 0, holdRAF = null, sosFired = false;
 
   function setProgress(pct, btnId) {
@@ -510,7 +533,7 @@
     if (sosFired) return;
     if (e.type === 'touchstart') e.preventDefault();
     const btn = document.getElementById(btnId || 'btnSOS');
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     btn.classList.add('pressing');
     holdStart = Date.now();
     function tick() {
@@ -519,7 +542,7 @@
       if (elapsed < HOLD_MS) holdRAF = requestAnimationFrame(tick);
     }
     holdRAF = requestAnimationFrame(tick);
-    holdTimer = setTimeout(() => { sosFired = true; cancelHold(true, btnId); fireSOS(); }, HOLD_MS);
+    holdTimer = setTimeout(() => { sosFired = true; cancelHold(true, btnId); fireSOS(btnId); }, HOLD_MS);
   }
 
   function cancelHold(force, btnId) {
@@ -541,22 +564,35 @@
     btn.addEventListener('touchcancel', () => cancelHold(false, btnId));
   }
 
-  async function fireSOS() {
+  async function fireSOS(triggerBtnId) {
     const activeProfile = Store.getActiveProfile();
+    const triggerBtn = document.getElementById(triggerBtnId || 'btnSOS');
     try {
-      const incident = await Store.createSOSIncident({
-        location: currentLocation, manualAddress: manualAddress,
-        profileDni: activeProfile ? activeProfile.dni : null,
-        b2bEstablishmentId: b2bContext ? b2bContext.id : null,
-        notes: b2bContext ? ('Ingreso B2B: ' + b2bContext.name) : ''
-      });
+      const incident = await runLoading(triggerBtn, async () => {
+        return await Store.createSOSIncident({
+          location: currentLocation,
+          manualAddress: manualAddress,
+          profileDni: activeProfile ? activeProfile.dni : null,
+          b2bEstablishmentId: b2bContext ? b2bContext.id : null,
+          detail: b2bContext ? ('Ingreso B2B: ' + b2bContext.name) : 'Alerta SOS emitida por socio.'
+        });
+      }, 'Emitiendo SOS…');
+
       currentIncident = incident;
       renderIncident(incident);
+      renderMisIncidentes();
       setProgress(100, 'btnSOS');
       setProgress(100, 'btnSOSInicio');
-      setTimeout(() => { setProgress(0, 'btnSOS'); setProgress(0, 'btnSOSInicio'); sosFired = false; }, 400);
+
+      if (typeof Store.notifySOSEmitted === 'function') {
+        await Store.notifySOSEmitted(incident);
+      } else {
+        toast('🚨 Alerta SOS enviada a Central EMP');
+      }
+
+      setTimeout(() => { setProgress(0, 'btnSOS'); setProgress(0, 'btnSOSInicio'); sosFired = false; }, 500);
     } catch (err) {
-      toast('Error al emitir SOS: ' + err.message);
+      toast('Error al emitir SOS: ' + fmtErr(err));
       sosFired = false;
     }
   }
@@ -605,12 +641,22 @@
     if (etaBlock && etaMain) {
       try {
         const eta = Store.getIncidentEta(incident.id);
-        if (eta.hasEta) {
+        if (eta && eta.hasEta && (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA')) {
           etaBlock.hidden = false;
-          etaMain.textContent = 'Llegada estimada: ' + eta.etaMinutes + ' min';
-          etaMain.className = 'eta-main ' + (eta.etaMinutes <= 5 ? 'eta-eta-near' : 'eta-eta-normal');
-          if (etaSource) etaSource.textContent = 'Fuente: ' + eta.source;
-        } else etaBlock.hidden = true;
+          if (incident.status === 'EN_ESCENA') {
+            etaMain.textContent = 'Unidad en el lugar del incidente';
+            etaMain.className = 'eta-main eta-eta-near';
+          } else if (eta.etaMinutes <= 1) {
+            etaMain.textContent = 'Unidad próxima al punto — aguardando arribo';
+            etaMain.className = 'eta-main eta-eta-near';
+          } else {
+            etaMain.textContent = 'Llegada estimada: ' + eta.etaMinutes + ' min';
+            etaMain.className = 'eta-main ' + (eta.etaMinutes <= 5 ? 'eta-eta-near' : 'eta-eta-normal');
+          }
+          if (etaSource) etaSource.textContent = 'Fuente: ' + (eta.source === 'gps' ? 'GPS de Unidad en Vivo' : 'Estimación desde Base');
+        } else {
+          etaBlock.hidden = true;
+        }
       } catch (_) { etaBlock.hidden = true; }
     }
     const estadoInicio = $('#incidentEstadoInicio');
@@ -629,12 +675,18 @@
     Store.subscribe((msg) => {
       if (!msg) return;
       if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
+      if (msg.type === 'BRANDING_CHANGED') { loadBranding(); return; }
       if (msg.type !== 'STATE_CHANGED') return;
       if (Store.getActiveProfile()) {
         renderPillSocio();
         renderInicio();
-        if (!$('#tab-credencial').hidden) renderCredencial();
-        if (!$('#tab-ficha').hidden) { renderMedicacion(); renderMisIncidentes(); renderPagos(); }
+        const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
+        if (latest) {
+          currentIncident = latest;
+          renderIncident(latest);
+        }
+        if ($('#tab-credencial') && !$('#tab-credencial').hidden) renderCredencial();
+        if ($('#tab-ficha') && !$('#tab-ficha').hidden) { renderMedicacion(); renderMisIncidentes(); renderPagos(); }
       }
     });
   }
@@ -647,7 +699,7 @@
     const ctx = Store.getActiveContext();
     const estadoInicio = $('#incidentEstadoInicio');
     if (estadoInicio) {
-      const latest = Store.getLatestIncident();
+      const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
       if (latest && latest.status !== 'CERRADA' && latest.status !== 'CANCELADA') {
         const info = STATE_LABELS[latest.status] || { text: latest.status };
         estadoInicio.textContent = info.text;
@@ -662,7 +714,7 @@
     if (farm && profile) {
       const plan = C.PLANS[profile.plan] || {};
       const label = farm.querySelector('.si-label');
-      if (label) label.textContent = 'Farmacias Adheridas (' + (plan.pharmacyDiscountLabel || plan.pharmacyDiscount + '%') + ')';
+      if (label) label.textContent = 'Farmacias Adheridas (' + (plan.pharmacyDiscountLabel || plan.pharmacyDiscount || '20%') + ')';
     }
   }
 
@@ -690,33 +742,37 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (msg) msg.textContent = '';
+      const submitBtn = form.querySelector('button[type="submit"]');
       const nombre = $('#fNombre').value.trim();
       const telefono = $('#fTelefono').value.trim();
       const consent = $('#fConsent').checked;
       if (!nombre || !telefono) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Completá nombre y teléfono.'; } return; }
       if (!consent) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Debés aceptar el Consentimiento Informado.'; } return; }
-      try {
-        await Store.saveProfile({
-          nombre, telefono,
-          cuil: $('#fCuil').value.trim(),
-          grupoSanguineo: $('#fGrupo').value,
-          alergias: $('#fAlergias').value.trim(),
-          patologias: $('#fPatologias').value.trim(),
-          contacto: $('#fContacto').value.trim()
-        });
-        if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Ficha guardada.'; }
-        renderPillSocio();
-        renderInicio();
-        renderCredencial();
-        renderPagos();
-      } catch (err) {
-        if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Error: ' + err.message; }
-      }
+      await runLoading(submitBtn, async () => {
+        try {
+          await Store.saveProfile({
+            nombre, telefono,
+            cuil: $('#fCuil') ? $('#fCuil').value.trim() : '',
+            grupoSanguineo: $('#fGrupo').value,
+            alergias: $('#fAlergias').value.trim(),
+            patologias: $('#fPatologias').value.trim(),
+            contacto: $('#fContacto').value.trim()
+          });
+          if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Ficha guardada.'; }
+          toast('Ficha médica actualizada');
+          renderPillSocio();
+          renderInicio();
+          renderCredencial();
+          renderPagos();
+        } catch (err) {
+          if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Error: ' + fmtErr(err); }
+        }
+      }, 'Guardando ficha…');
     });
   }
 
   // ============================================================
-  // MEDICACIÓN (con parches F1)
+  // MEDICACIÓN (con parches F1 + Loading States C1)
   // ============================================================
   function renderMedicacion() {
     const hoy = $('#medicacionHoy');
@@ -724,20 +780,14 @@
     const count = $('#medicacionCount');
     if (!hoy || !lista) return;
 
-    // Banner APK: mostrar solo si NO está en Capacitor
     const banner = $('#medicacionBanner');
     if (banner) {
-      if (window.E360Capacitor && window.E360Capacitor.isNative) {
-        banner.hidden = true;
-      } else {
-        banner.hidden = false;
-      }
+      banner.hidden = !!(window.E360Capacitor && window.E360Capacitor.isNative);
     }
 
     const meds = Store.getMedications();
     if (count) count.textContent = String(meds.length);
 
-    // Dosis de hoy
     const today = new Date().toISOString();
     const doses = Store.getDosesForDay(today);
     hoy.innerHTML = '';
@@ -749,42 +799,50 @@
         const med = meds.find(m => m.id === d.medicationId);
         const hora = new Date(d.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
         const taken = d.status === 'tomada';
+        const btnTake = el('button', {
+          type: 'button', className: 'btn-secondary', textContent: 'Marcar tomada',
+          onclick: async () => {
+            await runLoading(btnTake, async () => {
+              try { await Store.logDose(d.id, 'tomada', ''); renderMedicacion(); toast('Dosis registrada'); }
+              catch (e) { toast('Error: ' + fmtErr(e)); }
+            }, 'Guardando…');
+          }
+        });
         hoy.appendChild(el('div', { className: 'dosis-item ' + (taken ? 'dosis-tomada' : 'dosis-pendiente') }, [
           el('div', { className: 'dosis-info' }, [
             el('strong', { textContent: (med ? med.nombre : '—') + (med && med.dosis ? ' — ' + med.dosis : '') }),
             el('span', { className: 'dosis-hora', textContent: hora })
           ]),
-          taken ? el('span', { className: 'dosis-check', textContent: '✅ Tomada' }) :
-            el('button', { type: 'button', className: 'btn-secondary', textContent: 'Marcar tomada', onclick: async () => {
-              try { await Store.logDose(d.id, 'tomada', ''); renderMedicacion(); toast('Dosis registrada'); }
-              catch (e) { toast('Error: ' + e.message); }
-            }})
+          taken ? el('span', { className: 'dosis-check', textContent: '✅ Tomada' }) : btnTake
         ]));
       });
     }
 
-    // Lista de medicaciones
     lista.innerHTML = '';
     if (!meds.length) {
       lista.appendChild(el('p', { className: 'empty-hint', textContent: 'No hay medicaciones cargadas.' }));
     } else {
       meds.forEach(m => {
-        lista.appendChild(el('div', { className: 'medicacion-card' }, [
-          el('div', { className: 'med-top' }, [
-            el('strong', { textContent: m.nombre }),
-            el('button', { type: 'button', className: 'btn-muted', textContent: '✕', title: 'Eliminar', onclick: async () => {
-              if (!confirm('¿Eliminar ' + m.nombre + '?')) return;
+        const btnDel = el('button', {
+          type: 'button', className: 'btn-muted', textContent: '✕', title: 'Eliminar',
+          onclick: async () => {
+            if (!confirm('¿Eliminar ' + m.nombre + '?')) return;
+            await runLoading(btnDel, async () => {
               try {
                 await Store.deleteMedication(m.id);
-                // Cancelar notificaciones nativas si está en Capacitor (F1)
                 if (window.E360Capacitor && window.E360Capacitor.isNative) {
                   try { await window.E360Capacitor.cancelMedicationReminders(m.id); } catch (_) {}
                 }
                 renderMedicacion();
                 toast('Medicación eliminada');
-              }
-              catch (e) { toast('Error: ' + e.message); }
-            }})
+              } catch (e) { toast('Error: ' + fmtErr(e)); }
+            }, '…');
+          }
+        });
+        lista.appendChild(el('div', { className: 'medicacion-card' }, [
+          el('div', { className: 'med-top' }, [
+            el('strong', { textContent: m.nombre }),
+            btnDel
           ]),
           el('div', { className: 'med-meta' }, [
             m.dosis ? el('span', { textContent: 'Dosis: ' + m.dosis }) : null,
@@ -801,7 +859,6 @@
     const btn = $('#btnAddMedicacion');
     if (btn) btn.addEventListener('click', () => openMedicacionModal());
 
-    // Botón Descargar APK — apunta al Release público (sin login)
     const btnAPK = $('#btnDescargarAPK');
     if (btnAPK) {
       btnAPK.addEventListener('click', () => {
@@ -812,19 +869,13 @@
 
   function openMedicacionModal(existing) {
     const overlay = el('div', { className: 'modal-overlay' });
-    const modal = el('div', { className: 'modal-card' }, [
-      el('h2', { textContent: existing ? 'Editar medicación' : 'Agregar medicación' }),
-      el('label', {}, [el('span', { textContent: 'Nombre' }), el('input', { type: 'text', id: 'medNombre', value: existing ? existing.nombre : '', maxlength: '80', required: true })]),
-      el('label', {}, [el('span', { textContent: 'Dosis (ej. 1 comprimido)' }), el('input', { type: 'text', id: 'medDosis', value: existing ? existing.dosis : '', maxlength: '60' })]),
-      el('label', {}, [el('span', { textContent: 'Frecuencia (ej. cada 8 hs)' }), el('input', { type: 'text', id: 'medFrecuencia', value: existing ? existing.frecuencia : '', maxlength: '60' })]),
-      el('label', {}, [el('span', { textContent: 'Horarios (ej. 08:00, 20:00)' }), el('input', { type: 'text', id: 'medHorarios', value: existing ? (existing.horarios || []).join(', ') : '', maxlength: '80', placeholder: '08:00, 20:00' })]),
-      el('label', {}, [el('span', { textContent: 'Notas' }), el('textarea', { id: 'medNotas', rows: '2', maxlength: '200' }, [existing && existing.notas ? document.createTextNode(existing.notas) : null])]),
-      el('div', { className: 'modal-actions' }, [
-        el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
-        el('button', { type: 'button', className: 'btn-primary', textContent: 'Guardar', onclick: async () => {
-          const nombre = $('#medNombre').value.trim();
-          if (!nombre) { toast('Ingresá el nombre'); return; }
-          const horarios = $('#medHorarios').value.split(',').map(s => s.trim()).filter(Boolean);
+    const saveBtn = el('button', {
+      type: 'button', className: 'btn-primary', textContent: 'Guardar',
+      onclick: async () => {
+        const nombre = $('#medNombre').value.trim();
+        if (!nombre) { toast('Ingresá el nombre'); return; }
+        const horarios = $('#medHorarios').value.split(',').map(s => s.trim()).filter(Boolean);
+        await runLoading(saveBtn, async () => {
           try {
             const savedMed = await Store.saveMedication({
               id: existing ? existing.id : undefined,
@@ -833,12 +884,10 @@
               horarios, notas: $('#medNotas').value.trim()
             });
 
-            // Programar dosis de hoy
             if (savedMed && horarios.length) {
               try { await Store.scheduleDosesForMedication(savedMed.id, new Date().toISOString()); } catch (_) {}
             }
 
-            // Programar notificaciones nativas si está en Capacitor (F1)
             if (window.E360Capacitor && window.E360Capacitor.isNative) {
               try {
                 const perm = await window.E360Capacitor.requestPermissions();
@@ -857,11 +906,24 @@
               }
             }
 
-            document.body.removeChild(overlay);
+            if (overlay.parentNode) document.body.removeChild(overlay);
             renderMedicacion();
             toast('Medicación guardada');
-          } catch (e) { toast('Error: ' + e.message); }
-        }})
+          } catch (e) { toast('Error: ' + fmtErr(e)); }
+        }, 'Guardando…');
+      }
+    });
+
+    const modal = el('div', { className: 'modal-card' }, [
+      el('h2', { textContent: existing ? 'Editar medicación' : 'Agregar medicación' }),
+      el('label', {}, [el('span', { textContent: 'Nombre' }), el('input', { type: 'text', id: 'medNombre', value: existing ? existing.nombre : '', maxlength: '80', required: true })]),
+      el('label', {}, [el('span', { textContent: 'Dosis (ej. 1 comprimido)' }), el('input', { type: 'text', id: 'medDosis', value: existing ? existing.dosis : '', maxlength: '60' })]),
+      el('label', {}, [el('span', { textContent: 'Frecuencia (ej. cada 8 hs)' }), el('input', { type: 'text', id: 'medFrecuencia', value: existing ? existing.frecuencia : '', maxlength: '60' })]),
+      el('label', {}, [el('span', { textContent: 'Horarios (ej. 08:00, 20:00)' }), el('input', { type: 'text', id: 'medHorarios', value: existing ? (existing.horarios || []).join(', ') : '', maxlength: '80', placeholder: '08:00, 20:00' })]),
+      el('label', {}, [el('span', { textContent: 'Notas' }), el('textarea', { id: 'medNotas', rows: '2', maxlength: '200' }, [existing && existing.notas ? document.createTextNode(existing.notas) : null])]),
+      el('div', { className: 'modal-actions' }, [
+        el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
+        saveBtn
       ])
     ]);
     overlay.appendChild(modal);
@@ -951,7 +1013,7 @@
       qrWrap.innerHTML = '';
       if (QR && typeof QR.toSvg === 'function' && profile.carnetToken) {
         try { qrWrap.innerHTML = QR.toSvg(buildCarnetQrPayload(profile), 220); }
-        catch (e) {
+        catch (_) {
           qrWrap.appendChild(el('div', { className: 'qr-fallback' }, [
             el('div', { style: 'font-weight:700;color:#7A1C32;margin-bottom:6px;', textContent: 'Escaneá o dictá este ID' }),
             el('div', { style: 'font-family:monospace;font-size:0.85rem;word-break:break-all;background:#F4F8FD;padding:8px;border-radius:8px;', textContent: (profile.socioNumber || '—') + ' · ' + (profile.carnetToken || '—') })
@@ -1001,54 +1063,56 @@
       const profile = Store.getActiveProfile();
       if (!profile) return;
       if (!window.jspdf || !window.jspdf.jsPDF) { toast('PDF no disponible todavía'); return; }
-      try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [85.6, 54] });
-        doc.setFillColor(11, 60, 120);
-        doc.rect(0, 0, 85.6, 54, 'F');
-        doc.setFillColor(122, 28, 50);
-        doc.rect(0, 40, 85.6, 14, 'F');
-        if (branding && branding.logoUrl) {
-          try {
-            const img = new Image(); img.crossOrigin = 'anonymous'; img.src = branding.logoUrl;
-            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-            doc.addImage(img, 'PNG', 4, 4, 24, 8);
-          } catch (_) {}
-        }
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        const plan = C.PLANS[profile.plan] || { label: profile.plan };
-        doc.text('PLAN ' + plan.label.toUpperCase(), 82, 8, { align: 'right' });
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text(profile.nombre || '—', 4, 20);
-        doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-        doc.text('CUIL / DNI', 4, 28);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-        doc.text((profile.cuil || '—') + ' / ' + (profile.dni || '—'), 4, 32);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-        doc.text('N° SOCIO', 40, 28);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-        doc.text(profile.socioNumber || '—', 40, 32);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-        doc.text('ORDEN', 4, 37);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-        doc.text((profile.orden || '00'), 4, 41);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-        doc.text('SEDE', 40, 37);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
-        doc.text((profile.baseId || 'DOLORES').toUpperCase(), 40, 41);
-        doc.setFontSize(4); doc.setTextColor(255, 255, 255);
-        doc.text('ASARI S.A.S. — Proveedor Tecnológico · EMP Prestador Operativo · No sustituye 107/911', 42.8, 51.5, { align: 'center' });
-        if (QR && typeof QR.toCanvas === 'function' && profile.carnetToken) {
-          try {
-            const canvas = document.createElement('canvas');
-            QR.toCanvas(canvas, buildCarnetQrPayload(profile), 300);
-            doc.addImage(canvas.toDataURL('image/png'), 'PNG', 62, 10, 20, 20);
-          } catch (_) {}
-        }
-        doc.save('credencial_EMP_' + (profile.socioNumber || 'socio') + '.pdf');
-        toast('Credencial descargada');
-      } catch (e) { toast('Error al generar PDF: ' + e.message); }
+      await runLoading(btn, async () => {
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [85.6, 54] });
+          doc.setFillColor(11, 60, 120);
+          doc.rect(0, 0, 85.6, 54, 'F');
+          doc.setFillColor(122, 28, 50);
+          doc.rect(0, 40, 85.6, 14, 'F');
+          if (branding && branding.logoUrl) {
+            try {
+              const img = new Image(); img.crossOrigin = 'anonymous'; img.src = branding.logoUrl;
+              await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+              doc.addImage(img, 'PNG', 4, 4, 24, 8);
+            } catch (_) {}
+          }
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+          const plan = C.PLANS[profile.plan] || { label: profile.plan };
+          doc.text('PLAN ' + (plan.label || profile.plan).toUpperCase(), 82, 8, { align: 'right' });
+          doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+          doc.text(profile.nombre || '—', 4, 20);
+          doc.setFontSize(6); doc.setFont('helvetica', 'normal');
+          doc.text('CUIL / DNI', 4, 28);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.cuil || '—') + ' / ' + (profile.dni || '—'), 4, 32);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('N° SOCIO', 40, 28);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text(profile.socioNumber || '—', 40, 32);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('ORDEN', 4, 37);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.orden || '00'), 4, 41);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('SEDE', 40, 37);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.baseId || 'DOLORES').toUpperCase(), 40, 41);
+          doc.setFontSize(3.8); doc.setTextColor(255, 255, 255);
+          doc.text('ASARI S.A.S. Proveedor Tecnológico · EMP Prestador Operativo (2245-444600 Dolores / 2246-529000 La Costa)', 42.8, 51.5, { align: 'center' });
+          if (QR && typeof QR.toCanvas === 'function' && profile.carnetToken) {
+            try {
+              const canvas = document.createElement('canvas');
+              QR.toCanvas(canvas, buildCarnetQrPayload(profile), 300);
+              doc.addImage(canvas.toDataURL('image/png'), 'PNG', 62, 10, 20, 20);
+            } catch (_) {}
+          }
+          doc.save('credencial_EMP_' + (profile.socioNumber || 'socio') + '.pdf');
+          toast('Credencial descargada');
+        } catch (e) { toast('Error al generar PDF: ' + fmtErr(e)); }
+      }, 'Generando PDF…');
     });
   }
 
@@ -1066,7 +1130,7 @@
       hint.innerHTML = '';
       if (profile && profile.plan) {
         const plan = C.PLANS[profile.plan] || { label: profile.plan };
-        hint.textContent = 'Tu plan ' + plan.label + ' incluye ' + (plan.pharmacyDiscountLabel || (plan.pharmacyDiscount || 0) + '%') + ' de descuento en farmacia.';
+        hint.textContent = 'Tu plan ' + plan.label + ' incluye ' + (plan.pharmacyDiscountLabel || (plan.pharmacyDiscount || '20%')) + ' de descuento en farmacia.';
         hint.hidden = false;
       } else hint.hidden = true;
     }
@@ -1115,7 +1179,7 @@
     const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
     const cuota = (cfg.cuotas && cfg.cuotas[profile.plan]) || '';
     container.appendChild(el('div', { className: 'pagos-card' }, [
-      el('h2', { textContent: 'Estado de tu Plan' }),
+      el('h2', { textContent: 'Estado de tu Plan EMP' }),
       el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Plan actual' }), el('span', { className: 'pv', textContent: plan.label })]),
       el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'N° de socio' }), el('span', { className: 'pv', textContent: profile.socioNumber || '—' })]),
       el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Estado' }), el('span', { className: 'pv' }, [el('span', { className: 'carnet-status-pill ' + meta.cls, textContent: meta.icon + ' ' + meta.label })])]),
@@ -1136,6 +1200,20 @@
     const profile = Store.getActiveProfile();
     if (!profile) return;
     const overlay = el('div', { className: 'modal-overlay' });
+    const sendBtn = el('button', {
+      type: 'button', className: 'btn-primary', textContent: 'Enviar solicitud',
+      onclick: async () => {
+        const planSel = $('#recPlan').value;
+        const msg = $('#recMsg').value.trim();
+        await runLoading(sendBtn, async () => {
+          try {
+            await Store.submitRecategorizacion(profile.dni, profile.plan, planSel, msg);
+            if (overlay.parentNode) document.body.removeChild(overlay);
+            toast('Solicitud enviada. Administración de EMP te contactará.');
+          } catch (e) { toast('Error: ' + fmtErr(e)); }
+        }, 'Enviando…');
+      }
+    });
     const modal = el('div', { className: 'modal-card' }, [
       el('h2', { textContent: 'Solicitar cambio de plan' }),
       el('p', { textContent: 'Tu plan actual es ' + ((C.PLANS[profile.plan] || {}).label || profile.plan) + '. El cambio se coordina con un administrador para el pago de la diferencia.' }),
@@ -1149,15 +1227,7 @@
       el('label', {}, [el('span', { textContent: 'Mensaje (opcional)' }), el('textarea', { id: 'recMsg', rows: '2', maxlength: '200' })]),
       el('div', { className: 'modal-actions' }, [
         el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
-        el('button', { type: 'button', className: 'btn-primary', textContent: 'Enviar solicitud', onclick: async () => {
-          const planSel = $('#recPlan').value;
-          const msg = $('#recMsg').value.trim();
-          try {
-            await Store.submitRecategorizacion(profile.dni, profile.plan, planSel, msg);
-            document.body.removeChild(overlay);
-            toast('Solicitud enviada. Un administrador te contactará.');
-          } catch (e) { toast('Error: ' + e.message); }
-        }})
+        sendBtn
       ])
     ]);
     overlay.appendChild(modal);
@@ -1179,7 +1249,7 @@
   }
 
   // ============================================================
-  // ACCESOS RÁPIDOS
+  // ACCESOS RÁPIDOS (Con conexión a Servicios Tercerizados)
   // ============================================================
   function initAccesosRapidos() {
     $$('.acceso-rapido').forEach(btn => {
@@ -1187,9 +1257,23 @@
     });
     $$('.servicio-item').forEach(li => {
       li.addEventListener('click', () => {
-        if (li.id === 'servicioTeleconsulta' || li.id === 'servicioPulsera') switchTab('ficha');
-        else if (li.id === 'servicioFarmacia') switchTab('beneficios');
-        else toast('Próximamente.');
+        const ext = Store.getExternalServices();
+        const profile = Store.getActiveProfile();
+        const plan = profile ? (C.PLANS[profile.plan] || {}) : {};
+        if (li.id === 'servicioTeleconsulta') {
+          if (plan.hasTelemedicine && ext && ext.medicoVirtualUrl) {
+            window.open(ext.medicoVirtualUrl, '_blank', 'noopener');
+          } else {
+            switchTab('ficha');
+            toast(plan.hasTelemedicine ? 'Consultá acceso a Médico Virtual en tu ficha.' : 'Médico Virtual incluido en Plan Oro y Platino.');
+          }
+        } else if (li.id === 'servicioPulsera') {
+          switchTab('ficha');
+        } else if (li.id === 'servicioFarmacia') {
+          switchTab('beneficios');
+        } else {
+          toast('Consultá en administración EMP (2245-406323).');
+        }
       });
     });
   }
@@ -1215,11 +1299,12 @@
   document.addEventListener('DOMContentLoaded', async () => {
     const pub = getPublicMode();
     if (pub) {
-      branding = await Store.loadBranding();
+      await loadBranding();
       await renderPublicVerify(pub.mode, pub.token);
       return;
     }
 
+    await loadBranding();
     const session = await Store.initSession();
     await loadBranding();
 
