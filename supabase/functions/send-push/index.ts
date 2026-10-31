@@ -163,9 +163,13 @@ serve(async (req: Request) => {
       )
     );
 
+    console.log('[send-push] Operadores on_duty:', userIds.length, userIds);
+
     if (userIds.length === 0) {
+      const msg = 'Sin operadores con on_duty = true';
+      console.log('[send-push] Resultado:', msg);
       return new Response(
-        JSON.stringify({ ok: true, sent: 0, reason: 'Sin operadores con on_duty = true' }),
+        JSON.stringify({ ok: true, sent: 0, reason: msg }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
@@ -179,9 +183,14 @@ serve(async (req: Request) => {
     if (tokErr) throw new Error(tokErr.message);
 
     const tokens = Array.from(new Set((tokenRows || []).map((r: { token: string }) => r.token).filter(Boolean)));
+
+    console.log('[send-push] Tokens encontrados:', tokens.length);
+
     if (tokens.length === 0) {
+      const msg = 'Operadores en guardia sin device_tokens registrados';
+      console.log('[send-push] Resultado:', msg);
       return new Response(
-        JSON.stringify({ ok: true, sent: 0, reason: 'Operadores en guardia sin device_tokens registrados' }),
+        JSON.stringify({ ok: true, sent: 0, reason: msg }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
@@ -234,6 +243,7 @@ serve(async (req: Request) => {
       } else {
         const errTxt = await resp.text();
         errors.push(errTxt);
+        console.log('[send-push] Error FCM para token:', errTxt);
         // Si el token quedó inválido/desinstalado, limpiarlo
         if (errTxt.includes('UNREGISTERED') || errTxt.includes('INVALID_ARGUMENT')) {
           await sb.from('device_tokens').delete().eq('token', token);
@@ -241,12 +251,16 @@ serve(async (req: Request) => {
       }
     }
 
+    const result = { ok: true, sent, totalTokens: tokens.length, errors };
+    console.log('[send-push] Resultado final:', JSON.stringify(result));
+
     return new Response(
-      JSON.stringify({ ok: true, sent, totalTokens: tokens.length, errors }),
+      JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.log('[send-push] ERROR:', message);
     return new Response(
       JSON.stringify({ ok: false, error: message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
