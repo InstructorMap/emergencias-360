@@ -697,7 +697,7 @@
           el('span', { textContent: 'Notas de cierre' }),
           el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })
         ]));
-        actionsCard        actionsCard.appendChild(bCl2);
+        actionsCard.appendChild(bCl2);
         break;
       }
       default:
