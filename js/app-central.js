@@ -1,12 +1,10 @@
 /* ============================================================
-   app-central.js v8.3 — Consola Operativa EMP (C1 + F2)
+   app-central.js v8.3 — Consola Operativa EMP (C1 + F2 Push FCM)
    - Login staff (admin/operador) por email con spinner
-   - applyBrandingToPage() en el boot y pantalla de login
-   - Bandeja de incidentes en vivo (realtime) + sonido alerta
-   - Despacho: ack, triage, asignar, despachar, escena, traslado, cerrar, cancelar con spinner
-   - Ficha del socio + medicación + alergias + solicitudes de apoyo de guardia
-   - Flota y bases
-   - F2: registerPushToken() post-login (FCM tokens individuales)
+   - F2: ui.operatorId + initPushRegistration() + profiles.on_duty + deep_link ?incident=
+   - applyBrandingToPage() en el boot
+   - Bandeja de incidentes en vivo (realtime)
+   - Despacho con withButtonLoading y alertas de apoyo
    ============================================================ */
 
 (function () {
@@ -67,52 +65,62 @@
     baseFilter: 'ALL',
     incidentFilter: 'active',
     selectedIncidentId: null,
+    operatorId: null,
     operatorName: '',
-    operatorId: null, // F2
-    lastPendingCount: 0,
-    audioCtx: null,
-    initialBootDone: false
+    onDuty: true,
+    lastPendingCount: 0
   };
 
-  function playAlertBeep() {
+  // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
+  async function setOnDutyStatus(isOnDuty) {
     try {
-      if (!ui.audioCtx) {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return;
-        ui.audioCtx = new Ctx();
+      const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
+      const sb = rawState && rawState.supabase;
+      const user = typeof Store.getUser === 'function' ? Store.getUser() : (rawState && rawState.user);
+      const profileId = ui.operatorId || (rawState && rawState.profile && rawState.profile.id);
+      if (!sb || (!profileId && !user)) return false;
+
+      let query = sb.from('profiles').update({ on_duty: !!isOnDuty });
+      if (profileId) query = query.eq('id', profileId);
+      else query = query.eq('user_id', user.id);
+
+      const { error } = await query;
+      if (!error) {
+        ui.onDuty = !!isOnDuty;
+        return true;
       }
-      const ctx = ui.audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
-      const now = ctx.currentTime;
-      [880, 1320].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, now + i * 0.18);
-        gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.18 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.18);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(now + i * 0.18);
-        osc.stop(now + i * 0.18 + 0.2);
-      });
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[app-central] Error actualizando on_duty:', e);
+    }
+    return false;
   }
 
-  // ============ F2: PUSH TOKEN ============
   async function initPushRegistration() {
-    if (typeof window.E360Capacitor === 'undefined' || !window.E360Capacitor.registerPushToken) {
-      console.log('[F2] capacitor-bridge no disponible, saltando push.');
-      return;
-    }
-    if (!ui.operatorId) return;
     try {
-      const result = await window.E360Capacitor.registerPushToken(Store.supabase, ui.operatorId);
-      if (result.ok) console.log('[F2] Push token registrado.');
-      else console.warn('[F2] Push no registrado:', result.error);
+      await setOnDutyStatus(true);
+      const cap = window.E360Capacitor;
+      if (!cap || typeof cap.registerPushToken !== 'function') return;
+
+      const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
+      const sb = rawState && rawState.supabase;
+      const authUser = typeof Store.getUser === 'function' ? Store.getUser() : (rawState && rawState.user);
+      const targetUserId = (authUser && authUser.id) || ui.operatorId;
+      if (!sb || !targetUserId) return;
+
+      await cap.registerPushToken(sb, targetUserId);
     } catch (err) {
-      console.warn('[F2] Error registrando push:', err);
+      console.warn('[app-central] initPushRegistration:', err);
     }
+  }
+
+  function checkDeepLinkIncident() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const incId = params.get('incident');
+      if (incId && Store.getIncidentById(incId)) {
+        ui.selectedIncidentId = incId;
+      }
+    } catch (_) {}
   }
 
   // ============ LOGIN ============
@@ -146,20 +154,20 @@
             throw new Error('Tu cuenta no tiene permisos de operador.');
           }
           ui.operatorName = profile.nombre || profile.dni;
-          ui.operatorId = profile.id; // F2
+          ui.operatorId = profile.id;
           hideLogin();
           await bootCentral();
-          await initPushRegistration(); // F2
+          await initPushRegistration();
         } catch (err) {
           if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
         }
       }, 'Ingresando…');
     });
-
     const logout = $('#centralLogout');
     if (logout) logout.addEventListener('click', async () => {
-      if (!confirm('¿Cerrar sesión?')) return;
+      if (!confirm('¿Cerrar sesión y salir de guardia?')) return;
       await runLoading(logout, async () => {
+        await setOnDutyStatus(false);
         await Store.logout();
         location.reload();
       }, 'Saliendo…');
@@ -221,9 +229,6 @@
     counter.textContent = String(pending);
     if (pending > 0) counter.classList.add('pulse');
     else counter.classList.remove('pulse');
-    if (ui.initialBootDone && pending > ui.lastPendingCount) {
-      playAlertBeep();
-    }
     ui.lastPendingCount = pending;
   }
 
@@ -254,9 +259,9 @@
         el('div', { className: 'card-meta' }, [
           el('span', { className: 'badge badge-state-' + inc.status, textContent: inc.status }),
           inc.priority ? el('span', { className: 'badge badge-priority-' + inc.priority, textContent: inc.priority }) : null,
-          hasSupport ? el('span', { className: 'badge badge-priority-ROJO', textContent: '🚨 APOYO SOLICITADO' }) : null
+          hasSupport ? el('span', { className: 'badge badge-priority-ROJO', textContent: '🚨 PIDE APOYO' }) : null
         ].filter(Boolean)),
-        el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || '—') + ' · ' + (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
+        el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || 'DOLORES') + ' · ' + (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
       ]));
     });
   }
@@ -283,18 +288,32 @@
       return;
     }
 
-    // Bloque de Solicitudes de Apoyo (si existen)
     if (Array.isArray(inc.supportRequests) && inc.supportRequests.length > 0) {
       const supBlock = el('div', { className: 'alerta-clinica' }, [
-        el('strong', { textContent: '🚨 SOLICITUDES DE APOYO / REFUERZO DESDE GUARDIA' })
+        el('strong', { textContent: '🚨 SOLICITUDES DE APOYO EN ESCENA (' + inc.supportRequests.length + ')' })
       ]);
       inc.supportRequests.forEach(sr => {
         supBlock.appendChild(el('div', { className: 'clin-row' }, [
-          el('strong', { textContent: '[' + fmtTime(sr.ts) + '] ' + (sr.type || 'Apoyo') + ': ' }),
-          el('span', { textContent: (sr.notes || 'Sin notas adicionales') + ' (' + (sr.requestedBy || 'guardia') + ')' })
+          el('strong', { textContent: sr.type + ': ' }),
+          el('span', { textContent: (sr.notes || 'Sin detalle') + ' · (' + fmtTime(sr.ts) + ' - ' + (sr.requestedBy || 'guardia') + ')' })
         ]));
       });
       container.appendChild(supBlock);
+    }
+
+    if (inc.b2bEstablishmentId) {
+      const est = Store.getB2BById(inc.b2bEstablishmentId);
+      if (est) {
+        const b2bBlock = el('div', { className: 'detail-block' }, [
+          el('h3', { textContent: '📍 Ingreso por QR Área Protegida B2B' }),
+          kv('Establecimiento', est.name),
+          kv('Rubro', est.type),
+          kv('Dirección', est.address),
+          kv('Teléfono referente', est.referencePhone),
+          kv('Protocolo', est.protocol)
+        ]);
+        container.appendChild(b2bBlock);
+      }
     }
 
     const patientBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Datos del Socio' })]);
@@ -333,13 +352,6 @@
     }
 
     const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación y ETA' })]);
-    if (inc.b2bEstablishmentId) {
-      const b2bEst = Store.getB2BById(inc.b2bEstablishmentId);
-      if (b2bEst) {
-        geoBlock.appendChild(kv('Punto QR B2B', b2bEst.name + ' (' + b2bEst.type + ')'));
-        if (b2bEst.protocol) geoBlock.appendChild(kv('Protocolo B2B', b2bEst.protocol));
-      }
-    }
     if (inc.location) {
       geoBlock.appendChild(kv('Coordenadas', inc.location.lat.toFixed(6) + ', ' + inc.location.lng.toFixed(6)));
       geoBlock.appendChild(el('a', {
@@ -348,10 +360,13 @@
       }));
     }
     if (inc.manualAddress) geoBlock.appendChild(kv('Dirección manual', inc.manualAddress));
-    const etaInfo = Store.getIncidentEta(inc.id);
-    if (etaInfo && etaInfo.hasEta) {
-      geoBlock.appendChild(kv('ETA referencial', etaInfo.etaMinutes + ' min (' + etaInfo.source + ')'));
-    }
+
+    try {
+      const eta = Store.getIncidentEta(inc.id);
+      if (eta && eta.hasEta) {
+        geoBlock.appendChild(kv('ETA referencial', eta.etaMinutes + ' min (' + (eta.source === 'gps' ? 'GPS Móvil' : 'Estimación Base') + ')'));
+      }
+    } catch (_) {}
 
     const actionsBlock = buildActions(inc);
 
@@ -383,17 +398,16 @@
       }, label);
     };
 
-    const addCancelBtn = () => {
-      if (['CERRADA', 'CANCELADA', 'EN_ESCENA', 'EN_TRASLADO'].indexOf(inc.status) !== -1) return;
-      const bCancel = el('button', {
+    const appendCancelBtn = () => {
+      const cancelBtn = el('button', {
         type: 'button', className: 'btn-action btn-danger', textContent: 'Cancelar Incidente',
         onclick: () => {
           const reason = prompt('Motivo de cancelación (obligatorio):');
-          if (!reason || !reason.trim()) return;
-          run(bCancel, () => Store.cancelIncident(inc.id, reason.trim(), op), 'Cancelando…');
+          if (!reason) return;
+          run(cancelBtn, () => Store.cancelIncident(inc.id, reason, op), 'Cancelando…');
         }
       });
-      block.appendChild(bCancel);
+      block.appendChild(cancelBtn);
     };
 
     switch (inc.status) {
@@ -403,13 +417,13 @@
           onclick: () => run(bAck, () => Store.acknowledgeIncident(inc.id, op), 'Acusando recibo…')
         });
         block.appendChild(bAck);
-        addCancelBtn();
+        appendCancelBtn();
         return block;
       }
       case 'ACEPTADA_POR_CENTRAL': {
-        const bTriage = el('button', {
+        const bTri = el('button', {
           type: 'button', className: 'btn-action btn-ok', textContent: 'Confirmar Triage',
-          onclick: () => run(bTriage, () => Store.triageIncident(inc.id, $('#triagePriority').value, $('#triageNotes').value, op), 'Clasificando…')
+          onclick: () => run(bTri, () => Store.triageIncident(inc.id, $('#triagePriority').value, $('#triageNotes').value, op), 'Clasificando…')
         });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
@@ -426,16 +440,17 @@
             el('span', { textContent: 'Observación' }),
             el('textarea', { id: 'triageNotes', rows: '2', maxlength: '300' })
           ]),
-          bTriage
+          bTri
         ]));
-        addCancelBtn();
+        appendCancelBtn();
         return block;
       }
       case 'CLASIFICADA': {
         const units = Store.getFleet(inc.baseId).filter(u => u.status === 'disponible');
-        const bAssign = el('button', {
-          type: 'button', className: 'btn-action btn-ok', textContent: 'Asignar', disabled: !units.length,
-          onclick: () => run(bAssign, () => Store.assignUnitToIncident(inc.id, $('#assignUnitId').value, $('#assignCrew').value, op), 'Asignando móvil…')
+        const bAss = el('button', {
+          type: 'button', className: 'btn-action btn-ok', textContent: 'Asignar',
+          disabled: !units.length,
+          onclick: () => run(bAss, () => Store.assignUnitToIncident(inc.id, $('#assignUnitId').value, $('#assignCrew').value, op), 'Asignando móvil…')
         });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
@@ -451,9 +466,9 @@
             el('span', { textContent: 'Dotación / notas' }),
             el('input', { type: 'text', id: 'assignCrew', maxlength: '120' })
           ]),
-          bAssign
+          bAss
         ]));
-        addCancelBtn();
+        appendCancelBtn();
         return block;
       }
       case 'MOVIL_ASIGNADO': {
@@ -462,35 +477,35 @@
           onclick: () => run(bDisp, () => Store.dispatchIncidentUnit(inc.id, op), 'Despachando…')
         });
         block.appendChild(bDisp);
-        addCancelBtn();
+        appendCancelBtn();
         return block;
       }
       case 'EN_CAMINO': {
-        const bScene = el('button', {
+        const bScn = el('button', {
           type: 'button', className: 'btn-action btn-ok', textContent: '5. Marcar arribo en escena',
-          onclick: () => run(bScene, () => Store.markIncidentOnScene(inc.id, op), 'Marcando arribo…')
+          onclick: () => run(bScn, () => Store.markIncidentOnScene(inc.id, op), 'Marcando arribo…')
         });
-        block.appendChild(bScene);
-        addCancelBtn();
+        block.appendChild(bScn);
+        appendCancelBtn();
         return block;
       }
       case 'EN_ESCENA': {
-        const bTrans = el('button', {
+        const bTr = el('button', {
           type: 'button', className: 'btn-action', textContent: 'Registrar traslado',
-          onclick: () => run(bTrans, () => Store.markIncidentInTransit(inc.id, $('#destCenter').value, op), 'Registrando traslado…')
+          onclick: () => run(bTr, () => Store.markIncidentInTransit(inc.id, $('#destCenter').value, op), 'Registrando traslado…')
         });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
             el('span', { textContent: '6. Centro receptor (traslado)' }),
             el('input', { type: 'text', id: 'destCenter', maxlength: '120', placeholder: 'Ej: Hospital San Roque' })
           ]),
-          bTrans,
-          buildCloseForm(inc, op)
+          bTr,
+          buildCloseForm(inc, op, run)
         ]));
         return block;
       }
       case 'EN_TRASLADO':
-        block.appendChild(el('div', { className: 'inline-form' }, [buildCloseForm(inc, op)]));
+        block.appendChild(el('div', { className: 'inline-form' }, [buildCloseForm(inc, op, run)]));
         return block;
       case 'CERRADA':
       case 'CANCELADA':
@@ -503,25 +518,18 @@
     }
   }
 
-  function buildCloseForm(inc, op) {
+  function buildCloseForm(inc, op, run) {
     const reasons = ['Atención en domicilio sin traslado', 'Traslado efectivo a centro de salud', 'Falsa alarma', 'Derivado a sistema público'];
     const sel = el('select', { id: 'closeReason' });
     reasons.forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-    const bClose = el('button', {
+    const bCl = el('button', {
       type: 'button', className: 'btn-action btn-ok', textContent: 'Cerrar incidente',
-      onclick: async () => {
-        await runLoading(bClose, async () => {
-          try {
-            await Store.closeIncident(inc.id, $('#closeReason').value, $('#closeNotes').value, op);
-            renderAll();
-          } catch (err) { alert('Error: ' + fmtErr(err)); }
-        }, 'Cerrando…');
-      }
+      onclick: () => run(bCl, () => Store.closeIncident(inc.id, $('#closeReason').value, $('#closeNotes').value, op), 'Cerrando…')
     });
     return el('div', { className: 'inline-form' }, [
       el('label', {}, [el('span', { textContent: 'Motivo de cierre' }), sel]),
       el('label', {}, [el('span', { textContent: 'Notas de cierre (obligatorias)' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]),
-      bClose
+      bCl
     ]);
   }
 
@@ -573,9 +581,9 @@
     await applyBranding();
     initBaseSelector();
     initIncidentFilters();
-    renderAll();
-    ui.initialBootDone = true;
+    checkDeepLinkIncident();
     initSubscription();
+    renderAll();
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
@@ -584,10 +592,10 @@
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
       ui.operatorName = session.profile.nombre || session.profile.dni;
-      ui.operatorId = session.profile.id; // F2
+      ui.operatorId = session.profile.id;
       hideLogin();
       await bootCentral();
-      await initPushRegistration(); // F2
+      await initPushRegistration();
     } else {
       if (session.loggedIn) await Store.logout();
       showLogin();
