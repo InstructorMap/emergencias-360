@@ -203,7 +203,7 @@
       updatedAt: p.updated_at
     };
   }
-  function mapIncidentFromDB(i) {
+    function mapIncidentFromDB(i) {
     if (!i) return null;
     return {
       id: i.id,
@@ -217,6 +217,9 @@
       manualAddress: i.manual_address || '',
       b2bEstablishmentId: i.b2b_establishment_id,
       source: i.source,
+      guardiaCode: i.guardia_code || null,
+      clinicalRecordNumber: i.clinical_record_number || null,
+      exportZipPath: i.export_zip_path || null,
       statusHistory: i.status_history || [],
       supportRequests: i.support_requests || [],
       clinicalNotes: i.clinical_notes || '',
@@ -811,6 +814,45 @@
           detail: p.detail || 'Alerta emitida.'
         }]
       };
+           async createManualIncident(payload) {
+      requireUser();
+      if (!state.profile || (state.profile.role !== 'admin' && state.profile.role !== 'operador')) {
+        throw new Error('Solo staff puede crear incidentes manuales.');
+      }
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const p = payload || {};
+      const validCodes = ['107','ENF','AMB','DOM','VIR','AP','EP'];
+      if (!p.guardiaCode || validCodes.indexOf(p.guardiaCode) === -1) {
+        throw new Error('Tipo de guardia inválido.');
+      }
+      const id = uid('inc');
+      const record = {
+        id,
+        base_id: p.baseId || state.context.activeBaseId || 'DOLORES',
+        status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
+        priority: p.priority || null,
+        assigned_unit_id: null,
+        profile_dni: p.profileDni || null,
+        location: p.location || null,
+        manual_address: p.manualAddress || '',
+        b2b_establishment_id: p.b2bEstablishmentId || null,
+        guardia_code: p.guardiaCode,
+        source: 'manual_central',
+        status_history: [{
+          status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
+          ts: nowISO(),
+          actor: state.profile.nombre || 'central',
+          detail: 'Incidente creado manualmente por central.'
+        }]
+      };
+      const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
+      if (error) throw new Error(error.message);
+      const mapped = mapIncidentFromDB(data);
+      state.incidents.unshift(mapped);
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return mapped;
+    },
       if (state.supabase && navigator.onLine) {
         const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
         if (error) throw new Error(error.message);
@@ -1275,20 +1317,29 @@
     },
 
     // ============ CENTRAL: TRIAGE Y ASIGNACIÓN ============
-    async triageIncident(incidentId, priority, clinicalNotes, operatorName) {
+       async triageIncident(incidentId, priority, clinicalNotes, guardiaCode, operatorName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       if (PRIORITIES.indexOf(priority) === -1) throw new Error('Prioridad inválida.');
+      const validCodes = ['107','ENF','AMB','DOM','VIR','AP','EP'];
+      if (guardiaCode && validCodes.indexOf(guardiaCode) === -1) throw new Error('Tipo de guardia inválido.');
       const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
       if (!current) throw new Error('Incidente no encontrado.');
       const check = SM.canTransitionIncident(current.status, INCIDENT_STATES.CLASIFICADA);
       if (!check.ok) throw new Error(check.reason);
-      const newHistory = (current.status_history || []).concat([{ status: INCIDENT_STATES.CLASIFICADA, ts: nowISO(), actor: operatorName || 'central', detail: 'Prioridad ' + priority }]);
-      const { data, error } = await state.supabase.from('incidents').update({
+      const newHistory = (current.status_history || []).concat([{
+        status: INCIDENT_STATES.CLASIFICADA,
+        ts: nowISO(),
+        actor: operatorName || 'central',
+        detail: 'Prioridad ' + priority + (guardiaCode ? ' · Guardia ' + guardiaCode : '')
+      }]);
+      const update = {
         status: INCIDENT_STATES.CLASIFICADA,
         priority,
         clinical_notes: clinicalNotes || '',
         status_history: newHistory
-      }).eq('id', incidentId).select().single();
+      };
+      if (guardiaCode) update.guardia_code = guardiaCode;
+      const { data, error } = await state.supabase.from('incidents').update(update).eq('id', incidentId).select().single();
       if (error) throw new Error(error.message);
       const mapped = mapIncidentFromDB(data);
       const idx = state.incidents.findIndex(i => i.id === incidentId);
@@ -1332,6 +1383,39 @@
     },
     async guardiaCloseIncident(incidentId, unitId, reason, notes, crewName) {
       return this.closeIncident(incidentId, reason, notes, crewName);
+    },
+         async getIncidentMedia(incidentId) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const { data, error } = await state.supabase
+        .from('incident_media')
+        .select('*')
+        .eq('incident_id', incidentId)
+        .order('created_at', { ascending: true });
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) return [];
+      const paths = data.map(m => m.storage_path);
+      const { data: signed } = await state.supabase.storage
+        .from('incident-media')
+        .createSignedUrls(paths, 300);
+      const urlMap = {};
+      (signed || []).forEach(s => { if (s.signedUrl && s.path) urlMap[s.path] = s.signedUrl; });
+      return data.map(m => ({ ...m, signedUrl: urlMap[m.storage_path] || null }));
+    },
+
+    async getIncidentExportUrl(incidentId) {
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const { data } = await state.supabase.from('incidents')
+        .select('export_zip_path, clinical_record_number')
+        .eq('id', incidentId)
+        .maybeSingle();
+      if (!data || !data.export_zip_path) return null;
+      const { data: signed } = await state.supabase.storage
+        .from('incident-exports')
+        .createSignedUrl(data.export_zip_path, 600);
+      return {
+        url: signed?.signedUrl || null,
+        hcNumber: data.clinical_record_number
+      };
     },
     async getGuardiaHistory(unitId, limit) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
