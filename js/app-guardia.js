@@ -649,8 +649,14 @@
           ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
           return sel;
         })()]));
+                actionsCard.appendChild(el('div', { className: 'guardia-info', textContent: 'Traslado hacia: ' + (incident.destinationCenter || '—') }));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
+          const sel = el('select', { id: 'closeReason' });
+          ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+          return sel;
+        })()]));
         actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
-        actionsCard.appendChild(bCl);
+        actionsCard.appendChild(bCl2);
         break;
       }
       case 'EN_TRASLADO': {
