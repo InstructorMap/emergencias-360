@@ -791,7 +791,7 @@
       };
     },
 
-        async createSOSIncident(payload) {
+    async createSOSIncident(payload) {
       const p = payload || {};
       const dni = p.profileDni || (state.profile && state.profile.dni) || null;
       const baseId = p.baseId || (state.profile && state.profile.baseId) || state.context.activeBaseId || 'DOLORES';
@@ -871,24 +871,6 @@
       if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
-      if (state.supabase && navigator.onLine) {
-        const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
-        if (error) throw new Error(error.message);
-        const mapped = mapIncidentFromDB(data);
-        state.incidents.unshift(mapped);
-        state.myIncidents.unshift(mapped);
-        saveCache();
-        if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
-        return mapped;
-      } else {
-        const mapped = mapIncidentFromDB({ ...record, created_at: nowISO() });
-        state.incidents.unshift(mapped);
-        state.myIncidents.unshift(mapped);
-        saveCache();
-        return mapped;
-      }
-    },
-
     async transitionIncidentStatus(id, next) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const { data: current } = await state.supabase.from('incidents').select('*').eq('id', id).single();
