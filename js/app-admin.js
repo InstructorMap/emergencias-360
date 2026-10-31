@@ -1,9 +1,10 @@
 /* ============================================================
-   app-admin.js v8.1 — Controlador de admin.html
-   Login admin, gestión de socios, alta individual, alta masiva,
-   bandeja de solicitudes con datos clínicos y estado de pago,
-   branding, Mercado Pago, servicios tercerizados, beneficios,
-   B2B, auditoría, export CSV.
+   app-admin.js v8.2 — Controlador de admin.html (C1 Aplicado)
+   - applyBrandingToPage() en el boot y al editar colores/logos
+   - withButtonLoading() con spinner en todas las acciones async
+   - Guardado real de Beneficios conectado a Store.updateBenefitStatus()
+   - Gestión de socios, alta individual, alta masiva, solicitudes,
+     Mercado Pago, servicios tercerizados, B2B, auditoría, export CSV.
    ============================================================ */
 
 (function () {
@@ -14,7 +15,6 @@
   if (!Store) { console.error('[app-admin] E360Store no disponible.'); return; }
 
   const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
@@ -40,7 +40,7 @@
 
   function fmtDateTime(iso) {
     if (!iso) return '—';
-    try { return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+    try { return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); }
     catch (_) { return iso; }
   }
   function fmtDate(iso) {
@@ -49,22 +49,23 @@
     catch (_) { return iso; }
   }
 
-  function showMsgBar(text, isError) {
-    const bar = $('#adminMsgBar');
-    if (!bar) return;
-    if (!text) { bar.hidden = true; return; }
-    bar.textContent = text;
-    bar.className = 'admin-msg-bar ' + (isError ? 'error' : 'ok');
-    bar.hidden = false;
-    setTimeout(() => { bar.hidden = true; }, 5000);
-  }
-
   function toast(text) {
     let t = document.getElementById('e360Toast');
     if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
     t.textContent = text;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  async function runLoading(btn, fn, label) {
+    if (typeof Store.withButtonLoading === 'function') {
+      return await Store.withButtonLoading(btn, fn, label);
+    }
+    return await fn();
+  }
+
+  function fmtErr(err) {
+    return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
   }
 
   let excelRows = [];
@@ -81,21 +82,23 @@
       const btn = $('#adminLoginBtn');
       const email = $('#adminLoginEmail').value.trim();
       const password = $('#adminLoginPassword').value;
-      if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-      try {
-        const profile = await Store.loginWithEmail(email, password);
-        if (!profile || profile.role !== 'admin') {
-          await Store.logout();
-          throw new Error('Tu usuario no tiene permisos de administrador.');
-        }
-        hideLogin();
-        await bootAdmin();
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = '#DC2626'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      if (!email || !password) {
+        if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; }
+        return;
       }
+      await runLoading(btn, async () => {
+        try {
+          const profile = await Store.loginWithEmail(email, password);
+          if (!profile || profile.role !== 'admin') {
+            await Store.logout();
+            throw new Error('Tu usuario no tiene permisos de administrador.');
+          }
+          hideLogin();
+          await bootAdmin();
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
+        }
+      }, 'Ingresando…');
     });
   }
 
@@ -112,17 +115,21 @@
     if (!btn) return;
     btn.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión?')) return;
-      await Store.logout();
-      location.reload();
+      await runLoading(btn, async () => {
+        await Store.logout();
+        location.reload();
+      }, 'Saliendo…');
     });
   }
 
   // ============================================================
-  // BRANDING EN HEADER
+  // BRANDING EN HEADER Y VARIABLES CSS (C1)
   // ============================================================
   async function applyBranding() {
     try {
-      const branding = await Store.loadBranding();
+      const branding = typeof Store.applyBrandingToPage === 'function'
+        ? await Store.applyBrandingToPage()
+        : await Store.loadBranding();
       if (branding && branding.logoUrl) {
         const brand = $('#adminHeaderBrand');
         if (brand) {
@@ -131,13 +138,17 @@
             const img = document.createElement('img');
             img.src = branding.logoUrl;
             img.alt = 'EMP';
+            img.className = 'emp-logo-chip';
             img.style.height = '38px';
             img.style.width = 'auto';
             svg.replaceWith(img);
+          } else {
+            const existingImg = brand.querySelector('img');
+            if (existingImg) existingImg.src = branding.logoUrl;
           }
         }
         const loginLogo = $('#adminLoginLogo');
-        if (loginLogo) loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" style="max-width:180px;max-height:56px;" />';
+        if (loginLogo) loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" class="emp-logo-chip" style="max-width:180px;max-height:56px;" />';
       }
       return branding;
     } catch (_) { return null; }
@@ -178,6 +189,40 @@
         if (p.plan === pid) opt.selected = true;
         planSel.appendChild(opt);
       });
+
+      const btnPlan = el('button', {
+        type: 'button', textContent: '💾 Guardar plan',
+        onclick: async () => {
+          await runLoading(btnPlan, async () => {
+            try { await Store.setProfilePlan(p.dni, planSel.value, 'admin'); toast('Plan actualizado'); renderSocios(); }
+            catch (e) { toast('Error: ' + fmtErr(e)); }
+          }, 'Guardando…');
+        }
+      });
+
+      const btnRenew = el('button', {
+        type: 'button', className: 'btn-muted', textContent: '🗓 Renovar',
+        onclick: async () => {
+          await runLoading(btnRenew, async () => {
+            try { await Store.renewCarnet(p.dni, 'admin'); toast('Carnet renovado'); renderSocios(); }
+            catch (e) { toast('Error: ' + fmtErr(e)); }
+          }, 'Renovando…');
+        }
+      });
+
+      const btnStatus = el('button', {
+        type: 'button', className: 'btn-danger',
+        textContent: p.carnetStatus === 'suspendido' ? '✅ Reactivar' : '⛔ Suspender',
+        onclick: async () => {
+          await runLoading(btnStatus, async () => {
+            try {
+              await Store.setCarnetStatus(p.dni, p.carnetStatus === 'suspendido' ? 'activo' : 'suspendido', 'admin');
+              toast('Estado actualizado'); renderSocios();
+            } catch (e) { toast('Error: ' + fmtErr(e)); }
+          }, 'Actualizando…');
+        }
+      });
+
       tbody.appendChild(el('tr', {}, [
         el('td', {}, [
           el('div', { style: 'font-weight:700;', textContent: p.nombre || '—' }),
@@ -191,20 +236,9 @@
         ]),
         el('td', {}, [
           el('div', { className: 'row-actions' }, [
-            el('button', { type: 'button', textContent: '💾 Guardar plan', onclick: async () => {
-              try { await Store.setProfilePlan(p.dni, planSel.value, 'admin'); toast('Plan actualizado'); renderSocios(); }
-              catch (e) { toast('Error: ' + e.message); }
-            }}),
-            el('button', { type: 'button', className: 'btn-muted', textContent: '🗓 Renovar', onclick: async () => {
-              try { await Store.renewCarnet(p.dni, 'admin'); toast('Carnet renovado'); renderSocios(); }
-              catch (e) { toast('Error: ' + e.message); }
-            }}),
-            el('button', { type: 'button', className: 'btn-danger', textContent: p.carnetStatus === 'suspendido' ? '✅ Reactivar' : '⛔ Suspender', onclick: async () => {
-              try {
-                await Store.setCarnetStatus(p.dni, p.carnetStatus === 'suspendido' ? 'activo' : 'suspendido', 'admin');
-                toast('Estado actualizado'); renderSocios();
-              } catch (e) { toast('Error: ' + e.message); }
-            }}),
+            btnPlan,
+            btnRenew,
+            btnStatus,
             el('button', { type: 'button', className: 'btn-muted', textContent: '💊 Medicación', onclick: () => openMedicacionSocio(p) }),
             el('button', { type: 'button', className: 'btn-muted', textContent: '🆘 QR Pulsera', onclick: () => openPulseraQR(p) })
           ])
@@ -226,7 +260,7 @@
     btn.addEventListener('click', () => {
       const profiles = Store.listProfiles().filter(p => p.role === 'socio');
       if (!profiles.length) { toast('Sin socios para exportar'); return; }
-      const headers = ['nombre','dni','cuil','plan','base_id','telefono','grupo_sanguineo','alergias','patologias','contacto','cuota','carnet_status','carnet_valid_until','socio_number'];
+      const headers = ['nombre', 'dni', 'cuil', 'plan', 'base_id', 'telefono', 'grupo_sanguineo', 'alergias', 'patologias', 'contacto', 'cuota', 'carnet_status', 'carnet_valid_until', 'socio_number'];
       const rows = profiles.map(p => [
         p.nombre, p.dni, p.cuil, p.plan, p.baseId, p.telefono,
         p.grupoSanguineo, p.alergias, p.patologias, p.contacto, p.cuota,
@@ -272,22 +306,21 @@
         if (msg) { msg.textContent = 'Nombre y DNI son obligatorios.'; msg.style.color = '#DC2626'; }
         return;
       }
-      if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
-      try {
-        const res = await Store.createSocio(data);
-        if (msg) {
-          msg.style.color = '#16A34A';
-          msg.textContent = 'Socio creado. Contraseña inicial: ' + (res.initialPassword || '—') + ' · Decile al socio que la cambie al ingresar.';
+      await runLoading(btn, async () => {
+        try {
+          const res = await Store.createSocio(data);
+          if (msg) {
+            msg.style.color = '#16A34A';
+            msg.textContent = 'Socio creado. Contraseña inicial: ' + (res.initialPassword || '—') + ' · Decile al socio que la cambie al ingresar.';
+          }
+          form.reset();
+          $('#aiPlan').value = 'BRONCE';
+          $('#aiBase').value = 'DOLORES';
+          renderSocios();
+        } catch (err) {
+          if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + fmtErr(err); }
         }
-        form.reset();
-        $('#aiPlan').value = 'BRONCE';
-        $('#aiBase').value = 'DOLORES';
-        renderSocios();
-      } catch (err) {
-        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + (err.message || 'no se pudo crear'); }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Crear socio'; }
-      }
+      }, 'Creando socio…');
     });
   }
 
@@ -375,34 +408,33 @@
 
   async function doImport() {
     const btn = $('#btnImportExcel');
-    if (btn) { btn.disabled = true; btn.textContent = 'Importando…'; }
     const result = $('#importResult');
-    try {
-      const valid = excelRows.filter(r => r.nombre && r.dni);
-      if (!valid.length) { toast('No hay filas válidas'); return; }
-      const res = await Store.bulkCreateSocios(valid);
-      if (result) {
-        result.hidden = false;
-        result.innerHTML = '';
-        result.appendChild(el('div', { className: 'import-ok', textContent: '✅ Creados: ' + (res.creados || 0) }));
-        result.appendChild(el('div', { className: 'import-skip', textContent: '⏭ Omitidos: ' + (res.skipeados || 0) }));
-        if (res.errores && res.errores.length) {
-          const ul = el('ul', { className: 'import-errors' });
-          res.errores.slice(0, 20).forEach(e => ul.appendChild(el('li', { textContent: e })));
-          result.appendChild(el('div', { className: 'preview-title', textContent: 'Errores:' }));
-          result.appendChild(ul);
+    await runLoading(btn, async () => {
+      try {
+        const valid = excelRows.filter(r => r.nombre && r.dni);
+        if (!valid.length) { toast('No hay filas válidas'); return; }
+        const res = await Store.bulkCreateSocios(valid);
+        if (result) {
+          result.hidden = false;
+          result.innerHTML = '';
+          result.appendChild(el('div', { className: 'import-ok', textContent: '✅ Creados: ' + (res.creados || 0) }));
+          result.appendChild(el('div', { className: 'import-skip', textContent: '⏭ Omitidos: ' + (res.skipeados || 0) }));
+          if (res.errores && res.errores.length) {
+            const ul = el('ul', { className: 'import-errors' });
+            res.errores.slice(0, 20).forEach(e => ul.appendChild(el('li', { textContent: e })));
+            result.appendChild(el('div', { className: 'preview-title', textContent: 'Errores:' }));
+            result.appendChild(ul);
+          }
+        }
+        renderSocios();
+      } catch (err) {
+        if (result) {
+          result.hidden = false;
+          result.innerHTML = '';
+          result.appendChild(el('div', { className: 'import-error', textContent: 'Error: ' + fmtErr(err) }));
         }
       }
-      renderSocios();
-    } catch (err) {
-      if (result) {
-        result.hidden = false;
-        result.innerHTML = '';
-        result.appendChild(el('div', { className: 'import-error', textContent: 'Error: ' + err.message }));
-      }
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Importar socios'; }
-    }
+    }, 'Importando…');
   }
 
   function resetExcel() {
@@ -451,8 +483,8 @@
         el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cerrar', onclick: () => document.body.removeChild(overlay) })
       ]));
     } catch (err) {
-      toast('Error: ' + err.message);
-      document.body.removeChild(overlay);
+      toast('Error: ' + fmtErr(err));
+      if (overlay.parentNode) document.body.removeChild(overlay);
     }
   }
 
@@ -484,7 +516,7 @@
       const QR = window.E360QR;
       if (QR && typeof QR.toSvg === 'function') {
         try { wrap.innerHTML = QR.toSvg(qrUrl, 240); }
-        catch (e) { wrap.textContent = 'QR no disponible'; }
+        catch (_) { wrap.textContent = 'QR no disponible'; }
       } else {
         wrap.textContent = 'QR no disponible';
       }
@@ -505,7 +537,7 @@
   }
 
   // ============================================================
-  // SOLICITUDES (con datos clínicos y estado de pago — parche E1)
+  // SOLICITUDES (con datos clínicos y estado de pago)
   // ============================================================
   function renderSocioRequests() {
     const list = $('#socioRequestsList');
@@ -519,7 +551,6 @@
       return;
     }
     reqs.forEach(r => {
-      // Antecedentes clínicos como texto legible
       const clinicaLabels = {
         hipertension: 'Hipertensión', cardiaca: 'Cardíaca', motriz: 'Motriz',
         congenita: 'Congénita', dolor_cronico: 'Dolor crónico',
@@ -531,6 +562,44 @@
           if (r.datos_clinicos[k]) clinicaActivos.push(clinicaLabels[k]);
         });
       }
+
+      const btnApprove = r.tipo === 'recategorizacion'
+        ? el('button', {
+            type: 'button', className: 'btn-primary', textContent: '✅ Aplicar cambio',
+            onclick: async () => {
+              await runLoading(btnApprove, async () => {
+                try {
+                  await Store.setProfilePlan(r.dni, r.plan_solicitado, 'admin');
+                  await Store.rejectSocioRequest(r.id, 'Recategorización aplicada');
+                  toast('Plan actualizado'); renderSocios(); renderSocioRequests();
+                } catch (e) { toast('Error: ' + fmtErr(e)); }
+              }, 'Aplicando…');
+            }
+          })
+        : el('button', {
+            type: 'button', className: 'btn-primary', textContent: '✅ Aprobar y crear socio',
+            onclick: async () => {
+              await runLoading(btnApprove, async () => {
+                try {
+                  const res = await Store.approveSocioRequest(r.id, r.plan_interes);
+                  toast('Socio creado. Clave inicial: ' + (res.initialPassword || '—'));
+                  renderSocios(); renderSocioRequests();
+                } catch (e) { toast('Error: ' + fmtErr(e)); }
+              }, 'Aprobando…');
+            }
+          });
+
+      const btnReject = el('button', {
+        type: 'button', className: 'btn-danger', textContent: '❌ Rechazar',
+        onclick: async () => {
+          const motivo = prompt('Motivo del rechazo (opcional):');
+          if (motivo === null) return;
+          await runLoading(btnReject, async () => {
+            try { await Store.rejectSocioRequest(r.id, motivo); toast('Rechazada'); renderSocioRequests(); }
+            catch (e) { toast('Error: ' + fmtErr(e)); }
+          }, 'Rechazando…');
+        }
+      });
 
       const card = el('div', { className: 'request-card' }, [
         el('div', { className: 'request-head' }, [
@@ -544,12 +613,13 @@
         r.direccion ? el('div', { className: 'request-meta', textContent: 'Dirección: ' + r.direccion }) : null,
         r.localidad ? el('div', { className: 'request-meta', textContent: 'Localidad: ' + r.localidad }) : null,
         r.fecha_nacimiento ? el('div', { className: 'request-meta', textContent: 'Nacimiento: ' + fmtDate(r.fecha_nacimiento) + (r.edad ? ' · ' + r.edad + ' años' : '') }) : null,
-        r.obra_social ? el('div', { className: 'request-meta', textContent: 'Obra social: ' + r.obra_social }) : null,
+        r.obra_social ? el('div', { className: 'request-meta', textContent: 'Cobertura previa: ' + r.obra_social }) : null,
         r.medico_cabecera ? el('div', { className: 'request-meta', textContent: 'Médico de cabecera: ' + r.medico_cabecera }) : null,
         r.lugar_derivacion ? el('div', { className: 'request-meta', textContent: 'Derivación: ' + r.lugar_derivacion }) : null,
         r.contacto_familiar ? el('div', { className: 'request-meta', textContent: 'Contacto familiar: ' + r.contacto_familiar }) : null,
-        (r.grupo_familiar_cantidad || r.grupo_familiar_constitucion) ? el('div', { className: 'request-meta', textContent:
-          'Grupo familiar: ' + (r.grupo_familiar_cantidad || '—') + ' integrantes' + (r.grupo_familiar_constitucion ? ' (' + r.grupo_familiar_constitucion + ')' : '')
+        (r.grupo_familiar_cantidad || r.grupo_familiar_constitucion) ? el('div', {
+          className: 'request-meta',
+          textContent: 'Grupo familiar: ' + (r.grupo_familiar_cantidad || '—') + ' integrantes' + (r.grupo_familiar_constitucion ? ' (' + r.grupo_familiar_constitucion + ')' : '')
         }) : null,
         r.tipo === 'recategorizacion' ? el('div', { className: 'request-meta', textContent: 'De ' + (r.plan_actual || '—') + ' → ' + (r.plan_solicitado || '—') }) : null,
         r.plan_interes ? el('div', { className: 'request-meta', textContent: 'Plan interés: ' + r.plan_interes }) : null,
@@ -566,28 +636,7 @@
           el('span', { textContent: (r.payment_status || 'pendiente').toUpperCase() + (r.payment_method ? ' · ' + r.payment_method : '') + (r.payment_amount ? ' · $' + r.payment_amount : '') })
         ]),
         r.mensaje ? el('div', { className: 'request-msg', textContent: r.mensaje }) : null,
-        el('div', { className: 'request-actions' }, [
-          r.tipo === 'recategorizacion' ?
-            el('button', { type: 'button', className: 'btn-primary', textContent: '✅ Aplicar cambio', onclick: async () => {
-              try {
-                await Store.setProfilePlan(r.dni, r.plan_solicitado, 'admin');
-                await Store.rejectSocioRequest(r.id, 'Recategorización aplicada');
-                toast('Plan actualizado'); renderSocios(); renderSocioRequests();
-              } catch (e) { toast('Error: ' + e.message); }
-            }}) :
-            el('button', { type: 'button', className: 'btn-primary', textContent: '✅ Aprobar y crear socio', onclick: async () => {
-              try {
-                const res = await Store.approveSocioRequest(r.id, r.plan_interes);
-                toast('Socio creado. Clave inicial: ' + (res.initialPassword || '—'));
-                renderSocios(); renderSocioRequests();
-              } catch (e) { toast('Error: ' + e.message); }
-            }}),
-          el('button', { type: 'button', className: 'btn-danger', textContent: '❌ Rechazar', onclick: async () => {
-            const motivo = prompt('Motivo del rechazo (opcional):') || '';
-            try { await Store.rejectSocioRequest(r.id, motivo); toast('Rechazada'); renderSocioRequests(); }
-            catch (e) { toast('Error: ' + e.message); }
-          }})
-        ])
+        el('div', { className: 'request-actions' }, [btnApprove, btnReject])
       ]);
       list.appendChild(card);
     });
@@ -600,7 +649,7 @@
     const branding = await Store.loadBranding();
     const curLogo = $('#currentLogoPreview');
     const curFav = $('#currentFaviconPreview');
-    if (curLogo) curLogo.innerHTML = branding && branding.logoUrl ? '<img src="' + branding.logoUrl + '" style="max-width:160px;max-height:50px;" />' : '—';
+    if (curLogo) curLogo.innerHTML = branding && branding.logoUrl ? '<img src="' + branding.logoUrl + '" class="emp-logo-chip" style="max-width:160px;max-height:50px;" />' : '—';
     if (curFav) curFav.innerHTML = branding && branding.faviconUrl ? '<img src="' + branding.faviconUrl + '" style="max-width:32px;max-height:32px;" />' : '—';
     if (branding) {
       if ($('#brandColorPrimary')) $('#brandColorPrimary').value = branding.colorPrimary || '#0B3C78';
@@ -616,12 +665,14 @@
       btnLogo.addEventListener('click', () => logoInput.click());
       logoInput.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
-        try {
-          const url = await Store.uploadBrandingFile(file, 'logo');
-          const cur = await Store.getBranding();
-          await Store.setBranding({ ...cur, logoUrl: url });
-          toast('Logo subido'); applyBranding(); renderBranding();
-        } catch (err) { toast('Error: ' + err.message); }
+        await runLoading(btnLogo, async () => {
+          try {
+            const url = await Store.uploadBrandingFile(file, 'logo');
+            const cur = await Store.getBranding();
+            await Store.setBranding({ ...cur, logoUrl: url });
+            toast('Logo subido'); await applyBranding(); await renderBranding();
+          } catch (err) { toast('Error: ' + fmtErr(err)); }
+        }, 'Subiendo logo…');
       });
     }
     const favInput = $('#faviconFile');
@@ -630,28 +681,34 @@
       btnFav.addEventListener('click', () => favInput.click());
       favInput.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
-        try {
-          const url = await Store.uploadBrandingFile(file, 'favicon');
-          const cur = await Store.getBranding();
-          await Store.setBranding({ ...cur, faviconUrl: url });
-          toast('Favicon subido'); renderBranding();
-        } catch (err) { toast('Error: ' + err.message); }
+        await runLoading(btnFav, async () => {
+          try {
+            const url = await Store.uploadBrandingFile(file, 'favicon');
+            const cur = await Store.getBranding();
+            await Store.setBranding({ ...cur, faviconUrl: url });
+            toast('Favicon subido'); await applyBranding(); await renderBranding();
+          } catch (err) { toast('Error: ' + fmtErr(err)); }
+        }, 'Subiendo favicon…');
       });
     }
     const form = $('#formBrandingColors');
     if (form) form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      try {
-        const cur = await Store.getBranding();
-        await Store.setBranding({
-          ...cur,
-          colorPrimary: $('#brandColorPrimary').value,
-          colorSecondary: $('#brandColorSecondary').value,
-          colorAccent: $('#brandColorAccent').value,
-          colorSos: $('#brandColorSos').value
-        });
-        toast('Colores guardados');
-      } catch (err) { toast('Error: ' + err.message); }
+      const submitBtn = form.querySelector('button[type="submit"]');
+      await runLoading(submitBtn, async () => {
+        try {
+          const cur = await Store.getBranding();
+          await Store.setBranding({
+            ...cur,
+            colorPrimary: $('#brandColorPrimary').value,
+            colorSecondary: $('#brandColorSecondary').value,
+            colorAccent: $('#brandColorAccent').value,
+            colorSos: $('#brandColorSos').value
+          });
+          await applyBranding();
+          toast('Colores guardados y aplicados');
+        } catch (err) { toast('Error: ' + fmtErr(err)); }
+      }, 'Guardando colores…');
     });
   }
 
@@ -676,23 +733,26 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = $('#mpMsg');
-      try {
-        await Store.setPaymentConfig({
-          mercadoPagoEnabled: !!$('#mpEnabled').checked,
-          mercadoPagoPublicKey: $('#mpPublicKey').value.trim(),
-          mercadoPagoAccessToken: $('#mpAccessToken').value.trim(),
-          cuotas: {
-            BRONCE: $('#mpCuotaBronce').value.trim(),
-            PLATA: $('#mpCuotaPlata').value.trim(),
-            ORO: $('#mpCuotaOro').value.trim(),
-            PLATINO: $('#mpCuotaPlatino').value.trim()
-          }
-        });
-        if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Configuración guardada.'; }
-        toast('Mercado Pago guardado');
-      } catch (err) {
-        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + err.message; }
-      }
+      const submitBtn = form.querySelector('button[type="submit"]');
+      await runLoading(submitBtn, async () => {
+        try {
+          await Store.setPaymentConfig({
+            mercadoPagoEnabled: !!$('#mpEnabled').checked,
+            mercadoPagoPublicKey: $('#mpPublicKey').value.trim(),
+            mercadoPagoAccessToken: $('#mpAccessToken').value.trim(),
+            cuotas: {
+              BRONCE: $('#mpCuotaBronce').value.trim(),
+              PLATA: $('#mpCuotaPlata').value.trim(),
+              ORO: $('#mpCuotaOro').value.trim(),
+              PLATINO: $('#mpCuotaPlatino').value.trim()
+            }
+          });
+          if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Configuración guardada.'; }
+          toast('Mercado Pago guardado');
+        } catch (err) {
+          if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + fmtErr(err); }
+        }
+      }, 'Guardando…');
     });
   }
 
@@ -710,21 +770,24 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = $('#extServicesMsg');
-      try {
-        await Store.setExternalServices({
-          medicoVirtualUrl: $('#extMedicoUrl').value.trim(),
-          seguroViajeroUrl: $('#extSeguroUrl').value.trim()
-        });
-        if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Guardado.'; }
-        toast('Servicios guardados');
-      } catch (err) {
-        if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + err.message; }
-      }
+      const submitBtn = form.querySelector('button[type="submit"]');
+      await runLoading(submitBtn, async () => {
+        try {
+          await Store.setExternalServices({
+            medicoVirtualUrl: $('#extMedicoUrl').value.trim(),
+            seguroViajeroUrl: $('#extSeguroUrl').value.trim()
+          });
+          if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Guardado.'; }
+          toast('Servicios guardados');
+        } catch (err) {
+          if (msg) { msg.style.color = '#DC2626'; msg.textContent = 'Error: ' + fmtErr(err); }
+        }
+      }, 'Guardando…');
     });
   }
 
   // ============================================================
-  // BENEFICIOS
+  // BENEFICIOS (Conectado a Store.updateBenefitStatus)
   // ============================================================
   function renderBenefitsTable() {
     const tbody = $('#benefitsTbody');
@@ -737,13 +800,29 @@
     }
     benefits.forEach(b => {
       const statusSel = el('select', { className: 'admin-select' });
-      ['propuesto','en_negociacion','activo','suspendido','vencido'].forEach(s => {
+      ['propuesto', 'en_negociacion', 'activo', 'suspendido', 'vencido'].forEach(s => {
         const opt = el('option', { value: s, textContent: s });
         if (b.status === s) opt.selected = true;
         statusSel.appendChild(opt);
       });
       const refInput = el('input', { type: 'text', maxlength: '60', value: b.agreementRef || '', className: 'admin-input-sm' });
       const validInput = el('input', { type: 'date', value: b.validUntil || '', className: 'admin-input-sm' });
+
+      const saveBtn = el('button', {
+        type: 'button', textContent: '💾 Guardar',
+        onclick: async () => {
+          await runLoading(saveBtn, async () => {
+            try {
+              await Store.updateBenefitStatus(b.id, statusSel.value, refInput.value.trim(), validInput.value, 'admin');
+              toast('Convenio actualizado');
+              renderBenefitsTable();
+            } catch (e) {
+              toast('Error: ' + fmtErr(e));
+            }
+          }, 'Guardando…');
+        }
+      });
+
       tbody.appendChild(el('tr', {}, [
         el('td', {}, [
           el('div', { style: 'font-weight:700;', textContent: b.name }),
@@ -757,11 +836,7 @@
         el('td', {}, [refInput]),
         el('td', {}, [validInput]),
         el('td', {}, [
-          el('div', { className: 'row-actions' }, [
-            el('button', { type: 'button', textContent: '💾 Guardar', onclick: () => {
-              toast('Función en migración. Contactá a soporte.');
-            }})
-          ])
+          el('div', { className: 'row-actions' }, [saveBtn])
         ])
       ]));
     });
@@ -814,18 +889,20 @@
   function initAudit() {
     const btnExp = $('#btnExportAudit');
     if (btnExp) btnExp.addEventListener('click', async () => {
-      try {
-        const logs = await Store.getAuditLogs();
-        const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'auditoria_EMP_' + new Date().toISOString().slice(0, 10) + '.json';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        toast('Auditoría exportada');
-      } catch (err) { toast('Error: ' + err.message); }
+      await runLoading(btnExp, async () => {
+        try {
+          const logs = await Store.getAuditLogs();
+          const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'auditoria_EMP_' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          toast('Auditoría exportada');
+        } catch (err) { toast('Error: ' + fmtErr(err)); }
+      }, 'Exportando…');
     });
     const btnRef = $('#btnRefreshAudit');
-    if (btnRef) btnRef.addEventListener('click', renderAudit);
+    if (btnRef) btnRef.addEventListener('click', () => runLoading(btnRef, renderAudit, 'Actualizando…'));
   }
 
   // ============================================================
@@ -835,9 +912,12 @@
     Store.subscribe(msg => {
       if (!msg) return;
       if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
+      if (msg.type === 'BRANDING_CHANGED') applyBranding();
       if (msg.type !== 'STATE_CHANGED') return;
       renderSocios();
       renderSocioRequests();
+      renderBenefitsTable();
+      renderB2BTable();
     });
   }
 
@@ -857,15 +937,16 @@
     initSubscription();
     renderSocios();
     renderSocioRequests();
-    renderBranding();
+    await renderBranding();
     renderMercadoPago();
     renderExtServices();
     renderBenefitsTable();
     renderB2BTable();
-    renderAudit();
+    await renderAudit();
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    await applyBranding();
     initLogin();
     initLogout();
     const session = await Store.initSession();
