@@ -1,11 +1,12 @@
 /* ============================================================
-   app-central.js v8.2 — Consola Operativa EMP (C1 Aplicado)
+   app-central.js v8.3 — Consola Operativa EMP (C1 + F2)
    - Login staff (admin/operador) por email con spinner
    - applyBrandingToPage() en el boot y pantalla de login
    - Bandeja de incidentes en vivo (realtime) + sonido alerta
    - Despacho: ack, triage, asignar, despachar, escena, traslado, cerrar, cancelar con spinner
    - Ficha del socio + medicación + alergias + solicitudes de apoyo de guardia
    - Flota y bases
+   - F2: registerPushToken() post-login (FCM tokens individuales)
    ============================================================ */
 
 (function () {
@@ -67,6 +68,7 @@
     incidentFilter: 'active',
     selectedIncidentId: null,
     operatorName: '',
+    operatorId: null, // F2
     lastPendingCount: 0,
     audioCtx: null,
     initialBootDone: false
@@ -95,6 +97,22 @@
         osc.stop(now + i * 0.18 + 0.2);
       });
     } catch (_) {}
+  }
+
+  // ============ F2: PUSH TOKEN ============
+  async function initPushRegistration() {
+    if (typeof window.E360Capacitor === 'undefined' || !window.E360Capacitor.registerPushToken) {
+      console.log('[F2] capacitor-bridge no disponible, saltando push.');
+      return;
+    }
+    if (!ui.operatorId) return;
+    try {
+      const result = await window.E360Capacitor.registerPushToken(Store.supabase, ui.operatorId);
+      if (result.ok) console.log('[F2] Push token registrado.');
+      else console.warn('[F2] Push no registrado:', result.error);
+    } catch (err) {
+      console.warn('[F2] Error registrando push:', err);
+    }
   }
 
   // ============ LOGIN ============
@@ -128,8 +146,10 @@
             throw new Error('Tu cuenta no tiene permisos de operador.');
           }
           ui.operatorName = profile.nombre || profile.dni;
+          ui.operatorId = profile.id; // F2
           hideLogin();
           await bootCentral();
+          await initPushRegistration(); // F2
         } catch (err) {
           if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
         }
@@ -564,8 +584,10 @@
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
       ui.operatorName = session.profile.nombre || session.profile.dni;
+      ui.operatorId = session.profile.id; // F2
       hideLogin();
       await bootCentral();
+      await initPushRegistration(); // F2
     } else {
       if (session.loggedIn) await Store.logout();
       showLogin();
