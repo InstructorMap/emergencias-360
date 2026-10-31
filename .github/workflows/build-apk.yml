@@ -29,8 +29,12 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Corrección: el nombre correcto es android-actions/setup-android (sin "actions/" adelante)
+      # Usamos v4 porque v3 falla con "Failed to find package 'tools'" [citation:1][citation:5]
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
         continue-on-error: true
 
       - name: Install dependencies
@@ -70,17 +74,16 @@ jobs:
           fi
           echo "Secret OK (longitud: ${#GOOGLE_SERVICES_JSON_CONTENT} caracteres)"
 
+      # CRÍTICO: sin este plugin, google-services.json es ignorado por Gradle
       - name: Add Google Services Gradle plugin
         run: |
-          # Root build.gradle
           if ! grep -q "com.google.gms:google-services" android/build.gradle; then
             sed -i "/classpath 'com.android.tools.build:gradle/i\\        classpath 'com.google.gms:google-services:4.4.0'" android/build.gradle
             echo "Plugin agregado a android/build.gradle"
           else
             echo "Plugin ya presente en android/build.gradle"
           fi
-          
-          # App build.gradle
+
           if ! grep -q "com.google.gms.google-services" android/app/build.gradle; then
             echo "" >> android/app/build.gradle
             echo "apply plugin: 'com.google.gms.google-services'" >> android/app/build.gradle
@@ -104,6 +107,7 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      # cap sync puede regenerar android/ y borrar el archivo, por eso se re-escribe
       - name: Re-write google-services.json after cap sync
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
