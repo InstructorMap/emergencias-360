@@ -1,8 +1,9 @@
 /* ============================================================
-   healthcheck.js v8 — Auto-diagnóstico visual
+   healthcheck.js v8.3 — Auto-diagnóstico visual (C1 + F2 Push FCM)
    - index.html: landing pública (sin store)
    - socio.html: app del socio (5 tabs + credencial + medicación)
    - central/guardia/b2b/admin: vistas operativas
+   - Chequea métodos C1 en E360Store y registerPushToken / showLocalNotification en E360Capacitor
    ============================================================ */
 
 (function (global) {
@@ -23,14 +24,14 @@
       } catch (_) { return 6.1; }
     }
 
-    // Métodos que SÍ existen en store.js v8
+    // Métodos exigidos en store.js v8.2+ (incluye C1)
     const baseStoreMethods = [
-      'initSession', 'login', 'logout', 'changePassword',
+      'initSession', 'login', 'loginWithEmail', 'logout', 'changePassword',
       'getSession', 'getUser', 'isLoggedIn', 'isAdmin',
       'getPublicCarnetInfo', 'getPublicPulseraInfo',
       'getActiveProfile', 'getProfile', 'listProfiles', 'saveProfile',
       'createSocio', 'bulkCreateSocios', 'setProfilePlan', 'setCarnetStatus', 'renewCarnet',
-      'getIncidents', 'getIncidentById', 'getLatestIncident', 'getMyIncidents',
+      'getIncidents', 'getIncidentsByDni', 'getIncidentById', 'getLatestIncident', 'getMyIncidents',
       'getActiveIncidentForUnit', 'getIncidentEta', 'createSOSIncident',
       'transitionIncidentStatus', 'acknowledgeIncident', 'dispatchIncidentUnit',
       'markIncidentOnScene', 'markIncidentInTransit', 'closeIncident', 'cancelIncident',
@@ -40,11 +41,12 @@
       'logDose', 'scheduleDosesForMedication', 'getDosesForDay',
       'submitSocioRequest', 'submitRecategorizacion', 'getSocioRequests',
       'approveSocioRequest', 'rejectSocioRequest',
-      'getVisibleBenefits', 'getAllBenefitsRaw',
-      'getB2BEstablishments', 'getB2BById',
+      'getVisibleBenefits', 'getAllBenefitsRaw', 'updateBenefitStatus',
+      'getB2BEstablishments', 'getB2BById', 'saveB2BEstablishment', 'toggleB2BStatus',
       'getExternalServices', 'setExternalServices',
       'getPaymentConfigPublic', 'getPaymentConfigAdmin', 'setPaymentConfig',
       'getBranding', 'loadBranding', 'setBranding', 'uploadBrandingFile',
+      'applyBrandingToPage', 'notifySOSEmitted', 'withButtonLoading', 'humanizeError',
       'getActiveContext', 'setActiveBase', 'getSupabaseStatus', 'subscribe',
       'calcCarnetStatus', 'daysToExpire'
     ];
@@ -99,7 +101,7 @@
     }
 
     // CENTRAL
-       if (path === 'central.html') {
+    if (path === 'central.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
@@ -113,8 +115,9 @@
         expectedVersion: expectedVersion()
       };
     }
+
     // GUARDIA
-        if (path === 'guardia.html') {
+    if (path === 'guardia.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
@@ -130,6 +133,7 @@
       };
     }
 
+    // B2B
     if (path === 'b2b.html') {
       return {
         page: path, globals: baseGlobals,
@@ -146,8 +150,9 @@
         expectedVersion: expectedVersion()
       };
     }
+
     // ADMIN
-       if (path === 'admin.html') {
+    if (path === 'admin.html') {
       return {
         page: path, globals: baseGlobals,
         storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
@@ -194,6 +199,19 @@
         issues.push({ level: 'error', code: 'STORE_METHOD_MISSING', msg: 'E360Store.' + m + ' no es función' });
       }
     });
+    return issues;
+  }
+
+  function checkCapacitorBridge() {
+    const issues = [];
+    if (typeof global.E360Capacitor !== 'undefined') {
+      if (typeof global.E360Capacitor.registerPushToken !== 'function') {
+        issues.push({ level: 'error', code: 'CAPACITOR_PUSH_MISSING', msg: 'E360Capacitor.registerPushToken no es función (F2)' });
+      }
+      if (typeof global.E360Capacitor.showLocalNotification !== 'function') {
+        issues.push({ level: 'error', code: 'CAPACITOR_LOCAL_NOTIF_MISSING', msg: 'E360Capacitor.showLocalNotification no es función (C1)' });
+      }
+    }
     return issues;
   }
 
@@ -382,6 +400,7 @@
     Array.prototype.push.apply(issues, checkGlobals(plan));
     Array.prototype.push.apply(issues, checkConfigKeys(plan));
     Array.prototype.push.apply(issues, checkStoreMethods(plan));
+    Array.prototype.push.apply(issues, checkCapacitorBridge());
     Array.prototype.push.apply(issues, checkDomIds(plan));
     Array.prototype.push.apply(issues, checkStorage());
     checkAssets(plan, assetIssues => {
