@@ -1,10 +1,11 @@
 /* ============================================================
-   app-socio.js v8.2 — Controlador de socio.html (C1 Aplicado)
+   app-socio.js v8.3 — Controlador de socio.html (C1 + ETA 30s + Velocidad real)
    - applyBrandingToPage() en el boot (incluyendo modo público)
    - notifySOSEmitted(incident) al emitir SOS (Capacitor + Toast Web)
    - withButtonLoading() con spinner en Login, Cambio Clave, Ficha, Medicación y Recategorización
+   - ETA refresh cada 30s mientras el incidente está EN_CAMINO / EN_ESCENA
+   - Muestra velocidad real de la unidad (viene de Store.getIncidentEta)
    - Aviso legal EMP corregido en PDF y verificación pública (Regla #2)
-   - Enlaces reales a Médico Virtual y Seguro Viajero desde Store.getExternalServices()
    ============================================================ */
 
 (function () {
@@ -15,6 +16,7 @@
   const QR = window.E360QR || null;
 
   const APK_URL = 'https://github.com/InstructorMap/emergencias-360/releases/latest/download/app-debug.apk';
+  const ETA_REFRESH_MS = 30000;
 
   if (!Store || !C) {
     console.error('[app-socio] Faltan dependencias core.');
@@ -66,9 +68,31 @@
   let credencialSegundos = 180;
   let activeFamilyIndex = 0;
   let branding = null;
+  let etaInterval = null;
 
   const MODO_MAYOR_KEY = 'e360_modo_mayor';
   const CODIGO_DURACION_SEG = 180;
+
+  // ============================================================
+  // ETA REFRESH AUTOMÁTICO (cada 30s)
+  // ============================================================
+  function stopEtaRefresh() {
+    if (etaInterval) { clearInterval(etaInterval); etaInterval = null; }
+  }
+
+  function startEtaRefresh() {
+    stopEtaRefresh();
+    etaInterval = setInterval(() => {
+      if (!currentIncident) return;
+      const status = currentIncident.status;
+      if (status !== 'EN_CAMINO' && status !== 'EN_ESCENA') return;
+      const latest = Store.getIncidentById(currentIncident.id);
+      if (latest) {
+        currentIncident = latest;
+        renderIncident(latest);
+      }
+    }, ETA_REFRESH_MS);
+  }
 
   // ============================================================
   // MODO ADULTO MAYOR
@@ -518,7 +542,7 @@
   }
 
   // ============================================================
-  // SOS (Con Notificación Nativa + Toast C1 y Loading State)
+  // SOS
   // ============================================================
   const HOLD_MS = C.SOS_HOLD_MS || 1500;
   let holdTimer = null, holdStart = 0, holdRAF = null, sosFired = false;
@@ -581,6 +605,7 @@
       currentIncident = incident;
       renderIncident(incident);
       renderMisIncidentes();
+      startEtaRefresh();
       setProgress(100, 'btnSOS');
       setProgress(100, 'btnSOSInicio');
 
@@ -598,7 +623,7 @@
   }
 
   // ============================================================
-  // RENDER INCIDENTE
+  // RENDER INCIDENTE (con ETA 30s)
   // ============================================================
   const STATE_LABELS = {
     RECIBIDA_SERVIDOR: { text: 'Alerta emitida. Aguardando confirmación de central.', color: 'amber' },
@@ -653,7 +678,10 @@
             etaMain.textContent = 'Llegada estimada: ' + eta.etaMinutes + ' min';
             etaMain.className = 'eta-main ' + (eta.etaMinutes <= 5 ? 'eta-eta-near' : 'eta-eta-normal');
           }
-          if (etaSource) etaSource.textContent = 'Fuente: ' + (eta.source === 'gps' ? 'GPS de Unidad en Vivo' : 'Estimación desde Base');
+          if (etaSource) {
+            const vel = eta.velocidadKmh ? ' · ' + eta.velocidadKmh + ' km/h' : '';
+            etaSource.textContent = 'Fuente: ' + (eta.source === 'gps' ? ('GPS de Unidad en Vivo' + vel) : 'Estimación desde Base (40 km/h)');
+          }
         } else {
           etaBlock.hidden = true;
         }
@@ -684,9 +712,11 @@
         if (latest) {
           currentIncident = latest;
           renderIncident(latest);
+          if (latest.status === 'EN_CAMINO' || latest.status === 'EN_ESCENA') startEtaRefresh();
+          else if (latest.status === 'CERRADA' || latest.status === 'CANCELADA') stopEtaRefresh();
         }
         if ($('#tab-credencial') && !$('#tab-credencial').hidden) renderCredencial();
-        if ($('#tab-ficha') && !$('#tab-ficha').hidden) { renderMedicacion(); renderMisIncidentes(); renderPagos(); }
+               if ($('#tab-ficha') && !$('#tab-ficha').hidden) { renderMedicacion(); renderMisIncidentes(); renderPagos(); }
       }
     });
   }
@@ -772,7 +802,7 @@
   }
 
   // ============================================================
-  // MEDICACIÓN (con parches F1 + Loading States C1)
+  // MEDICACIÓN
   // ============================================================
   function renderMedicacion() {
     const hoy = $('#medicacionHoy');
@@ -1249,7 +1279,7 @@
   }
 
   // ============================================================
-  // ACCESOS RÁPIDOS (Con conexión a Servicios Tercerizados)
+  // ACCESOS RÁPIDOS
   // ============================================================
   function initAccesosRapidos() {
     $$('.acceso-rapido').forEach(btn => {
@@ -1291,6 +1321,13 @@
     renderPagos();
     const profile = Store.getActiveProfile();
     if (profile) loadProfileIntoForm();
+
+    const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
+    if (latest && (latest.status === 'EN_CAMINO' || latest.status === 'EN_ESCENA')) {
+      currentIncident = latest;
+      renderIncident(latest);
+      startEtaRefresh();
+    }
   }
 
   // ============================================================
@@ -1309,8 +1346,8 @@
     await loadBranding();
 
     initModoMayor();
-    initBanner();
-    initConnection();
+    initBanner
+         initConnection();
     initLoginForm();
     initChangePasswordForm();
     initLogout();
@@ -1340,4 +1377,6 @@
       showLogin();
     }
   });
+
+  window.addEventListener('beforeunload', () => { stopEtaRefresh(); });
 })();
