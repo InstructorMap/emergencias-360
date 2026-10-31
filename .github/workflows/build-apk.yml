@@ -16,24 +16,27 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Setup Java JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@v3
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install Firebase Messaging plugin
+        run: npm install @capacitor-firebase/messaging@^7.0.0 firebase@^11.0.0
 
       - name: Prepare www directory
         run: |
@@ -45,16 +48,29 @@ jobs:
           cp b2b.html www/ 2>/dev/null || true
           cp admin.html www/ 2>/dev/null || true
           cp manifest.json www/ 2>/dev/null || true
+          cp sw.js www/ 2>/dev/null || true
           cp -r css www/ 2>/dev/null || true
           cp -r js www/ 2>/dev/null || true
           cp -r assets www/ 2>/dev/null || true
 
-      - name: Initialize Capacitor (first time)
+      - name: Initialize Capacitor Android platform
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
         continue-on-error: true
+
+      - name: Write google-services.json from GitHub Secret
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p android/app
+          if [ -n "$GOOGLE_SERVICES_JSON_CONTENT" ]; then
+            printf '%s\n' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
+            echo "google-services.json escrito correctamente en android/app/"
+          else
+            echo "ADVERTENCIA: El secret GOOGLE_SERVICES_JSON está vacío."
+          fi
 
       - name: Generate app icons from resources
         run: npx capacitor-assets generate --android
@@ -83,7 +99,7 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: "EMP Emergencias v1.0.${{ github.run_number }}"
           body: |
-            APK generada automáticamente desde el commit ${{ github.sha }}.
+            APK generada automáticamente desde el commit ${{ github.sha }} (Incluye Push SOS FCM).
             
             **Instalación:** descargá `app-debug.apk`, pasalo al teléfono Android, habilitá "orígenes desconocidos" e instalá.
             
