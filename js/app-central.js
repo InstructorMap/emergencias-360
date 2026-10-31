@@ -715,6 +715,7 @@
   }
 
   // ============ FLOTA ============
+   // ============ FLOTA ============
   function renderFleet() {
     const container = $('#fleetContainer');
     if (!container) return;
@@ -731,8 +732,7 @@
         list.appendChild(el('li', { className: 'unit-card' }, [
           el('div', { className: 'unit-top' }, [
             el('span', { className: 'unit-name', textContent: u.unit }),
-            el('span', { className: 'unit
-                           el('span', { className: 'unit-status-' + u.status, textContent: u.status.toUpperCase() })
+            el('span', { className: 'unit-pill unit-status-' + u.status, textContent: u.status.toUpperCase() })
           ]),
           el('div', { style: 'font-size:0.72rem;color:#94A3B8;', textContent: 'Tipo: ' + u.tipoUnidad })
         ]));
@@ -741,7 +741,6 @@
       container.appendChild(el('div', { style: 'height:8px' }));
     });
   }
-
   function renderAll() {
     renderAlertCounter();
     renderIncidentList();
