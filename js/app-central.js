@@ -1,9 +1,10 @@
 /* ============================================================
-   app-central.js v8 — Consola Operativa EMP
-   - Login staff (admin/operador) por email
-   - Bandeja de incidentes en vivo (realtime)
-   - Despacho: ack, triage, asignar, despachar, en escena, en traslado, cerrar, cancelar
-   - Ficha del socio + medicación + alergias al abrir incidente
+   app-central.js v8.2 — Consola Operativa EMP (C1 Aplicado)
+   - Login staff (admin/operador) por email con spinner
+   - applyBrandingToPage() en el boot y pantalla de login
+   - Bandeja de incidentes en vivo (realtime) + sonido alerta
+   - Despacho: ack, triage, asignar, despachar, escena, traslado, cerrar, cancelar con spinner
+   - Ficha del socio + medicación + alergias + solicitudes de apoyo de guardia
    - Flota y bases
    ============================================================ */
 
@@ -39,8 +40,8 @@
     return node;
   }
 
-  function fmtTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' }); } catch(_) { return iso; } }
-  function fmtDateTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); } catch(_) { return iso; } }
+  function fmtTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }); } catch (_) { return iso; } }
+  function fmtDateTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return iso; } }
 
   function toast(text) {
     let t = document.getElementById('e360Toast');
@@ -50,13 +51,51 @@
     setTimeout(() => t.classList.remove('show'), 2600);
   }
 
+  async function runLoading(btn, fn, label) {
+    if (typeof Store.withButtonLoading === 'function') {
+      return await Store.withButtonLoading(btn, fn, label);
+    }
+    return await fn();
+  }
+
+  function fmtErr(err) {
+    return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
   const ui = {
     baseFilter: 'ALL',
     incidentFilter: 'active',
     selectedIncidentId: null,
     operatorName: '',
-    lastPendingCount: 0
+    lastPendingCount: 0,
+    audioCtx: null,
+    initialBootDone: false
   };
+
+  function playAlertBeep() {
+    try {
+      if (!ui.audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        ui.audioCtx = new Ctx();
+      }
+      const ctx = ui.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+      [880, 1320].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.18 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + i * 0.18);
+        osc.stop(now + i * 0.18 + 0.2);
+      });
+    } catch (_) {}
+  }
 
   // ============ LOGIN ============
   function showLogin() {
@@ -77,35 +116,42 @@
       const btn = $('#centralLoginBtn');
       const email = $('#centralLoginEmail').value.trim();
       const password = $('#centralLoginPassword').value;
-      if (!email || !password) { if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; } return; }
-      if (btn) { btn.disabled = true; btn.textContent = 'Ingresando…'; }
-      try {
-        const profile = await Store.loginWithEmail(email, password);
-        if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
-          await Store.logout();
-          throw new Error('Tu cuenta no tiene permisos de operador.');
-        }
-        ui.operatorName = profile.nombre || profile.dni;
-        hideLogin();
-        await bootCentral();
-      } catch (err) {
-        if (msg) { msg.textContent = err.message || 'Error al ingresar.'; msg.style.color = '#DC2626'; }
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+      if (!email || !password) {
+        if (msg) { msg.textContent = 'Completá email y contraseña.'; msg.style.color = '#DC2626'; }
+        return;
       }
+      await runLoading(btn, async () => {
+        try {
+          const profile = await Store.loginWithEmail(email, password);
+          if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+            await Store.logout();
+            throw new Error('Tu cuenta no tiene permisos de operador.');
+          }
+          ui.operatorName = profile.nombre || profile.dni;
+          hideLogin();
+          await bootCentral();
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = '#DC2626'; }
+        }
+      }, 'Ingresando…');
     });
+
     const logout = $('#centralLogout');
     if (logout) logout.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión?')) return;
-      await Store.logout();
-      location.reload();
+      await runLoading(logout, async () => {
+        await Store.logout();
+        location.reload();
+      }, 'Saliendo…');
     });
   }
 
   // ============ BRANDING ============
   async function applyBranding() {
     try {
-      const b = await Store.loadBranding();
+      const b = typeof Store.applyBrandingToPage === 'function'
+        ? await Store.applyBrandingToPage()
+        : await Store.loadBranding();
       if (b && b.logoUrl) {
         const brand = $('#centralHeaderBrand');
         if (brand) {
@@ -114,6 +160,7 @@
             const img = document.createElement('img');
             img.src = b.logoUrl;
             img.alt = 'EMP';
+            img.className = 'emp-logo-chip';
             img.style.height = '38px';
             svg.replaceWith(img);
           }
@@ -154,6 +201,9 @@
     counter.textContent = String(pending);
     if (pending > 0) counter.classList.add('pulse');
     else counter.classList.remove('pulse');
+    if (ui.initialBootDone && pending > ui.lastPendingCount) {
+      playAlertBeep();
+    }
     ui.lastPendingCount = pending;
   }
 
@@ -172,6 +222,7 @@
     items.forEach(inc => {
       const pendingClass = inc.status === 'RECIBIDA_SERVIDOR' ? ' pending' : '';
       const selectedClass = inc.id === ui.selectedIncidentId ? ' selected' : '';
+      const hasSupport = Array.isArray(inc.supportRequests) && inc.supportRequests.length > 0;
       list.appendChild(el('li', {
         className: 'incident-card' + pendingClass + selectedClass,
         onclick: () => { ui.selectedIncidentId = inc.id; renderIncidentList(); renderDetail(); }
@@ -182,9 +233,10 @@
         ]),
         el('div', { className: 'card-meta' }, [
           el('span', { className: 'badge badge-state-' + inc.status, textContent: inc.status }),
-          inc.priority ? el('span', { className: 'badge badge-priority-' + inc.priority, textContent: inc.priority }) : null
+          inc.priority ? el('span', { className: 'badge badge-priority-' + inc.priority, textContent: inc.priority }) : null,
+          hasSupport ? el('span', { className: 'badge badge-priority-ROJO', textContent: '🚨 APOYO SOLICITADO' }) : null
         ].filter(Boolean)),
-        el('div', { className: 'card-loc', textContent: (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
+        el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || '—') + ' · ' + (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
       ]));
     });
   }
@@ -209,6 +261,20 @@
     if (!inc) {
       container.appendChild(el('div', { className: 'detail-empty', textContent: 'Incidente no disponible.' }));
       return;
+    }
+
+    // Bloque de Solicitudes de Apoyo (si existen)
+    if (Array.isArray(inc.supportRequests) && inc.supportRequests.length > 0) {
+      const supBlock = el('div', { className: 'alerta-clinica' }, [
+        el('strong', { textContent: '🚨 SOLICITUDES DE APOYO / REFUERZO DESDE GUARDIA' })
+      ]);
+      inc.supportRequests.forEach(sr => {
+        supBlock.appendChild(el('div', { className: 'clin-row' }, [
+          el('strong', { textContent: '[' + fmtTime(sr.ts) + '] ' + (sr.type || 'Apoyo') + ': ' }),
+          el('span', { textContent: (sr.notes || 'Sin notas adicionales') + ' (' + (sr.requestedBy || 'guardia') + ')' })
+        ]));
+      });
+      container.appendChild(supBlock);
     }
 
     const patientBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Datos del Socio' })]);
@@ -246,7 +312,14 @@
       patientBlock.appendChild(el('div', { className: 'warn-operador', textContent: 'Socio sin ficha.' }));
     }
 
-    const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación' })]);
+    const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación y ETA' })]);
+    if (inc.b2bEstablishmentId) {
+      const b2bEst = Store.getB2BById(inc.b2bEstablishmentId);
+      if (b2bEst) {
+        geoBlock.appendChild(kv('Punto QR B2B', b2bEst.name + ' (' + b2bEst.type + ')'));
+        if (b2bEst.protocol) geoBlock.appendChild(kv('Protocolo B2B', b2bEst.protocol));
+      }
+    }
     if (inc.location) {
       geoBlock.appendChild(kv('Coordenadas', inc.location.lat.toFixed(6) + ', ' + inc.location.lng.toFixed(6)));
       geoBlock.appendChild(el('a', {
@@ -255,6 +328,10 @@
       }));
     }
     if (inc.manualAddress) geoBlock.appendChild(kv('Dirección manual', inc.manualAddress));
+    const etaInfo = Store.getIncidentEta(inc.id);
+    if (etaInfo && etaInfo.hasEta) {
+      geoBlock.appendChild(kv('ETA referencial', etaInfo.etaMinutes + ' min (' + etaInfo.source + ')'));
+    }
 
     const actionsBlock = buildActions(inc);
 
@@ -279,20 +356,41 @@
     const block = el('div', { className: 'detail-actions' });
     const op = ui.operatorName || 'central';
 
-    const run = async (fn) => {
-      try { await fn(); renderAll(); }
-      catch (err) { alert('Acción rechazada: ' + err.message); }
+    const run = async (btn, fn, label) => {
+      await runLoading(btn, async () => {
+        try { await fn(); renderAll(); }
+        catch (err) { alert('Acción rechazada: ' + fmtErr(err)); }
+      }, label);
+    };
+
+    const addCancelBtn = () => {
+      if (['CERRADA', 'CANCELADA', 'EN_ESCENA', 'EN_TRASLADO'].indexOf(inc.status) !== -1) return;
+      const bCancel = el('button', {
+        type: 'button', className: 'btn-action btn-danger', textContent: 'Cancelar Incidente',
+        onclick: () => {
+          const reason = prompt('Motivo de cancelación (obligatorio):');
+          if (!reason || !reason.trim()) return;
+          run(bCancel, () => Store.cancelIncident(inc.id, reason.trim(), op), 'Cancelando…');
+        }
+      });
+      block.appendChild(bCancel);
     };
 
     switch (inc.status) {
-      case 'RECIBIDA_SERVIDOR':
-        block.appendChild(el('button', { type: 'button', className: 'btn-action btn-warn', textContent: '1. Acusar recibo', onclick: () => run(() => Store.acknowledgeIncident(inc.id, op)) }));
-        block.appendChild(el('button', { type: 'button', className: 'btn-action btn-danger', textContent: 'Cancelar', onclick: () => run(async () => {
-          const reason = prompt('Motivo de cancelación:');
-          if (reason) await Store.cancelIncident(inc.id, reason, op);
-        }) }));
+      case 'RECIBIDA_SERVIDOR': {
+        const bAck = el('button', {
+          type: 'button', className: 'btn-action btn-warn', textContent: '1. Acusar recibo',
+          onclick: () => run(bAck, () => Store.acknowledgeIncident(inc.id, op), 'Acusando recibo…')
+        });
+        block.appendChild(bAck);
+        addCancelBtn();
         return block;
-      case 'ACEPTADA_POR_CENTRAL':
+      }
+      case 'ACEPTADA_POR_CENTRAL': {
+        const bTriage = el('button', {
+          type: 'button', className: 'btn-action btn-ok', textContent: 'Confirmar Triage',
+          onclick: () => run(bTriage, () => Store.triageIncident(inc.id, $('#triagePriority').value, $('#triageNotes').value, op), 'Clasificando…')
+        });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
             el('span', { textContent: '2. Prioridad (Triage)' }),
@@ -308,11 +406,17 @@
             el('span', { textContent: 'Observación' }),
             el('textarea', { id: 'triageNotes', rows: '2', maxlength: '300' })
           ]),
-          el('button', { type: 'button', className: 'btn-action btn-ok', textContent: 'Confirmar Triage', onclick: () => run(() => Store.triageIncident(inc.id, $('#triagePriority').value, $('#triageNotes').value, op)) })
+          bTriage
         ]));
+        addCancelBtn();
         return block;
-      case 'CLASIFICADA':
+      }
+      case 'CLASIFICADA': {
         const units = Store.getFleet(inc.baseId).filter(u => u.status === 'disponible');
+        const bAssign = el('button', {
+          type: 'button', className: 'btn-action btn-ok', textContent: 'Asignar', disabled: !units.length,
+          onclick: () => run(bAssign, () => Store.assignUnitToIncident(inc.id, $('#assignUnitId').value, $('#assignCrew').value, op), 'Asignando móvil…')
+        });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
             el('span', { textContent: '3. Asignar móvil' }),
@@ -327,25 +431,44 @@
             el('span', { textContent: 'Dotación / notas' }),
             el('input', { type: 'text', id: 'assignCrew', maxlength: '120' })
           ]),
-          el('button', { type: 'button', className: 'btn-action btn-ok', textContent: 'Asignar', disabled: !units.length, onclick: () => run(() => Store.assignUnitToIncident(inc.id, $('#assignUnitId').value, $('#assignCrew').value, op)) })
+          bAssign
         ]));
+        addCancelBtn();
         return block;
-      case 'MOVIL_ASIGNADO':
-        block.appendChild(el('button', { type: 'button', className: 'btn-action btn-ok', textContent: '4. Confirmar salida — Móvil en camino', onclick: () => run(() => Store.dispatchIncidentUnit(inc.id, op)) }));
+      }
+      case 'MOVIL_ASIGNADO': {
+        const bDisp = el('button', {
+          type: 'button', className: 'btn-action btn-ok', textContent: '4. Confirmar salida — Móvil en camino',
+          onclick: () => run(bDisp, () => Store.dispatchIncidentUnit(inc.id, op), 'Despachando…')
+        });
+        block.appendChild(bDisp);
+        addCancelBtn();
         return block;
-      case 'EN_CAMINO':
-        block.appendChild(el('button', { type: 'button', className: 'btn-action btn-ok', textContent: '5. Marcar arribo en escena', onclick: () => run(() => Store.markIncidentOnScene(inc.id, op)) }));
+      }
+      case 'EN_CAMINO': {
+        const bScene = el('button', {
+          type: 'button', className: 'btn-action btn-ok', textContent: '5. Marcar arribo en escena',
+          onclick: () => run(bScene, () => Store.markIncidentOnScene(inc.id, op), 'Marcando arribo…')
+        });
+        block.appendChild(bScene);
+        addCancelBtn();
         return block;
-      case 'EN_ESCENA':
+      }
+      case 'EN_ESCENA': {
+        const bTrans = el('button', {
+          type: 'button', className: 'btn-action', textContent: 'Registrar traslado',
+          onclick: () => run(bTrans, () => Store.markIncidentInTransit(inc.id, $('#destCenter').value, op), 'Registrando traslado…')
+        });
         block.appendChild(el('div', { className: 'inline-form' }, [
           el('label', {}, [
             el('span', { textContent: '6. Centro receptor (traslado)' }),
             el('input', { type: 'text', id: 'destCenter', maxlength: '120', placeholder: 'Ej: Hospital San Roque' })
           ]),
-          el('button', { type: 'button', className: 'btn-action', textContent: 'Registrar traslado', onclick: () => run(() => Store.markIncidentInTransit(inc.id, $('#destCenter').value, op)) }),
+          bTrans,
           buildCloseForm(inc, op)
         ]));
         return block;
+      }
       case 'EN_TRASLADO':
         block.appendChild(el('div', { className: 'inline-form' }, [buildCloseForm(inc, op)]));
         return block;
@@ -361,18 +484,24 @@
   }
 
   function buildCloseForm(inc, op) {
-    const reasons = ['Atención en domicilio sin traslado','Traslado efectivo a centro de salud','Falsa alarma','Derivado a sistema público'];
+    const reasons = ['Atención en domicilio sin traslado', 'Traslado efectivo a centro de salud', 'Falsa alarma', 'Derivado a sistema público'];
     const sel = el('select', { id: 'closeReason' });
     reasons.forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+    const bClose = el('button', {
+      type: 'button', className: 'btn-action btn-ok', textContent: 'Cerrar incidente',
+      onclick: async () => {
+        await runLoading(bClose, async () => {
+          try {
+            await Store.closeIncident(inc.id, $('#closeReason').value, $('#closeNotes').value, op);
+            renderAll();
+          } catch (err) { alert('Error: ' + fmtErr(err)); }
+        }, 'Cerrando…');
+      }
+    });
     return el('div', { className: 'inline-form' }, [
       el('label', {}, [el('span', { textContent: 'Motivo de cierre' }), sel]),
       el('label', {}, [el('span', { textContent: 'Notas de cierre (obligatorias)' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]),
-      el('button', { type: 'button', className: 'btn-action btn-ok', textContent: 'Cerrar incidente', onclick: async () => {
-        try {
-          await Store.closeIncident(inc.id, $('#closeReason').value, $('#closeNotes').value, op);
-          renderAll();
-        } catch (err) { alert('Error: ' + err.message); }
-      } })
+      bClose
     ]);
   }
 
@@ -414,6 +543,7 @@
     Store.subscribe(msg => {
       if (!msg) return;
       if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
+      if (msg.type === 'BRANDING_CHANGED') applyBranding();
       if (msg.type !== 'STATE_CHANGED') return;
       renderAll();
     });
@@ -423,11 +553,13 @@
     await applyBranding();
     initBaseSelector();
     initIncidentFilters();
-    initSubscription();
     renderAll();
+    ui.initialBootDone = true;
+    initSubscription();
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
+    await applyBranding();
     initLogin();
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
