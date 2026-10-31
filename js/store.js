@@ -791,7 +791,7 @@
       };
     },
 
-    async createSOSIncident(payload) {
+        async createSOSIncident(payload) {
       const p = payload || {};
       const dni = p.profileDni || (state.profile && state.profile.dni) || null;
       const baseId = p.baseId || (state.profile && state.profile.baseId) || state.context.activeBaseId || 'DOLORES';
@@ -814,7 +814,25 @@
           detail: p.detail || 'Alerta emitida.'
         }]
       };
-           async createManualIncident(payload) {
+      if (state.supabase && navigator.onLine) {
+        const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
+        if (error) throw new Error(error.message);
+        const mapped = mapIncidentFromDB(data);
+        state.incidents.unshift(mapped);
+        state.myIncidents.unshift(mapped);
+        saveCache();
+        if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+        return mapped;
+      } else {
+        const mapped = mapIncidentFromDB({ ...record, created_at: nowISO() });
+        state.incidents.unshift(mapped);
+        state.myIncidents.unshift(mapped);
+        saveCache();
+        return mapped;
+      }
+    },
+
+    async createManualIncident(payload) {
       requireUser();
       if (!state.profile || (state.profile.role !== 'admin' && state.profile.role !== 'operador')) {
         throw new Error('Solo staff puede crear incidentes manuales.');
