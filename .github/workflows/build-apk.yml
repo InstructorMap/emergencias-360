@@ -30,7 +30,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: actions/android-actions/setup-android@v3
+        uses: android-actions/setup-android@v3
         continue-on-error: true
 
       - name: Install dependencies
@@ -60,7 +60,6 @@ jobs:
             npx cap add android
           fi
 
-      # --- CAMBIO 1: verificar que el secret exista ANTES de seguir ---
       - name: Verify GOOGLE_SERVICES_JSON secret
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -71,8 +70,25 @@ jobs:
           fi
           echo "Secret OK (longitud: ${#GOOGLE_SERVICES_JSON_CONTENT} caracteres)"
 
-      # --- CAMBIO 2: escribir el archivo DESPUÉS de que exista android/ ---
-      # --- CAMBIO 3: usar printf '%s' (sin salto de línea extra) para no corromper el JSON ---
+      - name: Add Google Services Gradle plugin
+        run: |
+          # Root build.gradle
+          if ! grep -q "com.google.gms:google-services" android/build.gradle; then
+            sed -i "/classpath 'com.android.tools.build:gradle/i\\        classpath 'com.google.gms:google-services:4.4.0'" android/build.gradle
+            echo "Plugin agregado a android/build.gradle"
+          else
+            echo "Plugin ya presente en android/build.gradle"
+          fi
+          
+          # App build.gradle
+          if ! grep -q "com.google.gms.google-services" android/app/build.gradle; then
+            echo "" >> android/app/build.gradle
+            echo "apply plugin: 'com.google.gms.google-services'" >> android/app/build.gradle
+            echo "Plugin aplicado en android/app/build.gradle"
+          else
+            echo "Plugin ya presente en android/app/build.gradle"
+          fi
+
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -88,8 +104,6 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # --- CAMBIO 4: re-escribir el archivo DESPUÉS de cap sync ---
-      # cap sync puede regenerar android/ y borrar el archivo.
       - name: Re-write google-services.json after cap sync
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -98,7 +112,6 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
           echo "Archivo re-escrito post-sync: $(wc -c < android/app/google-services.json) bytes"
 
-      # --- CAMBIO 5: verificar que el archivo esté en el lugar correcto antes de compilar ---
       - name: Verify google-services.json placement
         run: |
           if [ ! -f "android/app/google-services.json" ]; then
@@ -106,8 +119,6 @@ jobs:
             exit 1
           fi
           ls -la android/app/google-services.json
-          head -c 80 android/app/google-services.json
-          echo ""
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
