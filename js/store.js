@@ -1,5 +1,7 @@
 /* ============================================================
-   E360Store v8.2 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
+   E360Store v8.3 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
+   - F2: getSpeedLimit / setSpeedLimit (tabla config)
+   - getIncidentEta: usa velocidad real de unitLocation.speed con fallback 40 km/h
    - loginWithEmail(email, password): login del admin y operadores por email
    - getPublicCarnetInfo / getPublicPulseraInfo
    - getIncidentsByDni, getMedicationsForProfile
@@ -70,6 +72,7 @@
     auditLogs: [],
     externalServices: { medicoVirtualUrl: '', seguroViajeroUrl: '' },
     paymentConfig: null,
+    speedLimitKmh: 60,
     branding: null,
     context: { activeBaseId: 'DOLORES', platformMode: 'LOCAL_MVP' },
     lastSync: null
@@ -133,7 +136,8 @@
         medications: state.medications,
         doseLogs: state.doseLogs,
         externalServices: state.externalServices,
-        context: state.context
+        context: state.context,
+        speedLimitKmh: state.speedLimitKmh
       };
       global.localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
     } catch (_) {}
@@ -156,6 +160,7 @@
       state.doseLogs = cache.doseLogs || [];
       state.externalServices = cache.externalServices || state.externalServices;
       state.context = cache.context || state.context;
+      if (typeof cache.speedLimitKmh === 'number') state.speedLimitKmh = cache.speedLimitKmh;
       return true;
     } catch (_) { return false; }
   }
@@ -182,6 +187,7 @@
       contacto: p.contacto || '',
       cuota: p.cuota || '',
       role: p.role || 'socio',
+      onDuty: !!p.on_duty,
       mustChangePassword: !!p.must_change_password,
       carnetToken: p.carnet_token,
       carnetStatus: p.carnet_status || 'activo',
@@ -270,11 +276,9 @@
     root.style.setProperty('--color-blue', primary);
     root.style.setProperty('--color-amber', accent);
 
-    // Actualizar meta theme-color
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) metaTheme.setAttribute('content', primary);
 
-    // Actualizar favicon dinámico
     if (b.faviconUrl) {
       let link = document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
       if (!link) {
@@ -287,7 +291,6 @@
       }
     }
 
-    // Actualizar imágenes de logo con chip blanco si existe URL
     const logoSelectors = '[data-emp-logo], .emp-brand-logo, #headerLogoImg, #adminLogoPreview';
     const logoNodes = document.querySelectorAll(logoSelectors);
     logoNodes.forEach((node) => {
@@ -461,6 +464,14 @@
         };
       }
 
+      // Leer límite de velocidad global
+      try {
+        const { data: cfg } = await sb.from('config').select('speed_limit_kmh').eq('id', 1).maybeSingle();
+        if (cfg && typeof cfg.speed_limit_kmh === 'number') {
+          state.speedLimitKmh = cfg.speed_limit_kmh;
+        }
+      } catch (_) {}
+
       if (state.profile && state.profile.role === 'admin') {
         const { data: pay } = await sb.from('payment_config').select('*').eq('id', 1).maybeSingle();
         if (pay) state.paymentConfig = pay;
@@ -536,6 +547,25 @@
     isLoggedIn() { return !!(state.session && state.profile); },
     isAdmin() { return !!(state.profile && state.profile.role === 'admin'); },
     isStaff() { return !!(state.profile && (state.profile.role === 'admin' || state.profile.role === 'operador')); },
+
+    // ============ LÍMITE DE VELOCIDAD (global) ============
+    getSpeedLimit() {
+      return state.speedLimitKmh;
+    },
+    async setSpeedLimit(kmh) {
+      const val = parseInt(kmh, 10);
+      if (!val || val < 10 || val > 160) throw new Error('Límite inválido (10–160 km/h).');
+      if (!state.supabase) throw new Error('Supabase no configurado.');
+      const { error } = await state.supabase
+        .from('config')
+        .update({ speed_limit_kmh: val, updated_at: nowISO(), updated_by: state.profile ? state.profile.dni : null })
+        .eq('id', 1);
+      if (error) throw new Error(error.message);
+      state.speedLimitKmh = val;
+      saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
+      return val;
+    },
 
     // ============ CARNET / PULSERA PÚBLICOS ============
     async getPublicCarnetInfo(token) {
@@ -693,7 +723,7 @@
       const idx = state.profiles.findIndex(p => p.dni === dni);
       if (idx !== -1) state.profiles[idx] = mapped;
       saveCache();
-      return mapped;
+             return mapped;
     },
 
     // ============ INCIDENTES ============
@@ -727,20 +757,33 @@
       if (['CERRADA', 'CANCELADA'].indexOf(inc.status) !== -1) return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'cerrado', disclaimer };
       const d = inc.location;
       if (!d || typeof d.lat !== 'number') return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'sin_coords', disclaimer };
+
       const baseCfg = (C.BASES && C.BASES[inc.baseId]) || C.BASES.DOLORES;
       const o = (inc.unitLocation && typeof inc.unitLocation.lat === 'number') ? inc.unitLocation : (baseCfg && baseCfg.coords);
       if (!o || typeof o.lat !== 'number') return { hasEta: false, etaMinutes: null, remainingMinutes: null, source: 'sin_coords', disclaimer };
+
       const toRad = x => x * Math.PI / 180;
       const dLat = toRad(d.lat - o.lat), dLng = toRad(d.lng - o.lng);
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(o.lat)) * Math.cos(toRad(d.lat)) * Math.sin(dLng / 2) ** 2;
       const km = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const mins = Math.max(1, Math.round((km * 1.3) / 40 * 60));
-      const isGps = !!(inc.unitLocation && typeof inc.unitLocation.lat === 'number');
+
+      // Velocidad real si unitLocation.speed está disponible y > 1.4 m/s (≈5 km/h)
+      let velocidadKmh = 40;
+      let source = 'estimated';
+      if (inc.unitLocation && typeof inc.unitLocation.speed === 'number' && inc.unitLocation.speed > 1.4) {
+        velocidadKmh = Math.min(120, Math.max(10, inc.unitLocation.speed * 3.6));
+        source = 'gps';
+      } else if (inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
+        source = 'gps';
+      }
+
+      const mins = Math.max(1, Math.round((km * 1.3) / velocidadKmh * 60));
       return {
         hasEta: true,
         etaMinutes: mins,
         remainingMinutes: mins,
-        source: isGps ? 'gps' : 'estimated',
+        source,
+        velocidadKmh: Math.round(velocidadKmh),
         disclaimer
       };
     },
@@ -846,7 +889,14 @@
     },
     async updateCrewPosition(id, coords, crewName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
-      const loc = { lat: coords.lat, lng: coords.lng, accuracy: coords.accuracy || 0, ts: nowISO(), actor: crewName };
+      const loc = {
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy: coords.accuracy || 0,
+        speed: (typeof coords.speed === 'number') ? coords.speed : null,
+        ts: nowISO(),
+        actor: crewName
+      };
       const { error } = await state.supabase.from('incidents').update({ unit_location: loc }).eq('id', id);
       if (error) throw new Error(error.message);
       const idx = state.incidents.findIndex(i => i.id === id);
@@ -1178,7 +1228,6 @@
         { id: 'org_emp', name: 'EMP - Emergencias Médicas Privadas', role: 'emergency_provider', lineAEnabled: true, lineBEnabled: true }
       ];
     },
-
     async updateOrganizationFlags(orgId, lineA, lineB, adminName) {
       requireAdmin();
       if (state.supabase) {
@@ -1275,19 +1324,15 @@
     async guardiaDispatchIncident(incidentId, unitId, crewName) {
       return this.transitionIncidentStatus(incidentId, INCIDENT_STATES.EN_CAMINO);
     },
-
     async guardiaMarkOnScene(incidentId, unitId, crewName) {
       return this.transitionIncidentStatus(incidentId, INCIDENT_STATES.EN_ESCENA);
     },
-
     async guardiaMarkInTransit(incidentId, unitId, dest, crewName) {
       return this.markIncidentInTransit(incidentId, dest, crewName);
     },
-
     async guardiaCloseIncident(incidentId, unitId, reason, notes, crewName) {
       return this.closeIncident(incidentId, reason, notes, crewName);
     },
-
     async getGuardiaHistory(unitId, limit) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const n = Math.max(1, Number(limit) || 10);
@@ -1299,12 +1344,12 @@
         .limit(n);
       return (data || []).map(mapIncidentFromDB);
     },
-
     async requestSupportFromCrew(incidentId, unitId, type, notes, crewName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
       if (!current) throw new Error('Incidente no encontrado.');
-      const supportRequests = (current.support_requests || []).concat([{
+      const supportRequests = (current.support_requests || []
+                                     const supportRequests = (current.support_requests || []).concat([{
         ts: nowISO(), type, notes: notes || '', requestedBy: crewName || 'guardia', unitId
       }]);
       const newHistory = (current.status_history || []).concat([{
@@ -1474,7 +1519,6 @@
         try { navigator.vibrate([300, 150, 300, 150, 400]); } catch (_) {}
       }
 
-      // Notificación nativa vía puente Capacitor (si existe)
       const capBridge = global.E360Capacitor || global.CapacitorBridge;
       if (capBridge && typeof capBridge.showLocalNotification === 'function') {
         try {
@@ -1498,7 +1542,6 @@
         } catch (_) {}
       }
 
-      // Toast Web / APK en pantalla
       showWebSOSToast(title, body, basePhone, baseLabel);
       return true;
     },
