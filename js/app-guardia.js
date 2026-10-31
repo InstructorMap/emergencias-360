@@ -1,5 +1,5 @@
 /* ============================================================
-   app-guardia.js v8.5 — Guardia Móvil EMP (C1 + F2 + Velocidad)
+   app-guardia.js v8.4 — Guardia Móvil EMP (C1 + F2 + Velocidad)
    - Login staff (admin/operador) por email con spinner
    - F2: ui.crewId + initPushRegistration() + sincronización de profiles.on_duty
    - GPS envía speed real a unit_location
@@ -67,7 +67,7 @@
 
   const THROTTLE_MS = 20000;
   const UI_KEY = 'e360_guardia_ui_v8';
-  const SPEED_ALERT_COOLDOWN_MS = 120000;
+  const SPEED_ALERT_COOLDOWN_MS = 120000; // no repetir alerta antes de 2 min
 
   const ui = {
     baseId: 'DOLORES',
@@ -110,6 +110,7 @@
     const title = '⚠ Exceso de velocidad';
     const body = 'Velocidad actual: ' + kmh.toFixed(0) + ' km/h (límite ' + limit + ' km/h). Reducí la marcha.';
 
+    // Notificación local nativa (si hay Capacitor)
     const cap = window.E360Capacitor;
     if (cap && typeof cap.showLocalNotification === 'function') {
       try {
@@ -122,11 +123,14 @@
       } catch (_) {}
     }
 
+    // Toast en pantalla siempre
     toast('⚠ ' + kmh.toFixed(0) + ' km/h — límite ' + limit + ' km/h');
+
+    // Vibración si está disponible
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
   }
 
-  // ============ F2: PUSH Y ON_DUTY ============
+  // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
   async function setOnDutyStatus(isOnDuty) {
     try {
       const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
@@ -327,6 +331,7 @@
     ui.watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const now = Date.now();
+        // Alerta de velocidad en cada lectura, independiente del throttle de envío
         checkSpeedAlert(pos.coords.speed);
 
         if (now - ui.lastPositionAt < THROTTLE_MS) return;
@@ -633,19 +638,34 @@
         const bCl = el('button', {
           type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
           onclick: () => run(bCl, async () => {
-            await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
+            await Store.guardiaCloseIncident(
+              incident.id,
+              ui.unitId,
+              document.getElementById('closeReason').value,
+              document.getElementById('closeNotes').value.trim(),
+              ui.crewName
+            );
             stopWatch();
           }, 'Cerrando…')
         });
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Centro receptor (si hay traslado)' }), destInput]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
+          el('span', { textContent: 'Centro receptor (si hay traslado)' }),
+          destInput
+        ]));
         actionsCard.appendChild(bTr);
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
-          const sel = el('select', { id: 'closeReason' });
-          ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-          return sel;
-        })()]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id:
-                   actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
+          el('span', { textContent: 'Motivo de cierre' }),
+          (function () {
+            const sel = el('select', { id: 'closeReason' });
+            ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público']
+              .forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+            return sel;
+          })()
+        ]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
+          el('span', { textContent: 'Notas de cierre' }),
+          el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })
+        ]));
         actionsCard.appendChild(bCl);
         break;
       }
@@ -653,18 +673,31 @@
         const bCl2 = el('button', {
           type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
           onclick: () => run(bCl2, async () => {
-            await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
+            await Store.guardiaCloseIncident(
+              incident.id,
+              ui.unitId,
+              document.getElementById('closeReason').value,
+              document.getElementById('closeNotes').value.trim(),
+              ui.crewName
+            );
             stopWatch();
           }, 'Cerrando…')
         });
         actionsCard.appendChild(el('div', { className: 'guardia-info', textContent: 'Traslado hacia: ' + (incident.destinationCenter || '—') }));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
-          const sel = el('select', { id: 'closeReason' });
-          ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-          return sel;
-        })()]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
-        actionsCard.appendChild(bCl2);
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
+          el('span', { textContent: 'Motivo de cierre' }),
+          (function () {
+            const sel = el('select', { id: 'closeReason' });
+            ['Traslado efectivo', 'Derivado a sistema público']
+              .forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+            return sel;
+          })()
+        ]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
+          el('span', { textContent: 'Notas de cierre' }),
+          el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })
+        ]));
+        actionsCard        actionsCard.appendChild(bCl2);
         break;
       }
       default:
