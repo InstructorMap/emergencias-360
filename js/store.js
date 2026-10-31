@@ -1344,12 +1344,11 @@
         .limit(n);
       return (data || []).map(mapIncidentFromDB);
     },
-    async requestSupportFromCrew(incidentId, unitId, type, notes, crewName) {
+       async requestSupportFromCrew(incidentId, unitId, type, notes, crewName) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const { data: current } = await state.supabase.from('incidents').select('*').eq('id', incidentId).single();
       if (!current) throw new Error('Incidente no encontrado.');
-      const supportRequests = (current.support_requests || []
-                                     const supportRequests = (current.support_requests || []).concat([{
+      const supportRequests = (current.support_requests || []).concat([{
         ts: nowISO(), type, notes: notes || '', requestedBy: crewName || 'guardia', unitId
       }]);
       const newHistory = (current.status_history || []).concat([{
@@ -1368,7 +1367,6 @@
       if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
-
     // ============ B2B: ALTA Y EDICIÓN ============
     async saveB2BEstablishment(data, actorName) {
       requireAdmin();
