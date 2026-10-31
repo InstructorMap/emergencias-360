@@ -1,7 +1,9 @@
 /* ============================================================
-   app-guardia.js v8.3 — Guardia Móvil EMP (C1 + F2 Push FCM)
+   app-guardia.js v8.4 — Guardia Móvil EMP (C1 + F2 + Velocidad)
    - Login staff (admin/operador) por email con spinner
    - F2: ui.crewId + initPushRegistration() + sincronización de profiles.on_duty
+   - GPS envía speed real a unit_location
+   - Alerta local si la velocidad excede el límite configurado (tabla config)
    - applyBrandingToPage() en el boot
    - Incidente asignado en vivo (realtime) con alarma desde el 1er incidente
    - Ficha del paciente + medicación + alergias
@@ -65,6 +67,7 @@
 
   const THROTTLE_MS = 20000;
   const UI_KEY = 'e360_guardia_ui_v8';
+  const SPEED_ALERT_COOLDOWN_MS = 120000; // no repetir alerta antes de 2 min
 
   const ui = {
     baseId: 'DOLORES',
@@ -75,6 +78,7 @@
     pushRegistered: false,
     watchId: null,
     lastPositionAt: 0,
+    lastSpeedAlertAt: 0,
     audioCtx: null,
     lastIncidentId: null,
     initialBootDone: false
@@ -91,6 +95,39 @@
       if (p.unitId) ui.unitId = p.unitId;
       if (p.crewName) ui.crewName = p.crewName;
     } catch (_) {}
+  }
+
+  // ============ ALERTA DE VELOCIDAD ============
+  async function checkSpeedAlert(speedMps) {
+    if (typeof speedMps !== 'number' || speedMps <= 0) return;
+    const kmh = speedMps * 3.6;
+    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
+    if (kmh <= limit) return;
+    const now = Date.now();
+    if (now - ui.lastSpeedAlertAt < SPEED_ALERT_COOLDOWN_MS) return;
+    ui.lastSpeedAlertAt = now;
+
+    const title = '⚠ Exceso de velocidad';
+    const body = 'Velocidad actual: ' + kmh.toFixed(0) + ' km/h (límite ' + limit + ' km/h). Reducí la marcha.';
+
+    // Notificación local nativa (si hay Capacitor)
+    const cap = window.E360Capacitor;
+    if (cap && typeof cap.showLocalNotification === 'function') {
+      try {
+        await cap.showLocalNotification({
+          title,
+          body,
+          channelId: 'emp_sos_channel',
+          extra: { type: 'speed_alert', kmh: Math.round(kmh), limit }
+        });
+      } catch (_) {}
+    }
+
+    // Toast en pantalla siempre
+    toast('⚠ ' + kmh.toFixed(0) + ' km/h — límite ' + limit + ' km/h');
+
+    // Vibración si está disponible
+    if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
   }
 
   // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
@@ -294,15 +331,24 @@
     ui.watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const now = Date.now();
+        // Alerta de velocidad en cada lectura, independiente del throttle de envío
+        checkSpeedAlert(pos.coords.speed);
+
         if (now - ui.lastPositionAt < THROTTLE_MS) return;
         const active = Store.getActiveIncidentForUnit(ui.unitId);
         if (!active) return;
         if (active.status !== 'EN_CAMINO' && active.status !== 'EN_ESCENA') return;
         ui.lastPositionAt = now;
         Store.updateCrewPosition(active.id, {
-          lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed
         }, ui.crewName).then(() => {
-          updateGpsStatus('GPS activo — ' + new Date().toLocaleTimeString('es-AR'), 'green');
+          const speedTxt = (typeof pos.coords.speed === 'number' && pos.coords.speed > 0)
+            ? ' · ' + (pos.coords.speed * 3.6).toFixed(0) + ' km/h'
+            : '';
+          updateGpsStatus('GPS activo — ' + new Date().toLocaleTimeString('es-AR') + speedTxt, 'green');
           render();
         }).catch(err => console.warn('GPS error', err));
       },
@@ -326,10 +372,17 @@
     await runLoading(btn, () => new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          checkSpeedAlert(pos.coords.speed);
           Store.updateCrewPosition(inc.id, {
-            lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            speed: pos.coords.speed
           }, ui.crewName).then(() => {
-            updateGpsStatus('Posición enviada.', 'green');
+            const speedTxt = (typeof pos.coords.speed === 'number' && pos.coords.speed > 0)
+              ? ' · ' + (pos.coords.speed * 3.6).toFixed(0) + ' km/h'
+              : '';
+            updateGpsStatus('Posición enviada' + speedTxt, 'green');
             toast('Posición GPS actualizada');
             render();
             resolve();
@@ -431,12 +484,14 @@
       }
     });
 
+    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
+
     container.appendChild(el('div', { className: 'unit-status-row' }, [
       el('span', { className: 'unit-status-label', textContent: 'Unidad' }),
       el('span', { className: 'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad + ' · ' + unit.status.toUpperCase() })
     ]));
     container.appendChild(el('div', { className: 'unit-status-row', style: 'margin-top:6px;' }, [
-      el('span', { className: 'unit-status-hint', textContent: (ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.') + (ui.pushRegistered ? ' · 📱 Push FCM OK' : '') }),
+      el('span', { className: 'unit-status-hint', textContent: (ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.') + (ui.pushRegistered ? ' · 📱 Push OK' : '') + ' · ⚠ Límite ' + limit + ' km/h' }),
       dutyBtn
     ]));
   }
@@ -534,13 +589,15 @@
       textContent: '📍 Actualizar ahora',
       onclick: () => updatePositionManual(manualGpsBtn)
     });
+    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
     const gpsCard = el('div', { className: 'guardia-card-block' }, [
       el('h3', { textContent: 'GPS de la unidad' }),
       el('div', { id: 'gpsStatusText', className: 'guardia-gps-status', textContent: ui.watchId ? 'GPS activo.' : 'GPS inactivo.' }),
       el('div', { className: 'guardia-gps-actions' }, [
         el('button', { type: 'button', className: ui.watchId ? 'btn-gps-stop' : 'btn-gps-start', textContent: ui.watchId ? '⏹ Detener GPS' : '▶ Activar GPS', onclick: () => { ui.watchId ? stopWatch() : startWatch(); render(); } }),
         manualGpsBtn
-      ])
+      ]),
+      el('div', { style: 'font-size:0.72rem;color:#94A3B8;margin-top:6px;', textContent: '⚠ Límite configurado por despacho: ' + limit + ' km/h' })
     ]);
     if (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA') {
       gpsCard.appendChild(el('button', { type: 'button', className: 'btn-support', textContent: '🚨 Solicitar Apoyo', onclick: () => openSupportDialog(incident) }));
@@ -610,8 +667,8 @@
           ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
           return sel;
         })()]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
-        actionsCard.appendChild(bCl2);
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]
+                                           actionsCard.appendChild(bCl2);
         break;
       }
       default:
