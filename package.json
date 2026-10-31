@@ -1,6 +1,6 @@
 {
   "name": "emp-emergencias",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "EMP - Emergencias Médicas Privadas",
   "private": true,
   "scripts": {
@@ -10,13 +10,15 @@
     "assets:generate": "npx capacitor-assets generate --android"
   },
   "dependencies": {
+    "@capacitor-firebase/messaging": "^7.0.0",
     "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/core": "^7.0.0",
-    "@capacitor/local-notifications": "^7.0.0"
+    "@capacitor/local-notifications": "^7.0.0",
+    "firebase": "^11.0.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.0.0",
-    "@capacitor/assets": "^3.0.0"
+    "@capacitor/assets": "^3.0.0",
+    "@capacitor/cli": "^7.0.0"
   }
 }
