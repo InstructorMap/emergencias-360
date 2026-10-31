@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0B3C78" />
   <meta name="description" content="Consola Operativa EMP — Despacho de emergencias en tiempo real." />
   <title>Consola Operativa EMP</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="central-body theme-dark">
@@ -78,7 +79,19 @@
         </div>
       </section>
 
-      <section class="central-col central-col-3" aria-label="Estado de bases y flota">
+      <section class="central-col central-col-3" aria-label="Mapa, flota y configuración">
+        <h2>Mapa Operativo</h2>
+        <div id="mapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(148,163,184,0.25);"></div>
+
+        <div class="speed-limit-card" style="background:#1E293B;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label style="flex:1;min-width:140px;color:#E2E8F0;font-size:0.78rem;">
+            <span style="display:block;margin-bottom:4px;">Límite de velocidad (km/h)</span>
+            <input type="number" id="speedLimitInput" min="10" max="160" step="5" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#0F172A;color:#F1F5F9;" />
+          </label>
+          <button type="button" id="btnApplySpeedLimit" style="padding:8px 14px;border-radius:6px;background:#0B3C78;color:#fff;border:none;font-weight:700;cursor:pointer;font-size:0.78rem;">Aplicar</button>
+          <span id="speedLimitStatus" style="font-size:0.7rem;color:#94A3B8;width:100%;"></span>
+        </div>
+
         <h2>Bases y Flota</h2>
         <div id="fleetContainer"></div>
       </section>
@@ -95,6 +108,7 @@
 
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="js/supabase.config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
