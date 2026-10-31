@@ -30,7 +30,8 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: actions/android-actions/setup-android@v3
+        continue-on-error: true
 
       - name: Install dependencies
         run: npm install
@@ -58,19 +59,27 @@ jobs:
           if [ ! -d "android" ]; then
             npx cap add android
           fi
-        continue-on-error: true
 
-      - name: Write google-services.json from GitHub Secret
+      # --- CAMBIO 1: verificar que el secret exista ANTES de seguir ---
+      - name: Verify GOOGLE_SERVICES_JSON secret
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_CONTENT" ]; then
+            echo "ERROR: El secret GOOGLE_SERVICES_JSON está vacío o no existe."
+            exit 1
+          fi
+          echo "Secret OK (longitud: ${#GOOGLE_SERVICES_JSON_CONTENT} caracteres)"
+
+      # --- CAMBIO 2: escribir el archivo DESPUÉS de que exista android/ ---
+      # --- CAMBIO 3: usar printf '%s' (sin salto de línea extra) para no corromper el JSON ---
+      - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           mkdir -p android/app
-          if [ -n "$GOOGLE_SERVICES_JSON_CONTENT" ]; then
-            printf '%s\n' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
-            echo "google-services.json escrito correctamente en android/app/"
-          else
-            echo "ADVERTENCIA: El secret GOOGLE_SERVICES_JSON está vacío."
-          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
+          echo "Archivo escrito: $(wc -c < android/app/google-services.json) bytes"
 
       - name: Generate app icons from resources
         run: npx capacitor-assets generate --android
@@ -78,6 +87,27 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
+
+      # --- CAMBIO 4: re-escribir el archivo DESPUÉS de cap sync ---
+      # cap sync puede regenerar android/ y borrar el archivo.
+      - name: Re-write google-services.json after cap sync
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p android/app
+          printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
+          echo "Archivo re-escrito post-sync: $(wc -c < android/app/google-services.json) bytes"
+
+      # --- CAMBIO 5: verificar que el archivo esté en el lugar correcto antes de compilar ---
+      - name: Verify google-services.json placement
+        run: |
+          if [ ! -f "android/app/google-services.json" ]; then
+            echo "ERROR: android/app/google-services.json NO existe."
+            exit 1
+          fi
+          ls -la android/app/google-services.json
+          head -c 80 android/app/google-services.json
+          echo ""
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
@@ -96,13 +126,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: "EMP Emergencias v1.0.${{ github.run_number }}"
+          tag_name: v1.1.${{ github.run_number }}
+          name: "EMP Emergencias v1.1.${{ github.run_number }}"
           body: |
-            APK generada automáticamente desde el commit ${{ github.sha }} (Incluye Push SOS FCM).
-            
+            APK generada automáticamente desde el commit ${{ github.sha }} (incluye Push SOS FCM).
+
             **Instalación:** descargá `app-debug.apk`, pasalo al teléfono Android, habilitá "orígenes desconocidos" e instalá.
-            
+
             **Link directo:** https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk
           files: android/app/build/outputs/apk/debug/app-debug.apk
           draft: false
