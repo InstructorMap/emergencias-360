@@ -1,10 +1,11 @@
 /* ============================================================
-   app-guardia.js v8.5 — Guardia Móvil EMP (C1 + F2 + F3)
-   - Login staff por email con spinner
-   - F2: push FCM + on_duty + speed real al GPS
-   - F3: PTT con central + cámara + subida de fotos/videos
-   - Alerta local si excede el límite de velocidad
-   - applyBrandingToPage() en el boot
+   app-guardia.js v9.0 — Guardia Móvil EMP (B2 alto contraste)
+   - Re-render quirúrgico (sin parpadeo)
+   - Cards profesionales (gv-card)
+   - PTT flotante fijo
+   - Toggle claro/oscuro persistente
+   - Media list estilizada
+   - F2: push FCM + on_duty + speed alert
    ============================================================ */
 
 (function () {
@@ -26,6 +27,7 @@
         if (k === 'className') { node.className = v; return; }
         if (k === 'textContent') { node.textContent = v; return; }
         if (k === 'onclick' && typeof v === 'function') { node.addEventListener('click', v); return; }
+        if (k === 'oninput' && typeof v === 'function') { node.addEventListener('input', v); return; }
         node.setAttribute(k, v);
       });
     }
@@ -42,6 +44,12 @@
     try { return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
     catch (_) { return iso; }
   }
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }); }
+    catch (_) { return iso; }
+  }
+
   function toast(text) {
     let t = document.getElementById('e360Toast');
     if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
@@ -62,7 +70,8 @@
   }
 
   const THROTTLE_MS = 20000;
-  const UI_KEY = 'e360_guardia_ui_v8';
+  const UI_KEY = 'e360_guardia_ui_v9';
+  const THEME_KEY = 'e360_guardia_theme';
   const SPEED_ALERT_COOLDOWN_MS = 120000;
 
   const ui = {
@@ -78,7 +87,9 @@
     audioCtx: null,
     lastIncidentId: null,
     initialBootDone: false,
-    pttIncidentId: null
+    pttIncidentId: null,
+    lastRenderHash: null,
+    theme: 'dark'
   };
 
   function saveUI() {
@@ -92,6 +103,26 @@
       if (p.unitId) ui.unitId = p.unitId;
       if (p.crewName) ui.crewName = p.crewName;
     } catch (_) {}
+  }
+
+  // ============ TEMA CLARO/OSCURO ============
+  function initTheme() {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      ui.theme = saved === 'light' ? 'light' : 'dark';
+    } catch (_) { ui.theme = 'dark'; }
+    applyTheme();
+  }
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', ui.theme);
+    document.body.setAttribute('data-theme', ui.theme);
+    const btn = $('#btnThemeToggle');
+    if (btn) btn.textContent = ui.theme === 'light' ? '🌙' : '☀️';
+  }
+  function toggleTheme() {
+    ui.theme = ui.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem(THEME_KEY, ui.theme); } catch (_) {}
+    applyTheme();
   }
 
   // ============ ALERTA DE VELOCIDAD ============
@@ -111,14 +142,11 @@
     if (cap && typeof cap.showLocalNotification === 'function') {
       try {
         await cap.showLocalNotification({
-          title,
-          body,
-          channelId: 'emp_sos_channel',
+          title, body, channelId: 'emp_sos_channel',
           extra: { type: 'speed_alert', kmh: Math.round(kmh), limit }
         });
       } catch (_) {}
     }
-
     toast('⚠ ' + kmh.toFixed(0) + ' km/h — límite ' + limit + ' km/h');
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
   }
@@ -137,13 +165,8 @@
       else query = query.eq('user_id', user.id);
 
       const { error } = await query;
-      if (!error) {
-        ui.onDuty = !!isOnDuty;
-        return true;
-      }
-    } catch (e) {
-      console.warn('[app-guardia] Error actualizando on_duty:', e);
-    }
+      if (!error) { ui.onDuty = !!isOnDuty; return true; }
+    } catch (e) { console.warn('[app-guardia] Error on_duty:', e); }
     return false;
   }
 
@@ -152,21 +175,14 @@
       await setOnDutyStatus(true);
       const cap = window.E360Capacitor;
       if (!cap || typeof cap.registerPushToken !== 'function') return;
-
       const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
       const sb = rawState && rawState.supabase;
       const authUser = typeof Store.getUser === 'function' ? Store.getUser() : (rawState && rawState.user);
       const targetUserId = (authUser && authUser.id) || ui.crewId;
       if (!sb || !targetUserId) return;
-
       const res = await cap.registerPushToken(sb, targetUserId);
-      if (res && res.ok) {
-        ui.pushRegistered = true;
-        renderUnitStatus();
-      }
-    } catch (err) {
-      console.warn('[app-guardia] initPushRegistration:', err);
-    }
+      if (res && res.ok) { ui.pushRegistered = true; renderUnitStatus(); }
+    } catch (err) { console.warn('[app-guardia] initPushRegistration:', err); }
   }
 
   function ensureAudio() {
@@ -277,7 +293,7 @@
     const units = Store.getFleet(ui.baseId);
     if (!units.length) { sel.appendChild(el('option', { value: '', textContent: '— Sin móviles —' })); ui.unitId = null; return; }
     units.forEach(u => {
-      const opt = el('option', { value: u.id, textContent: u.unit + ' · ' + u.tipoUnidad + ' · ' + u.status.toUpperCase() });
+      const opt = el('option', { value: u.id, textContent: u.unit + ' · ' + u.tipoUnidad });
       if (u.id === ui.unitId) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -298,12 +314,14 @@
       populateUnitSelector();
       saveUI();
       stopWatch();
+      ui.lastRenderHash = null;
       render();
     });
     if (unitSel) unitSel.addEventListener('change', () => {
       ui.unitId = unitSel.value;
       saveUI();
       stopWatch();
+      ui.lastRenderHash = null;
       render();
     });
   }
@@ -313,7 +331,7 @@
     const node = document.getElementById('gpsStatusText');
     if (!node) return;
     node.textContent = text;
-    node.style.color = color === 'green' ? '#16A34A' : color === 'red' ? '#DC2626' : '#D97706';
+    node.style.color = color === 'green' ? 'var(--gv-ok)' : color === 'red' ? 'var(--gv-danger)' : 'var(--gv-warn)';
   }
 
   function startWatch() {
@@ -326,30 +344,24 @@
       (pos) => {
         const now = Date.now();
         checkSpeedAlert(pos.coords.speed);
-
         if (now - ui.lastPositionAt < THROTTLE_MS) return;
         const active = Store.getActiveIncidentForUnit(ui.unitId);
         if (!active) return;
         if (active.status !== 'EN_CAMINO' && active.status !== 'EN_ESCENA') return;
         ui.lastPositionAt = now;
         Store.updateCrewPosition(active.id, {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          speed: pos.coords.speed
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy, speed: pos.coords.speed
         }, ui.crewName).then(() => {
           const speedTxt = (typeof pos.coords.speed === 'number' && pos.coords.speed > 0)
-            ? ' · ' + (pos.coords.speed * 3.6).toFixed(0) + ' km/h'
-            : '';
+            ? ' · ' + (pos.coords.speed * 3.6).toFixed(0) + ' km/h' : '';
           updateGpsStatus('GPS activo — ' + new Date().toLocaleTimeString('es-AR') + speedTxt, 'green');
-          render();
         }).catch(err => console.warn('GPS error', err));
       },
       (err) => updateGpsStatus('GPS error: ' + err.message, 'red'),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
     updateGpsStatus('GPS activo — cada ' + (THROTTLE_MS / 1000) + 's', 'green');
-    render();
   }
 
   function stopWatch() {
@@ -367,17 +379,11 @@
         (pos) => {
           checkSpeedAlert(pos.coords.speed);
           Store.updateCrewPosition(inc.id, {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            speed: pos.coords.speed
+            lat: pos.coords.latitude, lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy, speed: pos.coords.speed
           }, ui.crewName).then(() => {
-            const speedTxt = (typeof pos.coords.speed === 'number' && pos.coords.speed > 0)
-              ? ' · ' + (pos.coords.speed * 3.6).toFixed(0) + ' km/h'
-              : '';
-            updateGpsStatus('Posición enviada' + speedTxt, 'green');
+            updateGpsStatus('Posición enviada', 'green');
             toast('Posición GPS actualizada');
-            render();
             resolve();
           }).catch(err => {
             updateGpsStatus('Error: ' + fmtErr(err), 'red');
@@ -397,20 +403,18 @@
   function openSupportDialog(incident) {
     const overlay = el('div', { className: 'guardia-modal-overlay' });
     const confirmBtn = el('button', {
-      type: 'button',
-      className: 'btn-confirm',
-      textContent: 'Enviar',
+      type: 'button', className: 'btn-confirm', textContent: 'Enviar',
       onclick: async () => {
         await runLoading(confirmBtn, async () => {
           try {
             await Store.requestSupportFromCrew(
-              incident.id,
-              ui.unitId,
+              incident.id, ui.unitId,
               document.getElementById('supportType').value,
               document.getElementById('supportNotes').value.trim(),
               ui.crewName
             );
             if (overlay.parentNode) document.body.removeChild(overlay);
+            ui.lastRenderHash = null;
             render();
             toast('Solicitud de apoyo enviada');
           } catch (err) { alert('Error: ' + fmtErr(err)); }
@@ -442,7 +446,6 @@
     document.body.appendChild(overlay);
   }
 
-  // ============ NAVEGACIÓN ============
   function navUrl(incident) {
     if (incident.location && typeof incident.location.lat === 'number')
       return 'https://www.google.com/maps/dir/?api=1&destination=' + incident.location.lat + ',' + incident.location.lng + '&travelmode=driving';
@@ -455,8 +458,7 @@
     if (incident.manualAddress) return 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(incident.manualAddress);
     return null;
   }
-
-  // ============ RENDER ============
+  // ============ RENDER: UNIT STATUS ============
   function renderUnitStatus() {
     const container = $('#unitStatus');
     if (!container) return;
@@ -465,42 +467,55 @@
     const unit = Store.getFleet(ui.baseId).find(u => u.id === ui.unitId);
     if (!unit) { container.appendChild(el('span', { textContent: 'Móvil no encontrado.' })); return; }
 
+    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
+
     const dutyBtn = el('button', {
       type: 'button',
-      className: ui.onDuty ? 'btn-gps-start' : 'btn-gps-stop',
-      style: 'padding:4px 10px;font-size:0.72rem;border-radius:999px;border:none;cursor:pointer;font-weight:700;',
-      textContent: ui.onDuty ? '🟢 En Guardia (Recibe Push)' : '🔴 Fuera de Guardia',
+      className: 'gv-btn ' + (ui.onDuty ? 'gv-btn-success' : 'gv-btn-danger'),
+      style: 'min-height:44px;padding:0 16px;font-size:0.75rem;width:auto;margin:0;',
+      textContent: ui.onDuty ? '🟢 EN GUARDIA' : '🔴 FUERA DE GUARDIA',
       onclick: async () => {
         await setOnDutyStatus(!ui.onDuty);
         renderUnitStatus();
-        toast(ui.onDuty ? 'En guardia activa (Push SOS habilitado)' : 'Fuera de guardia');
+        toast(ui.onDuty ? 'En guardia activa (Push habilitado)' : 'Fuera de guardia');
       }
     });
 
-    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
-
     container.appendChild(el('div', { className: 'unit-status-row' }, [
       el('span', { className: 'unit-status-label', textContent: 'Unidad' }),
-      el('span', { className: 'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad + ' · ' + unit.status.toUpperCase() })
+      el('span', { className: 'unit-pill unit-status-' + unit.status, textContent: unit.unit + ' · ' + unit.tipoUnidad })
     ]));
-    container.appendChild(el('div', { className: 'unit-status-row', style: 'margin-top:6px;' }, [
-      el('span', { className: 'unit-status-hint', textContent: (ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar.') + (ui.pushRegistered ? ' · 📱 Push OK' : '') + ' · ⚠ Límite ' + limit + ' km/h' }),
+    container.appendChild(el('div', { className: 'unit-status-row', style: 'margin-top:8px;' }, [
+      el('span', { className: 'unit-status-hint', textContent: (ui.crewName ? 'Guardia: ' + ui.crewName : '⚠ Sin identificar') + (ui.pushRegistered ? ' · 📱 Push OK' : '') + ' · ⚠ Límite ' + limit + ' km/h' }),
       dutyBtn
     ]));
   }
 
-  function kv(k, v) {
-    return el('div', { className: 'kv' }, [
-      el('span', { className: 'k', textContent: k }),
-      el('span', { className: 'v', textContent: v || '—' })
-    ]);
+  // ============ RENDER: INCIDENTE ACTIVO (quirúrgico) ============
+  function computeIncidentHash(incident) {
+    if (!incident) return 'none';
+    return [
+      incident.id,
+      incident.status,
+      (incident.statusHistory || []).length,
+      (incident.supportRequests || []).length,
+      incident.assignedUnitId || '',
+      incident.unitLocation && incident.unitLocation.ts ? incident.unitLocation.ts : '',
+      incident.destinationCenter || '',
+      ui.pttIncidentId || ''
+    ].join('|');
   }
 
-  async function renderActiveIncident() {
+  function renderActiveIncident() {
     const container = $('#activeIncidentContainer');
     const empty = $('#noIncidentPanel');
     if (!container || !empty) return;
-    if (!ui.unitId) { container.hidden = true; empty.hidden = false; return; }
+    if (!ui.unitId) {
+      container.hidden = true; empty.hidden = false;
+      container.innerHTML = '';
+      ui.lastRenderHash = null;
+      return;
+    }
     const incident = Store.getActiveIncidentForUnit(ui.unitId);
     if (!incident) {
       ui.lastIncidentId = null;
@@ -510,281 +525,252 @@
         window.E360PTT.destroy();
         ui.pttIncidentId = null;
       }
+      if (ui.lastRenderHash !== 'none') {
+        container.innerHTML = '';
+        renderPTTFloating(null);
+        ui.lastRenderHash = 'none';
+      }
       return;
     }
-    container.hidden = false; empty.hidden = true; container.innerHTML = '';
+
+    container.hidden = false; empty.hidden = true;
 
     if (ui.initialBootDone && incident.id !== ui.lastIncidentId) {
       playAlert();
     }
     ui.lastIncidentId = incident.id;
 
-    const header = el('div', { className: 'guardia-card-header' }, [
-      el('div', { className: 'guardia-card-id' }, [
-        el('span', { textContent: incident.id }),
-        el('span', { className: 'guardia-card-time', textContent: fmtDateTime(incident.createdAt) })
+    const hash = computeIncidentHash(incident);
+    if (hash === ui.lastRenderHash) {
+      renderPTTFloating(incident);
+      return;
+    }
+    ui.lastRenderHash = hash;
+
+    container.innerHTML = '';
+    container.appendChild(buildIncidentCard(incident));
+    container.appendChild(buildPatientCard(incident));
+    container.appendChild(buildLocationCard(incident));
+    container.appendChild(buildGpsCard(incident));
+    container.appendChild(buildActionsCard(incident));
+    container.appendChild(buildMediaCard(incident));
+    container.appendChild(buildBitacoraCard(incident));
+
+    renderPTTFloating(incident);
+  }
+
+  function buildIncidentCard(incident) {
+    const header = el('div', { className: 'gv-incident-header' }, [
+      el('div', {}, [
+        el('div', { className: 'gv-incident-id', textContent: incident.id }),
+        el('span', { className: 'gv-incident-time', textContent: fmtDateTime(incident.createdAt) })
       ]),
-      el('div', { className: 'guardia-card-badges' }, [
-        el('span', { className: 'badge badge-state-' + incident.status, textContent: incident.status }),
-        incident.priority ? el('span', { className: 'badge badge-priority-' + incident.priority, textContent: incident.priority }) : null
+      el('div', { className: 'gv-incident-badges' }, [
+        el('span', { className: 'gv-badge gv-badge-' + incident.status.toLowerCase().replace('_', '_'), textContent: incident.status.replace(/_/g, ' ') }),
+        incident.priority ? el('span', { className: 'gv-badge gv-badge-' + incident.priority.toLowerCase(), textContent: incident.priority }) : null
       ].filter(Boolean))
     ]);
+    return el('div', { className: 'gv-card' }, [header]);
+  }
 
-    // Paciente
+  function gvKv(k, v) {
+    return el('div', { className: 'gv-kv' }, [
+      el('span', { className: 'k', textContent: k }),
+      el('span', { className: 'v', textContent: v || '—' })
+    ]);
+  }
+
+  function buildPatientCard(incident) {
     const profiles = Store.listProfiles();
     const profile = profiles.find(p => p.dni === incident.profileDni);
-    const patientCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Datos del paciente' })]);
+    const body = el('div', { className: 'gv-card-body' });
+
     if (profile) {
-      patientCard.appendChild(kv('Nombre', profile.nombre));
-      patientCard.appendChild(kv('DNI', profile.dni));
-      patientCard.appendChild(kv('N° socio', profile.socioNumber));
-      patientCard.appendChild(kv('Plan', (C.PLANS[profile.plan] || {}).label || profile.plan));
-      if (profile.telefono) patientCard.appendChild(el('div', { className: 'kv' }, [
-        el('span', { className: 'k', textContent: 'Teléfono' }),
-        el('span', { className: 'v' }, [el('a', { href: 'tel:' + profile.telefono, className: 'guardia-link', textContent: '📞 ' + profile.telefono })])
-      ]));
-      patientCard.appendChild(el('div', { className: 'guardia-alert' }, [
+      body.appendChild(gvKv('Nombre', profile.nombre));
+      body.appendChild(gvKv('DNI', profile.dni));
+      body.appendChild(gvKv('N° socio', profile.socioNumber));
+      body.appendChild(gvKv('Plan', (C.PLANS[profile.plan] || {}).label || profile.plan));
+      if (profile.telefono) {
+        body.appendChild(el('div', { className: 'gv-kv' }, [
+          el('span', { className: 'k', textContent: 'Teléfono' }),
+          el('span', { className: 'v' }, [el('a', { href: 'tel:' + profile.telefono, style: 'color:var(--gv-accent);font-weight:800;', textContent: '📞 ' + profile.telefono })])
+        ]));
+      }
+
+      body.appendChild(el('div', { className: 'gv-alert' }, [
         el('strong', { textContent: '⚠ Alerta clínica' }),
-        el('div', { textContent: 'Grupo sanguíneo: ' + (profile.grupoSanguineo || 'No informado') }),
-        el('div', { textContent: 'Alergias: ' + (profile.alergias || 'Sin registro') }),
-        el('div', { textContent: 'Patologías: ' + (profile.patologias || 'Sin registro') }),
-        el('div', { textContent: 'Contacto: ' + (profile.contacto || '—') })
+        el('div', { className: 'gv-alert-row', textContent: 'Grupo sanguíneo: ' + (profile.grupoSanguineo || 'No informado') }),
+        el('div', { className: 'gv-alert-row', textContent: 'Alergias: ' + (profile.alergias || 'Sin registro') }),
+        el('div', { className: 'gv-alert-row', textContent: 'Patologías: ' + (profile.patologias || 'Sin registro') }),
+        el('div', { className: 'gv-alert-row', textContent: 'Contacto: ' + (profile.contacto || '—') })
       ]));
-      try {
-        const meds = await Store.getMedicationsForProfile(profile.id);
-        if (meds.length) {
-          const medsBlock = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '💊 Medicación activa' })]);
-          meds.forEach(m => {
-            medsBlock.appendChild(el('div', { className: 'kv' }, [
-              el('span', { className: 'k', textContent: m.nombre }),
-              el('span', { className: 'v', textContent: (m.dosis || '') + (m.frecuencia ? ' · ' + m.frecuencia : '') })
-            ]));
-          });
-          patientCard.appendChild(medsBlock);
-        }
-      } catch (_) {}
     } else {
-      patientCard.appendChild(el('div', { className: 'guardia-warn', textContent: 'Socio sin ficha.' }));
+      body.appendChild(el('p', { style: 'color:var(--gv-text-muted);', textContent: 'Socio sin ficha.' }));
     }
 
-    // Ubicación
-    const locationCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Ubicación' })]);
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '👤' }),
+        el('h3', { textContent: 'Datos del paciente' })
+      ]),
+      body
+    ]);
+  }
+
+  function buildLocationCard(incident) {
+    const body = el('div', { className: 'gv-card-body' });
     if (incident.location) {
-      locationCard.appendChild(kv('Coordenadas', incident.location.lat.toFixed(6) + ', ' + incident.location.lng.toFixed(6)));
-      locationCard.appendChild(kv('Precisión', '± ' + Math.round(incident.location.accuracy) + 'm'));
+      body.appendChild(gvKv('Coordenadas', incident.location.lat.toFixed(6) + ', ' + incident.location.lng.toFixed(6)));
+      body.appendChild(gvKv('Precisión', '± ' + Math.round(incident.location.accuracy) + ' m'));
     }
-    if (incident.manualAddress) locationCard.appendChild(kv('Dirección', incident.manualAddress));
-    const nav = navUrl(incident);
-    if (nav) locationCard.appendChild(el('a', { href: nav, target: '_blank', rel: 'noopener', className: 'btn-nav-big', textContent: '🧭 Navegar (Google Maps)' }));
-    const osm = osmUrl(incident);
-    if (osm) locationCard.appendChild(el('a', { href: osm, target: '_blank', rel: 'noopener', className: 'guardia-link', textContent: '🗺 OpenStreetMap' }));
+    if (incident.manualAddress) body.appendChild(gvKv('Dirección', incident.manualAddress));
 
-    // GPS
+    const footer = el('div', { className: 'gv-card-footer' });
+    const nav = navUrl(incident);
+    if (nav) footer.appendChild(el('a', { href: nav, target: '_blank', rel: 'noopener', className: 'gv-btn gv-btn-primary', style: 'text-decoration:none;', textContent: '🧭 Navegar' }));
+    const osm = osmUrl(incident);
+    if (osm) footer.appendChild(el('a', { href: osm, target: '_blank', rel: 'noopener', className: 'gv-btn gv-btn-secondary', style: 'text-decoration:none;', textContent: '🗺 OSM' }));
+
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '📍' }),
+        el('h3', { textContent: 'Ubicación' })
+      ]),
+      body,
+      footer
+    ]);
+  }
+
+  function buildGpsCard(incident) {
+    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
     const manualGpsBtn = el('button', {
-      type: 'button',
-      className: 'btn-gps-manual',
-      textContent: '📍 Actualizar ahora',
+      type: 'button', className: 'gv-btn gv-btn-secondary', textContent: '📍 Actualizar',
       onclick: () => updatePositionManual(manualGpsBtn)
     });
-    const limit = typeof Store.getSpeedLimit === 'function' ? Store.getSpeedLimit() : 60;
-    const gpsCard = el('div', { className: 'guardia-card-block' }, [
-      el('h3', { textContent: 'GPS de la unidad' }),
-      el('div', { id: 'gpsStatusText', className: 'guardia-gps-status', textContent: ui.watchId ? 'GPS activo.' : 'GPS inactivo.' }),
-      el('div', { className: 'guardia-gps-actions' }, [
-        el('button', { type: 'button', className: ui.watchId ? 'btn-gps-stop' : 'btn-gps-start', textContent: ui.watchId ? '⏹ Detener GPS' : '▶ Activar GPS', onclick: () => { ui.watchId ? stopWatch() : startWatch(); render(); } }),
-        manualGpsBtn
-      ]),
-      el('div', { style: 'font-size:0.72rem;color:#94A3B8;margin-top:6px;', textContent: '⚠ Límite configurado por despacho: ' + limit + ' km/h' })
+    const toggleBtn = el('button', {
+      type: 'button',
+      className: 'gv-btn ' + (ui.watchId ? 'gv-btn-danger' : 'gv-btn-success'),
+      textContent: ui.watchId ? '⏹ Detener GPS' : '▶ Activar GPS',
+      onclick: () => {
+        if (ui.watchId) stopWatch(); else startWatch();
+        renderActiveIncident();
+      }
+    });
+
+    const body = el('div', { className: 'gv-card-body' }, [
+      el('div', { id: 'gpsStatusText', style: 'font-weight:700;font-size:0.85rem;margin-bottom:12px;', textContent: ui.watchId ? 'GPS activo.' : 'GPS inactivo.' }),
+      el('p', { style: 'font-size:0.75rem;color:var(--gv-text-muted);margin:0 0 12px;', textContent: '⚠ Límite despacho: ' + limit + ' km/h' }),
+      el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;' }, [toggleBtn, manualGpsBtn])
     ]);
+
     if (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA') {
-      gpsCard.appendChild(el('button', { type: 'button', className: 'btn-support', textContent: '🚨 Solicitar Apoyo', onclick: () => openSupportDialog(incident) }));
+      body.appendChild(el('button', {
+        type: 'button', className: 'gv-btn gv-btn-warn', style: 'margin-top:8px;',
+        textContent: '🚨 Solicitar Apoyo',
+        onclick: () => openSupportDialog(incident)
+      }));
     }
 
-    // Acciones
-    const actionsCard = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: 'Acciones' })]);
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '🛰' }),
+        el('h3', { textContent: 'GPS de la unidad' })
+      ]),
+      body
+    ]);
+  }
+
+  function buildActionsCard(incident) {
+    const body = el('div', { className: 'gv-card-body' });
     const run = async (btn, fn, label) => {
       await runLoading(btn, async () => {
-        try { await fn(); await render(); }
-        catch (err) { alert('Error: ' + fmtErr(err)); }
+        try {
+          await fn();
+          ui.lastRenderHash = null;
+          render();
+        } catch (err) { alert('Error: ' + fmtErr(err)); }
       }, label);
     };
 
     switch (incident.status) {
       case 'MOVIL_ASIGNADO': {
-        const bGo = el('button', {
-          type: 'button', className: 'btn-action-big btn-action-go', textContent: '▶ Confirmar salida',
-          onclick: () => run(bGo, () => Store.guardiaDispatchIncident(incident.id, ui.unitId, ui.crewName), 'Confirmando salida…')
+        const b = el('button', {
+          type: 'button', className: 'gv-btn gv-btn-success', textContent: '▶ Confirmar salida',
+          onclick: () => run(b, () => Store.guardiaDispatchIncident(incident.id, ui.unitId, ui.crewName), 'Confirmando…')
         });
-        actionsCard.appendChild(bGo);
+        body.appendChild(b);
         break;
       }
       case 'EN_CAMINO': {
-        const bArr = el('button', {
-          type: 'button', className: 'btn-action-big btn-action-go', textContent: '📍 Marcar arribo',
-          onclick: () => run(bArr, () => Store.guardiaMarkOnScene(incident.id, ui.unitId, ui.crewName), 'Marcando arribo…')
+        const b = el('button', {
+          type: 'button', className: 'gv-btn gv-btn-success', textContent: '📍 Marcar arribo',
+          onclick: () => run(b, () => Store.guardiaMarkOnScene(incident.id, ui.unitId, ui.crewName), 'Marcando…')
         });
-        actionsCard.appendChild(bArr);
+        body.appendChild(b);
         break;
       }
       case 'EN_ESCENA': {
         const destInput = el('input', { type: 'text', id: 'destCenter', maxlength: '120', placeholder: 'Ej: Hospital San Roque' });
+        body.appendChild(el('label', { className: 'gv-label' }, [
+          el('span', { textContent: 'Centro receptor (si hay traslado)' }),
+          destInput
+        ]));
         const bTr = el('button', {
-          type: 'button', className: 'btn-action-big btn-action-blue', textContent: '🚑 Iniciar traslado',
-          onclick: () => run(bTr, () => Store.guardiaMarkInTransit(incident.id, ui.unitId, destInput.value.trim(), ui.crewName), 'Iniciando traslado…')
+          type: 'button', className: 'gv-btn gv-btn-primary', textContent: '🚑 Iniciar traslado',
+          onclick: () => run(bTr, () => Store.guardiaMarkInTransit(incident.id, ui.unitId, destInput.value.trim(), ui.crewName), 'Iniciando…')
         });
+        body.appendChild(bTr);
+
+        const selReason = el('select', { id: 'closeReason' });
+        ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público'].forEach(r => selReason.appendChild(el('option', { value: r, textContent: r })));
+        body.appendChild(el('label', { className: 'gv-label' }, [el('span', { textContent: 'Motivo de cierre' }), selReason]));
+        body.appendChild(el('label', { className: 'gv-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
+
         const bCl = el('button', {
-          type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
+          type: 'button', className: 'gv-btn gv-btn-danger', textContent: '✔ Cerrar intervención',
           onclick: () => run(bCl, async () => {
             await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
             stopWatch();
           }, 'Cerrando…')
         });
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Centro receptor (si hay traslado)' }), destInput]));
-        actionsCard.appendChild(bTr);
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
-          const sel = el('select', { id: 'closeReason' });
-          ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-          return sel;
-        })()]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
-        actionsCard.appendChild(bCl);
+        body.appendChild(bCl);
         break;
       }
       case 'EN_TRASLADO': {
-        const bCl2 = el('button', {
-          type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
-          onclick: () => run(bCl2, async () => {
+        const selReason = el('select', { id: 'closeReason' });
+        ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => selReason.appendChild(el('option', { value: r, textContent: r })));
+        body.appendChild(el('div', { className: 'gv-kv' }, [
+          el('span', { className: 'k', textContent: 'Traslado hacia' }),
+          el('span', { className: 'v', textContent: incident.destinationCenter || '—' })
+        ]));
+        body.appendChild(el('label', { className: 'gv-label' }, [el('span', { textContent: 'Motivo de cierre' }), selReason]));
+        body.appendChild(el('label', { className: 'gv-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
+        const bCl = el('button', {
+          type: 'button', className: 'gv-btn gv-btn-danger', textContent: '✔ Cerrar intervención',
+          onclick: () => run(bCl, async () => {
             await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
             stopWatch();
           }, 'Cerrando…')
         });
-        actionsCard.appendChild(el('div', { className: 'guardia-info', textContent: 'Traslado hacia: ' + (incident.destinationCenter || '—') }));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
-          const sel = el('select', { id: 'closeReason' });
-          ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-          return sel;
-        })()]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
-        actionsCard.appendChild(bCl2);
+        body.appendChild(bCl);
         break;
       }
       default:
-        actionsCard.appendChild(el('div', { className: 'guardia-warn', textContent: 'Estado: ' + incident.status }));
+        body.appendChild(el('p', { style: 'color:var(--gv-text-muted);', textContent: 'Estado: ' + incident.status }));
     }
 
-       // F3: PTT (solo si está EN_CAMINO o EN_ESCENA)
-    if (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA') {
-      container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
-      container.appendChild(buildPTTCard(incident));
-      container.appendChild(buildMediaCard(incident));
-    } else {
-      container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
-      container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
-      container.appendChild(buildMediaCard(incident));
-    }
-
-    // Bitácora
-    const bitacoraCard = el('div', { className: 'guardia-card-block' }, [
-      el('h3', { textContent: 'Bitácora' }),
-      el('ul', { className: 'guardia-bitacora' }, (incident.statusHistory || []).slice().reverse().map(h =>
-        el('li', {}, [
-          el('strong', { textContent: h.status }),
-          el('span', { textContent: ' · ' + fmtDateTime(h.ts) + ' · ' + (h.actor || 'system') }),
-          h.detail ? el('div', { className: 'guardia-bitacora-detail', textContent: h.detail }) : null
-        ].filter(Boolean))
-      ))
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '⚙' }),
+        el('h3', { textContent: 'Acciones' })
+      ]),
+      body
     ]);
-    container.appendChild(el('div', { className: 'guardia-card' }, [bitacoraCard]));
   }
 
-  // ============ F3: PTT ============
-  function buildPTTCard(incident) {
-    const card = el('div', { className: 'guardia-card' });
-    const block = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '📻 Comunicación con Central' })]);
-    const pttReady = typeof window.E360PTT !== 'undefined';
-    const stateEl = el('div', { className: 'guardia-gps-status', textContent: pttReady ? 'PTT listo. Presioná para hablar.' : 'PTT no disponible.' });
-
-    if (!pttReady) {
-      block.appendChild(stateEl);
-      card.appendChild(block);
-      return card;
-    }
-
-    const isConnected = ui.pttIncidentId === incident.id;
-    const btnConnect = el('button', {
-      type: 'button',
-      className: isConnected ? 'btn-gps-stop' : 'btn-gps-start',
-      textContent: isConnected ? '🔌 Desconectar PTT' : '🔗 Conectar PTT',
-      onclick: async () => {
-        if (isConnected) {
-          window.E360PTT.destroy();
-          ui.pttIncidentId = null;
-          render();
-        } else {
-          const sb = Store._getState().supabase;
-          const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
-          if (ok) {
-            ui.pttIncidentId = incident.id;
-            toast('PTT conectado');
-          } else {
-            toast('No se pudo acceder al micrófono');
-          }
-          render();
-        }
-      }
-    });
-
-    const btnTalk = el('button', {
-      type: 'button',
-      className: 'btn-action-big btn-action-go',
-      textContent: '🎙 Mantener para hablar',
-      disabled: !isConnected,
-      style: 'user-select:none;touch-action:none;margin-top:8px;'
-    });
-
-    if (isConnected) {
-      const startTalk = async (e) => {
-        if (e) e.preventDefault();
-        const sb = Store._getState().supabase;
-        await window.E360PTT.startTalking(sb);
-        stateEl.textContent = '🔴 Transmitiendo…';
-        btnTalk.classList.add('is-transmitting');
-      };
-      const stopTalk = async (e) => {
-        if (e) e.preventDefault();
-        const sb = Store._getState().supabase;
-        const path = await window.E360PTT.stopTalking(sb);
-        stateEl.textContent = path ? '✅ Clip guardado' : 'PTT detenido';
-        btnTalk.classList.remove('is-transmitting');
-        if (path) setTimeout(() => render(), 1500);
-      };
-      btnTalk.addEventListener('mousedown', startTalk);
-      btnTalk.addEventListener('mouseup', stopTalk);
-      btnTalk.addEventListener('mouseleave', stopTalk);
-      btnTalk.addEventListener('touchstart', startTalk, { passive: false });
-      btnTalk.addEventListener('touchend', stopTalk, { passive: false });
-      btnTalk.addEventListener('touchcancel', stopTalk);
-    }
-
-    block.appendChild(stateEl);
-    block.appendChild(btnConnect);
-    block.appendChild(btnTalk);
-    card.appendChild(block);
-    return card;
-  }
-
-  // ============ F3: MEDIA ============
   function buildMediaCard(incident) {
-    const card = el('div', { className: 'guardia-card' });
-    const block = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '📎 Adjuntos del incidente' })]);
-    const listEl = el('div', { className: 'media-list', textContent: 'Cargando…' });
+    const body = el('div', { className: 'gv-card-body' });
+    const listEl = el('div', { className: 'gv-media-list', textContent: 'Cargando…' });
 
     const photoInput = document.createElement('input');
     photoInput.type = 'file';
@@ -792,13 +778,8 @@
     photoInput.capture = 'environment';
     photoInput.style.display = 'none';
 
-    const photoBtn = el('button', {
-      type: 'button', className: 'btn-gps-manual', textContent: '📷 Subir foto'
-    });
-
-    const videoBtn = el('button', {
-      type: 'button', className: 'btn-gps-manual', textContent: '🎥 Grabar video (30s)'
-    });
+    const photoBtn = el('button', { type: 'button', className: 'gv-btn gv-btn-secondary', textContent: '📷 Foto' });
+    const videoBtn = el('button', { type: 'button', className: 'gv-btn gv-btn-secondary', textContent: '🎥 Video (30s)' });
 
     const canUpload = ['RECIBIDA_SERVIDOR', 'ACEPTADA_POR_CENTRAL', 'CLASIFICADA', 'MOVIL_ASIGNADO', 'EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1;
 
@@ -838,36 +819,153 @@
         const items = await Store.getIncidentMedia(incident.id);
         listEl.innerHTML = '';
         if (!items || items.length === 0) {
-          listEl.appendChild(el('p', { className: 'empty-hint', textContent: 'Sin archivos adjuntos.' }));
+          listEl.appendChild(el('p', { style: 'color:var(--gv-text-muted);font-size:0.85rem;margin:0;', textContent: 'Sin archivos adjuntos.' }));
           return;
         }
         items.forEach(m => {
-          const row = el('div', { className: 'media-item' });
           const label = m.type === 'audio' ? '🎙' : m.type === 'photo' ? '📷' : '🎥';
           const tipo = m.type === 'audio' ? 'Audio' : m.type === 'photo' ? 'Foto' : 'Video';
-          row.appendChild(el('span', { textContent: label + ' ' + tipo + ' — ' + new Date(m.created_at).toLocaleTimeString('es-AR') }));
+          const row = el('div', { className: 'gv-media-item' }, [
+            el('span', { textContent: label + ' ' + tipo + ' · ' + fmtTime(m.created_at) })
+          ]);
           if (m.signedUrl) {
-            const link = el('a', { href: m.signedUrl, target: '_blank', rel: 'noopener', className: 'guardia-link', textContent: 'Ver' });
-            row.appendChild(link);
+            row.appendChild(el('a', { href: m.signedUrl, target: '_blank', rel: 'noopener', className: 'gv-media-link', textContent: 'Ver' }));
           }
           listEl.appendChild(row);
         });
       } catch (e) {
-        listEl.textContent = 'Error cargando adjuntos: ' + fmtErr(e);
+        listEl.textContent = 'Error: ' + fmtErr(e);
       }
     }
 
     refreshMediaList();
 
-    block.appendChild(listEl);
+    body.appendChild(listEl);
     if (canUpload && typeof window.E360Media !== 'undefined') {
-      block.appendChild(el('div', { className: 'guardia-gps-actions' }, [photoBtn, videoBtn]));
+      body.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:12px;' }, [photoBtn, videoBtn]));
     }
-    block.appendChild(photoInput);
-    card.appendChild(block);
-    return card;
+    body.appendChild(photoInput);
+
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '📎' }),
+        el('h3', { textContent: 'Adjuntos del incidente' })
+      ]),
+      body
+    ]);
   }
 
+  function buildBitacoraCard(incident) {
+    const body = el('div', { className: 'gv-card-body' });
+    const history = (incident.statusHistory || []).slice().reverse();
+    if (!history.length) {
+      body.appendChild(el('p', { style: 'color:var(--gv-text-muted);font-size:0.85rem;', textContent: 'Sin movimientos registrados.' }));
+    } else {
+      history.forEach(h => {
+        body.appendChild(el('div', { style: 'padding:8px 0;border-bottom:1px solid var(--gv-border);' }, [
+          el('div', { style: 'display:flex;justify-content:space-between;gap:8px;font-size:0.85rem;' }, [
+            el('strong', { textContent: h.status }),
+            el('span', { style: 'color:var(--gv-text-muted);font-size:0.75rem;', textContent: fmtDateTime(h.ts) })
+          ]),
+          el('div', { style: 'color:var(--gv-text-muted);font-size:0.75rem;margin-top:2px;', textContent: h.actor || 'system' }),
+          h.detail ? el('div', { style: 'font-size:0.8rem;margin-top:4px;', textContent: h.detail }) : null
+        ].filter(Boolean)));
+      });
+    }
+
+    return el('div', { className: 'gv-card' }, [
+      el('div', { className: 'gv-card-header' }, [
+        el('span', { className: 'gv-icon', textContent: '📋' }),
+        el('h3', { textContent: 'Bitácora' })
+      ]),
+      body
+    ]);
+  }
+
+  // ============ PTT FLOTANTE FIJO ============
+  function renderPTTFloating(incident) {
+    let existing = document.getElementById('gvPttFloating');
+    const canPTT = incident && ['EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1 && typeof window.E360PTT !== 'undefined';
+
+    if (!canPTT) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    const isConnected = ui.pttIncidentId === incident.id;
+
+    if (existing) {
+      existing.querySelector('.gv-ptt-connect').className = 'gv-ptt-connect' + (isConnected ? ' connected' : '');
+      existing.querySelector('.gv-ptt-connect').innerHTML = isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR';
+      existing.querySelector('.gv-ptt-talk').disabled = !isConnected;
+      return;
+    }
+
+    const wrapper = el('div', { className: 'gv-ptt-floating', id: 'gvPttFloating' });
+
+    const statusEl = el('div', { className: 'gv-ptt-status', textContent: isConnected ? 'PTT conectado — presioná para hablar' : 'Conectá PTT para hablar con Central' });
+    wrapper.appendChild(statusEl);
+
+    const connectBtn = el('button', {
+      type: 'button',
+      className: 'gv-ptt-connect' + (isConnected ? ' connected' : ''),
+      innerHTML: isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR',
+      onclick: async () => {
+        if (isConnected) {
+          window.E360PTT.destroy();
+          ui.pttIncidentId = null;
+          ui.lastRenderHash = null;
+          renderActiveIncident();
+        } else {
+          const sb = Store._getState().supabase;
+          const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
+          if (ok) { ui.pttIncidentId = incident.id; toast('PTT conectado'); }
+          else { toast('No se pudo acceder al micrófono'); }
+          ui.lastRenderHash = null;
+          renderActiveIncident();
+        }
+      }
+    });
+
+    const talkBtn = el('button', {
+      type: 'button',
+      className: 'gv-ptt-talk',
+      textContent: '🎙 MANTENER PARA HABLAR',
+      disabled: !isConnected
+    });
+
+    if (isConnected) {
+      const startTalk = async (e) => {
+        if (e) e.preventDefault();
+        const sb = Store._getState().supabase;
+        await window.E360PTT.startTalking(sb);
+        talkBtn.textContent = '🔴 TRANSMITIENDO…';
+        talkBtn.classList.add('is-transmitting');
+        statusEl.textContent = '🔴 Transmitiendo a Central';
+        if (navigator.vibrate) { try { navigator.vibrate(50); } catch (_) {} }
+      };
+      const stopTalk = async (e) => {
+        if (e) e.preventDefault();
+        const sb = Store._getState().supabase;
+        const path = await window.E360PTT.stopTalking(sb);
+        talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+        talkBtn.classList.remove('is-transmitting');
+        statusEl.textContent = path ? '✅ Clip guardado en el incidente' : 'PTT detenido';
+        if (path) { toast('Clip de audio guardado'); setTimeout(() => { ui.lastRenderHash = null; renderActiveIncident(); }, 1500); }
+      };
+      talkBtn.addEventListener('mousedown', startTalk);
+      talkBtn.addEventListener('mouseup', stopTalk);
+      talkBtn.addEventListener('mouseleave', stopTalk);
+      talkBtn.addEventListener('touchstart', startTalk, { passive: false });
+      talkBtn.addEventListener('touchend', stopTalk, { passive: false });
+      talkBtn.addEventListener('touchcancel', stopTalk);
+    }
+
+    wrapper.appendChild(connectBtn);
+    wrapper.appendChild(talkBtn);
+    document.body.appendChild(wrapper);
+  }
+  // ============ RENDER: HISTORIAL ============
   async function renderHistory() {
     const list = $('#historyList');
     const empty = $('#historyEmpty');
@@ -890,34 +988,45 @@
     } catch (_) { if (empty) empty.hidden = false; }
   }
 
-  async function render() {
+  // ============ RENDER GENERAL ============
+  function render() {
     renderUnitStatus();
-    await renderActiveIncident();
-    await renderHistory();
+    renderActiveIncident();
+    renderHistory();
   }
 
+  // ============ SUBSCRIPCIÓN ============
   function initSubscription() {
     Store.subscribe(msg => {
       if (!msg) return;
       if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
-      if (msg.type === 'BRANDING_CHANGED') applyBranding();
+      if (msg.type === 'BRANDING_CHANGED') { applyBranding(); return; }
       if (msg.type !== 'STATE_CHANGED') return;
+      ui.lastRenderHash = null;
       render();
     });
     setInterval(() => render(), 5000);
   }
 
+  // ============ BOOT ============
   async function bootGuardia() {
     await applyBranding();
     initSelectors();
-    await render();
+    initTheme();
+    render();
     ui.initialBootDone = true;
     initSubscription();
   }
 
+  // ============ INIT ============
   document.addEventListener('DOMContentLoaded', async () => {
+    initTheme();
+    const themeBtn = $('#btnThemeToggle');
+    if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+
     await applyBranding();
     initLogin();
+
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
       ui.crewName = session.profile.nombre || session.profile.dni;
