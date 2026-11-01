@@ -1,14 +1,10 @@
 /* ============================================================
-   app-guardia.js v8.4 — Guardia Móvil EMP (C1 + F2 + Velocidad)
-   - Login staff (admin/operador) por email con spinner
-   - F2: ui.crewId + initPushRegistration() + sincronización de profiles.on_duty
-   - GPS envía speed real a unit_location
-   - Alerta local si la velocidad excede el límite configurado (tabla config)
+   app-guardia.js v8.5 — Guardia Móvil EMP (C1 + F2 + F3)
+   - Login staff por email con spinner
+   - F2: push FCM + on_duty + speed real al GPS
+   - F3: PTT con central + cámara + subida de fotos/videos
+   - Alerta local si excede el límite de velocidad
    - applyBrandingToPage() en el boot
-   - Incidente asignado en vivo (realtime) con alarma desde el 1er incidente
-   - Ficha del paciente + medicación + alergias
-   - GPS con throttle 20s, navegación, acciones con spinner, apoyo
-   - Historial de la unidad
    ============================================================ */
 
 (function () {
@@ -67,7 +63,7 @@
 
   const THROTTLE_MS = 20000;
   const UI_KEY = 'e360_guardia_ui_v8';
-  const SPEED_ALERT_COOLDOWN_MS = 120000; // no repetir alerta antes de 2 min
+  const SPEED_ALERT_COOLDOWN_MS = 120000;
 
   const ui = {
     baseId: 'DOLORES',
@@ -81,7 +77,8 @@
     lastSpeedAlertAt: 0,
     audioCtx: null,
     lastIncidentId: null,
-    initialBootDone: false
+    initialBootDone: false,
+    pttIncidentId: null
   };
 
   function saveUI() {
@@ -110,7 +107,6 @@
     const title = '⚠ Exceso de velocidad';
     const body = 'Velocidad actual: ' + kmh.toFixed(0) + ' km/h (límite ' + limit + ' km/h). Reducí la marcha.';
 
-    // Notificación local nativa (si hay Capacitor)
     const cap = window.E360Capacitor;
     if (cap && typeof cap.showLocalNotification === 'function') {
       try {
@@ -123,14 +119,11 @@
       } catch (_) {}
     }
 
-    // Toast en pantalla siempre
     toast('⚠ ' + kmh.toFixed(0) + ' km/h — límite ' + limit + ' km/h');
-
-    // Vibración si está disponible
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
   }
 
-  // ============ F2: REGISTRO PUSH FCM Y ESTADO ON_DUTY ============
+  // ============ F2: PUSH Y ON_DUTY ============
   async function setOnDutyStatus(isOnDuty) {
     try {
       const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
@@ -246,6 +239,7 @@
     if (logout) logout.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión y salir de guardia activa?')) return;
       stopWatch();
+      if (typeof window.E360PTT !== 'undefined') window.E360PTT.destroy();
       await runLoading(logout, async () => {
         await setOnDutyStatus(false);
         await Store.logout();
@@ -331,7 +325,6 @@
     ui.watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const now = Date.now();
-        // Alerta de velocidad en cada lectura, independiente del throttle de envío
         checkSpeedAlert(pos.coords.speed);
 
         if (now - ui.lastPositionAt < THROTTLE_MS) return;
@@ -513,6 +506,10 @@
       ui.lastIncidentId = null;
       container.hidden = true;
       empty.hidden = false;
+      if (typeof window.E360PTT !== 'undefined' && ui.pttIncidentId) {
+        window.E360PTT.destroy();
+        ui.pttIncidentId = null;
+      }
       return;
     }
     container.hidden = false; empty.hidden = true; container.innerHTML = '';
@@ -638,34 +635,18 @@
         const bCl = el('button', {
           type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
           onclick: () => run(bCl, async () => {
-            await Store.guardiaCloseIncident(
-              incident.id,
-              ui.unitId,
-              document.getElementById('closeReason').value,
-              document.getElementById('closeNotes').value.trim(),
-              ui.crewName
-            );
+            await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
             stopWatch();
           }, 'Cerrando…')
         });
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
-          el('span', { textContent: 'Centro receptor (si hay traslado)' }),
-          destInput
-        ]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Centro receptor (si hay traslado)' }), destInput]));
         actionsCard.appendChild(bTr);
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
-          el('span', { textContent: 'Motivo de cierre' }),
-          (function () {
-            const sel = el('select', { id: 'closeReason' });
-            ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público']
-              .forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-            return sel;
-          })()
-        ]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
-          el('span', { textContent: 'Notas de cierre' }),
-          el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })
-        ]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
+          const sel = el('select', { id: 'closeReason' });
+          ['Atención en domicilio sin traslado', 'Traslado efectivo', 'Falsa alarma', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+          return sel;
+        })()]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
         actionsCard.appendChild(bCl);
         break;
       }
@@ -673,35 +654,40 @@
         const bCl2 = el('button', {
           type: 'button', className: 'btn-action-big btn-action-close', textContent: '✔ Cerrar intervención',
           onclick: () => run(bCl2, async () => {
-            await Store.guardiaCloseIncident(
-              incident.id,
-              ui.unitId,
-              document.getElementById('closeReason').value,
-              document.getElementById('closeNotes').value.trim(),
-              ui.crewName
-            );
+            await Store.guardiaCloseIncident(incident.id, ui.unitId, document.getElementById('closeReason').value, document.getElementById('closeNotes').value.trim(), ui.crewName);
             stopWatch();
           }, 'Cerrando…')
         });
         actionsCard.appendChild(el('div', { className: 'guardia-info', textContent: 'Traslado hacia: ' + (incident.destinationCenter || '—') }));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
-          el('span', { textContent: 'Motivo de cierre' }),
-          (function () {
-            const sel = el('select', { id: 'closeReason' });
-            ['Traslado efectivo', 'Derivado a sistema público']
-              .forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
-            return sel;
-          })()
-        ]));
-        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [
-          el('span', { textContent: 'Notas de cierre' }),
-          el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })
-        ]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Motivo de cierre' }), (function () {
+          const sel = el('select', { id: 'closeReason' });
+          ['Traslado efectivo', 'Derivado a sistema público'].forEach(r => sel.appendChild(el('option', { value: r, textContent: r })));
+          return sel;
+        })()]));
+        actionsCard.appendChild(el('label', { className: 'guardia-label' }, [el('span', { textContent: 'Notas de cierre' }), el('textarea', { id: 'closeNotes', rows: '2', maxlength: '400' })]));
         actionsCard.appendChild(bCl2);
         break;
       }
       default:
         actionsCard.appendChild(el('div', { className: 'guardia-warn', textContent: 'Estado: ' + incident.status }));
+    }
+
+       // F3: PTT (solo si está EN_CAMINO o EN_ESCENA)
+    if (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA') {
+      container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
+      container.appendChild(buildPTTCard(incident));
+      container.appendChild(buildMediaCard(incident));
+    } else {
+      container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
+      container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
+      container.appendChild(buildMediaCard(incident));
     }
 
     // Bitácora
@@ -715,13 +701,171 @@
         ].filter(Boolean))
       ))
     ]);
-
-    container.appendChild(el('div', { className: 'guardia-card guardia-card-main' }, [header]));
-    container.appendChild(el('div', { className: 'guardia-card' }, [patientCard]));
-    container.appendChild(el('div', { className: 'guardia-card' }, [locationCard]));
-    container.appendChild(el('div', { className: 'guardia-card' }, [gpsCard]));
-    container.appendChild(el('div', { className: 'guardia-card' }, [actionsCard]));
     container.appendChild(el('div', { className: 'guardia-card' }, [bitacoraCard]));
+  }
+
+  // ============ F3: PTT ============
+  function buildPTTCard(incident) {
+    const card = el('div', { className: 'guardia-card' });
+    const block = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '📻 Comunicación con Central' })]);
+    const pttReady = typeof window.E360PTT !== 'undefined';
+    const stateEl = el('div', { className: 'guardia-gps-status', textContent: pttReady ? 'PTT listo. Presioná para hablar.' : 'PTT no disponible.' });
+
+    if (!pttReady) {
+      block.appendChild(stateEl);
+      card.appendChild(block);
+      return card;
+    }
+
+    const isConnected = ui.pttIncidentId === incident.id;
+    const btnConnect = el('button', {
+      type: 'button',
+      className: isConnected ? 'btn-gps-stop' : 'btn-gps-start',
+      textContent: isConnected ? '🔌 Desconectar PTT' : '🔗 Conectar PTT',
+      onclick: async () => {
+        if (isConnected) {
+          window.E360PTT.destroy();
+          ui.pttIncidentId = null;
+          render();
+        } else {
+          const sb = Store._getState().supabase;
+          const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
+          if (ok) {
+            ui.pttIncidentId = incident.id;
+            toast('PTT conectado');
+          } else {
+            toast('No se pudo acceder al micrófono');
+          }
+          render();
+        }
+      }
+    });
+
+    const btnTalk = el('button', {
+      type: 'button',
+      className: 'btn-action-big btn-action-go',
+      textContent: '🎙 Mantener para hablar',
+      disabled: !isConnected,
+      style: 'user-select:none;touch-action:none;margin-top:8px;'
+    });
+
+    if (isConnected) {
+      const startTalk = async (e) => {
+        if (e) e.preventDefault();
+        const sb = Store._getState().supabase;
+        await window.E360PTT.startTalking(sb);
+        stateEl.textContent = '🔴 Transmitiendo…';
+        btnTalk.classList.add('is-transmitting');
+      };
+      const stopTalk = async (e) => {
+        if (e) e.preventDefault();
+        const sb = Store._getState().supabase;
+        const path = await window.E360PTT.stopTalking(sb);
+        stateEl.textContent = path ? '✅ Clip guardado' : 'PTT detenido';
+        btnTalk.classList.remove('is-transmitting');
+        if (path) setTimeout(() => render(), 1500);
+      };
+      btnTalk.addEventListener('mousedown', startTalk);
+      btnTalk.addEventListener('mouseup', stopTalk);
+      btnTalk.addEventListener('mouseleave', stopTalk);
+      btnTalk.addEventListener('touchstart', startTalk, { passive: false });
+      btnTalk.addEventListener('touchend', stopTalk, { passive: false });
+      btnTalk.addEventListener('touchcancel', stopTalk);
+    }
+
+    block.appendChild(stateEl);
+    block.appendChild(btnConnect);
+    block.appendChild(btnTalk);
+    card.appendChild(block);
+    return card;
+  }
+
+  // ============ F3: MEDIA ============
+  function buildMediaCard(incident) {
+    const card = el('div', { className: 'guardia-card' });
+    const block = el('div', { className: 'guardia-card-block' }, [el('h3', { textContent: '📎 Adjuntos del incidente' })]);
+    const listEl = el('div', { className: 'media-list', textContent: 'Cargando…' });
+
+    const photoInput = document.createElement('input');
+    photoInput.type = 'file';
+    photoInput.accept = 'image/*';
+    photoInput.capture = 'environment';
+    photoInput.style.display = 'none';
+
+    const photoBtn = el('button', {
+      type: 'button', className: 'btn-gps-manual', textContent: '📷 Subir foto'
+    });
+
+    const videoBtn = el('button', {
+      type: 'button', className: 'btn-gps-manual', textContent: '🎥 Grabar video (30s)'
+    });
+
+    const canUpload = ['RECIBIDA_SERVIDOR', 'ACEPTADA_POR_CENTRAL', 'CLASIFICADA', 'MOVIL_ASIGNADO', 'EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1;
+
+    if (canUpload && typeof window.E360Media !== 'undefined') {
+      const sb = Store._getState().supabase;
+
+      photoBtn.addEventListener('click', () => photoInput.click());
+      photoInput.addEventListener('change', async () => {
+        if (!photoInput.files || !photoInput.files[0]) return;
+        await runLoading(photoBtn, async () => {
+          try {
+            await window.E360Media.uploadPhoto(sb, incident.id, photoInput.files[0]);
+            toast('Foto subida');
+            await refreshMediaList();
+          } catch (e) { toast('Error: ' + fmtErr(e)); }
+        }, 'Subiendo…');
+      });
+
+      videoBtn.addEventListener('click', async () => {
+        try {
+          toast('Grabando 30s…');
+          await window.E360Media.recordVideo(async (file) => {
+            await runLoading(videoBtn, async () => {
+              try {
+                await window.E360Media.uploadVideo(sb, incident.id, file);
+                toast('Video subido');
+                await refreshMediaList();
+              } catch (e) { toast('Error: ' + fmtErr(e)); }
+            }, 'Subiendo…');
+          });
+        } catch (e) { toast('Error: ' + fmtErr(e)); }
+      });
+    }
+
+    async function refreshMediaList() {
+      try {
+        const items = await Store.getIncidentMedia(incident.id);
+        listEl.innerHTML = '';
+        if (!items || items.length === 0) {
+          listEl.appendChild(el('p', { className: 'empty-hint', textContent: 'Sin archivos adjuntos.' }));
+          return;
+        }
+        items.forEach(m => {
+          const row = el('div', { className: 'media-item' });
+          const label = m.type === 'audio' ? '🎙' : m.type === 'photo' ? '📷' : '🎥';
+          const tipo = m.type === 'audio' ? 'Audio' : m.type === 'photo' ? 'Foto' : 'Video';
+          row.appendChild(el('span', { textContent: label + ' ' + tipo + ' — ' + new Date(m.created_at).toLocaleTimeString('es-AR') }));
+          if (m.signedUrl) {
+            const link = el('a', { href: m.signedUrl, target: '_blank', rel: 'noopener', className: 'guardia-link', textContent: 'Ver' });
+            row.appendChild(link);
+          }
+          listEl.appendChild(row);
+        });
+      } catch (e) {
+        listEl.textContent = 'Error cargando adjuntos: ' + fmtErr(e);
+      }
+    }
+
+    refreshMediaList();
+
+    block.appendChild(listEl);
+    if (canUpload && typeof window.E360Media !== 'undefined') {
+      block.appendChild(el('div', { className: 'guardia-gps-actions' }, [photoBtn, videoBtn]));
+    }
+    block.appendChild(photoInput);
+    card.appendChild(block);
+    return card;
   }
 
   async function renderHistory() {
@@ -787,5 +931,8 @@
     }
   });
 
-  window.addEventListener('beforeunload', () => { stopWatch(); });
+  window.addEventListener('beforeunload', () => {
+    stopWatch();
+    if (typeof window.E360PTT !== 'undefined') window.E360PTT.destroy();
+  });
 })();
