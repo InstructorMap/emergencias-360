@@ -214,6 +214,30 @@
     }
     return issues;
   }
+       // F3: chequeo de PTT
+    if (typeof window.E360PTT !== 'undefined' && typeof window.E360PTT.debug === 'function') {
+      const pd = window.E360PTT.debug();
+      if (pd.initialized) {
+        if (pd.pcExists && pd.pcIceState === 'failed') {
+          issues.push({ level: 'error', code: 'PTT_ICE_FAILED', msg: 'PTT: ICE failed. TURN no funciona. ' + (pd.lastIceError || '') });
+        }
+        if (pd.pcExists && pd.pcIceState === 'disconnected') {
+          issues.push({ level: 'warn', code: 'PTT_ICE_DISCONNECTED', msg: 'PTT: ICE disconnected.' });
+        }
+        if (!pd.localStreamActive) {
+          issues.push({ level: 'error', code: 'PTT_NO_MIC', msg: 'PTT: micrófono no captura.' });
+        }
+        if (pd.remoteAudioExists && pd.remoteAudioPaused) {
+          issues.push({ level: 'warn', code: 'PTT_AUDIO_PAUSED', msg: 'PTT: audio remoto pausado (autoplay bloqueado).' });
+        }
+        if (pd.channelState !== 'joined') {
+          issues.push({ level: 'error', code: 'PTT_CHANNEL_NOT_JOINED', msg: 'PTT: canal ' + pd.channelState });
+        }
+        if (!pd.turnCached) {
+          issues.push({ level: 'warn', code: 'PTT_NO_TURN', msg: 'PTT: sin credenciales TURN. ' + (pd.lastIceError || '') });
+        }
+      }
+    }
 
   function checkConfigKeys(plan) {
     const issues = [];
