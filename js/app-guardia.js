@@ -325,7 +325,63 @@
       render();
     });
   }
+  function initPTTDiagButton() {
+    let btn = document.getElementById('btnPttDiag');
+    if (!btn) {
+      btn = el('button', {
+        type: 'button', id: 'btnPttDiag', className: 'btn-link-socio',
+        textContent: '🔍', title: 'Diagnóstico PTT',
+        onclick: () => openPTTDiag()
+      });
+      const controls = document.querySelector('.header-controls');
+      if (controls) controls.insertBefore(btn, controls.firstChild);
+    }
+  }
 
+  function openPTTDiag() {
+    const ptt = window.E360PTT;
+    if (!ptt || typeof ptt.debug !== 'function') {
+      alert('PTT no disponible en esta página.');
+      return;
+    }
+    const d = ptt.debug();
+    const unlockBtn = d.remoteAudioPaused
+      ? '\n\n👉 Tocá "Activar audio" para desbloquear el sonido.'
+      : '';
+    const lines = [
+      '=== DIAGNÓSTICO PTT ===',
+      '',
+      'INIT: ' + d.initialized,
+      'PRESSING: ' + d.pressing,
+      'INCIDENT: ' + (d.incidentId || 'none'),
+      'ROLE: ' + (d.role || 'none'),
+      'CHANNEL: ' + d.channelState,
+      '',
+      'PC EXISTS: ' + d.pcExists,
+      'PC CONNECTION: ' + d.pcConnectionState,
+      'PC ICE: ' + d.pcIceState,
+      'PC SIGNALING: ' + d.pcSignalingState,
+      '',
+      'MIC ACTIVE: ' + d.localStreamActive + ' (' + d.localStreamTracks + ' tracks)',
+      '',
+      'REMOTE AUDIO EXISTS: ' + d.remoteAudioExists,
+      'REMOTE AUDIO PAUSED: ' + d.remoteAudioPaused,
+      'REMOTE AUDIO MUTED: ' + d.remoteAudioMuted,
+      'REMOTE AUDIO VOLUME: ' + d.remoteAudioVolume,
+      'REMOTE AUDIO STREAM: ' + d.remoteAudioHasStream,
+      '',
+      'TURN CACHED: ' + d.turnCached + ' (expira en ' + d.turnExpiryIn + 's)',
+      'LAST ICE ERROR: ' + (d.lastIceError || 'ninguno'),
+      'LAST SIGNALING ERROR: ' + (d.lastSignalingError || 'ninguno'),
+      unlockBtn
+    ];
+    const doUnlock = d.remoteAudioPaused && confirm(lines.join('\n') + '\n\n¿Intentar activar audio ahora?');
+    if (doUnlock) {
+      ptt.unlockAudio().then(ok => toast(ok ? '🔊 Audio activado' : '❌ No se pudo activar'));
+    } else {
+      alert(lines.join('\n'));
+    }
+  }
   // ============ GPS ============
   function updateGpsStatus(text, color) {
     const node = document.getElementById('gpsStatusText');
