@@ -1,5 +1,8 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
+   - Unlock anticipado de audio remoto al conectar
+   - try/catch en startTalking y stopTalking
+   - Captura del error real de subscribe()
    ============================================================ */
 
 (function (global) {
@@ -43,9 +46,32 @@
     }
   }
 
+  // Desbloquea el audio remoto ANTES de que llegue el primer track.
+  // El clic en "Conectar PTT" ya es una interacción del usuario.
+  async function unlockRemoteAudioEarly() {
+    if (!remoteAudio) {
+      remoteAudio = new Audio();
+      remoteAudio.autoplay = true;
+      remoteAudio.playsInline = true;
+    }
+    try {
+      const prevMuted = remoteAudio.muted;
+      remoteAudio.muted = true;
+      await remoteAudio.play();
+      remoteAudio.pause();
+      remoteAudio.muted = prevMuted;
+    } catch (e) {
+      try { remoteAudio.muted = false; } catch (_) {}
+      console.warn('[ptt] Unlock anticipado falló (se reintentará con el click):', e);
+    }
+  }
+
   async function initSignaling(supabase, incidentId, role) {
     currentIncidentId = incidentId;
     currentRole = role;
+
+    // Unlock anticipado: el usuario acaba de tocar "Conectar PTT"
+    await unlockRemoteAudioEarly();
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
       config: {
@@ -122,7 +148,7 @@
       }
       remoteAudio.srcObject = event.streams[0];
       remoteAudio.play().catch((e) => {
-        console.warn('[ptt] Autoplay bloqueado:', e);
+        console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
         const unlock = () => {
           if (remoteAudio) remoteAudio.play().catch(() => {});
           document.removeEventListener('click', unlock);
@@ -294,8 +320,9 @@
     },
 
     unlockAudio() {
-      if (remoteAudio) return remoteAudio.play().then(() => true).catch(() => false);
-      return Promise.resolve(false);
+      if (!remoteAudio) return Promise.resolve(false);
+      remoteAudio.muted = false;
+      return remoteAudio.play().then(() => true).catch(() => false);
     },
 
     destroy() {
