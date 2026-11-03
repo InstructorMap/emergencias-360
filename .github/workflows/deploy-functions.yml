@@ -22,10 +22,44 @@ jobs:
         with:
           version: latest
 
-      - name: Deploy send-push Edge Function
+      - name: Verify secrets
+        run: |
+          if [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ]; then
+            echo "ERROR: Falta el secret SUPABASE_PROJECT_REF"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "ERROR: Falta el secret SUPABASE_ACCESS_TOKEN"
+            exit 1
+          fi
+          echo "Secrets OK"
+
+      - name: Deploy send-push (webhook público, verify_jwt = false)
         run: |
           supabase functions deploy send-push \
             --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
             --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy export-incident (webhook interno, verify_jwt = false)
+        run: |
+          supabase functions deploy export-incident \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+            --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy get-turn-credentials (cliente autenticado, verify_jwt = true)
+        run: |
+          supabase functions deploy get-turn-credentials \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Verify deployments
+        run: |
+          echo "Funciones desplegadas correctamente:"
+          echo "  - send-push (verify_jwt=false)"
+          echo "  - export-incident (verify_jwt=false)"
+          echo "  - get-turn-credentials (verify_jwt=true)"
