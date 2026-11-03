@@ -1,2 +1,8 @@
 [functions.send-push]
 verify_jwt = false
+
+[functions.export-incident]
+verify_jwt = false
+
+[functions.get-turn-credentials]
+verify_jwt = true
