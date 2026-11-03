@@ -1,9 +1,7 @@
 /* ============================================================
-   healthcheck.js v8.3 — Auto-diagnóstico visual (C1 + F2 Push FCM)
-   - index.html: landing pública (sin store)
-   - socio.html: app del socio (5 tabs + credencial + medicación)
-   - central/guardia/b2b/admin: vistas operativas
-   - Chequea métodos C1 en E360Store y registerPushToken / showLocalNotification en E360Capacitor
+   healthcheck.js v8.4 — Auto-diagnóstico visual
+   - C1 + F2 + F3 (PTT, Storage, TURN)
+   - Probe de red opcional con ?healthcheck=storage
    ============================================================ */
 
 (function (global) {
@@ -24,7 +22,6 @@
       } catch (_) { return 6.1; }
     }
 
-    // Métodos exigidos en store.js v8.2+ (incluye C1)
     const baseStoreMethods = [
       'initSession', 'login', 'loginWithEmail', 'logout', 'changePassword',
       'getSession', 'getUser', 'isLoggedIn', 'isAdmin',
@@ -35,8 +32,7 @@
       'getActiveIncidentForUnit', 'getIncidentEta', 'createSOSIncident',
       'transitionIncidentStatus', 'acknowledgeIncident', 'dispatchIncidentUnit',
       'markIncidentOnScene', 'markIncidentInTransit', 'closeIncident', 'cancelIncident',
-      'updateCrewPosition',
-      'getFleet', 'getBases',
+      'updateCrewPosition', 'getFleet', 'getBases',
       'getMedications', 'getMedicationsForProfile', 'saveMedication', 'deleteMedication',
       'logDose', 'scheduleDosesForMedication', 'getDosesForDay',
       'submitSocioRequest', 'submitRecategorizacion', 'getSocioRequests',
@@ -48,7 +44,9 @@
       'getBranding', 'loadBranding', 'setBranding', 'uploadBrandingFile',
       'applyBrandingToPage', 'notifySOSEmitted', 'withButtonLoading', 'humanizeError',
       'getActiveContext', 'setActiveBase', 'getSupabaseStatus', 'subscribe',
-      'calcCarnetStatus', 'daysToExpire'
+      'calcCarnetStatus', 'daysToExpire',
+      'createManualIncident', 'getIncidentMedia', 'getIncidentExportUrl',
+      'getSpeedLimit', 'setSpeedLimit'
     ];
 
     const baseGlobals = ['E360Config', 'E360StateMachine', 'E360Store', 'E360SupabaseConfig'];
@@ -58,7 +56,6 @@
       'PAYMENT_DEFAULTS', 'EXTERNAL_SERVICES_DEFAULTS', 'BRAND', 'SUPABASE'
     ];
 
-    // LANDING PÚBLICA
     if (path === 'index.html' || path === '' || path === '/') {
       return {
         page: path, globals: [], storeMethods: [], configKeys: [],
@@ -67,19 +64,13 @@
       };
     }
 
-    // APP DEL SOCIO
     if (path === 'socio.html') {
       return {
-        page: path,
-        globals: baseGlobals,
-        storeMethods: baseStoreMethods,
-        configKeys: baseConfigKeys,
+        page: path, globals: baseGlobals, storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
           'loginOverlay', 'loginForm', 'loginDni', 'loginPassword', 'loginBtn', 'loginMsg',
-          'changePasswordOverlay', 'changePasswordForm',
-          'publicVerifyMode', 'appNormal',
-          'btnModoMayor', 'pillSocio', 'connDot', 'connText',
-          'baseSelector', 'btnToggleBanner', 'bannerDetalle',
+          'changePasswordOverlay', 'changePasswordForm', 'publicVerifyMode', 'appNormal',
+          'btnModoMayor', 'pillSocio', 'connDot', 'connText', 'baseSelector', 'btnToggleBanner', 'bannerDetalle',
           'tab-inicio', 'btnSOSInicio', 'sosProgressInicio', 'incidentEstadoInicio', 'btnCallBaseInicio',
           'servicioFarmacia', 'servicioTeleconsulta', 'servicioPulsera', 'servicioCursos',
           'tab-sos', 'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
@@ -94,33 +85,29 @@
         ],
         assets: [
           'js/supabase.config.js', 'js/config.js', 'js/state-machine.js',
-          'js/store.js', 'js/qr.js', 'js/app-socio.js', 'css/styles.css'
+          'js/store.js', 'js/qr.js', 'js/capacitor-bridge.js', 'js/app-socio.js', 'css/styles.css'
         ],
         expectedVersion: expectedVersion()
       };
     }
 
-    // CENTRAL
     if (path === 'central.html') {
       return {
-        page: path, globals: baseGlobals,
-        storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
+        page: path, globals: baseGlobals, storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
           'centralLoginOverlay', 'centralLoginForm', 'centralLoginEmail', 'centralLoginPassword', 'centralLoginBtn', 'centralLoginMsg',
           'centralApp', 'centralHeaderBrand', 'centralLogout',
           'centralBaseSelector', 'alertCounter', 'incidentList', 'incidentEmpty',
           'detailContainer', 'fleetContainer'
         ],
-        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-central.js', 'css/styles.css'],
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/ptt.js', 'js/media.js', 'js/app-central.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
       };
     }
 
-    // GUARDIA
     if (path === 'guardia.html') {
       return {
-        page: path, globals: baseGlobals,
-        storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
+        page: path, globals: baseGlobals, storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
           'guardiaLoginOverlay', 'guardiaLoginForm', 'guardiaLoginEmail', 'guardiaLoginPassword', 'guardiaLoginBtn', 'guardiaLoginMsg',
           'guardiaApp', 'guardiaHeaderBrand', 'guardiaLogout',
@@ -128,20 +115,17 @@
           'unitStatus', 'noIncidentPanel', 'activeIncidentContainer',
           'historyList', 'historyEmpty'
         ],
-        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-guardia.js', 'css/styles.css'],
+        assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/ptt.js', 'js/media.js', 'js/app-guardia.js', 'css/styles.css', 'css/guardia-v2.css'],
         expectedVersion: expectedVersion()
       };
     }
 
-    // B2B
     if (path === 'b2b.html') {
       return {
-        page: path, globals: baseGlobals,
-        storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
+        page: path, globals: baseGlobals, storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
           'b2bLoginOverlay', 'b2bLoginForm', 'b2bLoginEmail', 'b2bLoginPassword', 'b2bLoginBtn', 'b2bLoginMsg',
-          'b2bApp', 'b2bHeaderBrand', 'b2bLogout',
-          'b2bBaseSelector',
+          'b2bApp', 'b2bHeaderBrand', 'b2bLogout', 'b2bBaseSelector',
           'b2bForm', 'b2bId', 'b2bName', 'b2bType', 'b2bBase', 'b2bStatus', 'b2bAddress',
           'b2bPhone', 'b2bTipoUnidad', 'b2bProtocol', 'b2bSubmit', 'b2bCancelEdit', 'b2bMsg',
           'b2bList', 'b2bEmpty', 'formTitle'
@@ -151,11 +135,9 @@
       };
     }
 
-    // ADMIN
     if (path === 'admin.html') {
       return {
-        page: path, globals: baseGlobals,
-        storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
+        page: path, globals: baseGlobals, storeMethods: baseStoreMethods, configKeys: baseConfigKeys,
         requiredIds: [
           'adminLoginOverlay', 'adminLoginForm', 'adminLoginEmail', 'adminLoginPassword', 'adminLoginBtn',
           'adminApp', 'adminHeaderBrand', 'adminLogout', 'adminMsgBar',
@@ -214,30 +196,36 @@
     }
     return issues;
   }
-       // F3: chequeo de PTT
-    if (typeof window.E360PTT !== 'undefined' && typeof window.E360PTT.debug === 'function') {
-      const pd = window.E360PTT.debug();
-      if (pd.initialized) {
-        if (pd.pcExists && pd.pcIceState === 'failed') {
-          issues.push({ level: 'error', code: 'PTT_ICE_FAILED', msg: 'PTT: ICE failed. TURN no funciona. ' + (pd.lastIceError || '') });
-        }
-        if (pd.pcExists && pd.pcIceState === 'disconnected') {
-          issues.push({ level: 'warn', code: 'PTT_ICE_DISCONNECTED', msg: 'PTT: ICE disconnected.' });
-        }
-        if (!pd.localStreamActive) {
-          issues.push({ level: 'error', code: 'PTT_NO_MIC', msg: 'PTT: micrófono no captura.' });
-        }
-        if (pd.remoteAudioExists && pd.remoteAudioPaused) {
-          issues.push({ level: 'warn', code: 'PTT_AUDIO_PAUSED', msg: 'PTT: audio remoto pausado (autoplay bloqueado).' });
-        }
-        if (pd.channelState !== 'joined') {
-          issues.push({ level: 'error', code: 'PTT_CHANNEL_NOT_JOINED', msg: 'PTT: canal ' + pd.channelState });
-        }
-        if (!pd.turnCached) {
-          issues.push({ level: 'warn', code: 'PTT_NO_TURN', msg: 'PTT: sin credenciales TURN. ' + (pd.lastIceError || '') });
-        }
-      }
+
+  // ============ F3: CHEQUEO DE PTT (runtime) ============
+  function checkPTT() {
+    const issues = [];
+    if (typeof global.E360PTT === 'undefined' || typeof global.E360PTT.debug !== 'function') {
+      return issues;
     }
+    const pd = global.E360PTT.debug();
+    if (!pd.initialized) return issues;
+
+    if (pd.pcExists && pd.pcIceState === 'failed') {
+      issues.push({ level: 'error', code: 'PTT_ICE_FAILED', msg: 'PTT: ICE failed. TURN no funciona. ' + (pd.lastIceError || '') });
+    }
+    if (pd.pcExists && pd.pcIceState === 'disconnected') {
+      issues.push({ level: 'warn', code: 'PTT_ICE_DISCONNECTED', msg: 'PTT: ICE disconnected.' });
+    }
+    if (!pd.localStreamActive) {
+      issues.push({ level: 'error', code: 'PTT_NO_MIC', msg: 'PTT: micrófono no captura.' });
+    }
+    if (pd.remoteAudioExists && pd.remoteAudioPaused) {
+      issues.push({ level: 'warn', code: 'PTT_AUDIO_PAUSED', msg: 'PTT: audio remoto pausado (autoplay bloqueado).' });
+    }
+    if (pd.channelState !== 'joined') {
+      issues.push({ level: 'error', code: 'PTT_CHANNEL_NOT_JOINED', msg: 'PTT: canal ' + pd.channelState });
+    }
+    if (!pd.turnCached) {
+      issues.push({ level: 'warn', code: 'PTT_NO_TURN', msg: 'PTT: sin credenciales TURN. ' + (pd.lastIceError || '') });
+    }
+    return issues;
+  }
 
   function checkConfigKeys(plan) {
     const issues = [];
@@ -294,6 +282,51 @@
         })
         .finally(() => { pending--; if (pending === 0) done(issues); });
     });
+  }
+
+  // ============ F3: PROBES DE RED (Storage + TURN) ============
+  async function checkSupabaseRuntime(plan) {
+    const issues = [];
+    const authedPages = ['socio.html', 'central.html', 'guardia.html', 'admin.html', 'b2b.html'];
+    if (authedPages.indexOf(plan.page) === -1) return issues;
+
+    const params = new URLSearchParams(global.location.search);
+    if (params.get('healthcheck') !== 'storage') return issues;
+
+    const Store = global.E360Store;
+    if (!Store) return issues;
+    const raw = typeof Store._getState === 'function' ? Store._getState() : null;
+    const sb = raw && raw.supabase;
+    const profile = raw && raw.profile;
+    if (!sb || !profile) return issues;
+
+    // Probe 1: Storage INSERT
+    try {
+      const blob = new Blob(['healthcheck'], { type: 'text/plain' });
+      const path = 'healthcheck/' + Date.now() + '.txt';
+      const { error: upErr } = await sb.storage.from('incident-media').upload(path, blob);
+      if (upErr) {
+        issues.push({ level: 'error', code: 'STORAGE_UPLOAD_FAILED', msg: 'Storage incident-media: ' + upErr.message });
+      } else {
+        await sb.storage.from('incident-media').remove([path]);
+      }
+    } catch (e) {
+      issues.push({ level: 'error', code: 'STORAGE_PROBE_CRASH', msg: e.message });
+    }
+
+    // Probe 2: get-turn-credentials
+    try {
+      const { data, error } = await sb.functions.invoke('get-turn-credentials', { body: { ttl: 60 } });
+      if (error) {
+        issues.push({ level: 'error', code: 'TURN_FUNCTION_FAILED', msg: 'get-turn-credentials: ' + (error.message || 'error desconocido') });
+      } else if (!data || !data.iceServers) {
+        issues.push({ level: 'error', code: 'TURN_FUNCTION_BAD_RESPONSE', msg: 'get-turn-credentials devolvió sin iceServers' });
+      }
+    } catch (e) {
+      issues.push({ level: 'error', code: 'TURN_PROBE_CRASH', msg: e.message });
+    }
+
+    return issues;
   }
 
   function renderPanel(plan, issues) {
@@ -418,15 +451,24 @@
     } catch (_) {}
   }
 
-  function run() {
+  async function run() {
     const plan = getPagePlan();
     const issues = [];
     Array.prototype.push.apply(issues, checkGlobals(plan));
     Array.prototype.push.apply(issues, checkConfigKeys(plan));
     Array.prototype.push.apply(issues, checkStoreMethods(plan));
     Array.prototype.push.apply(issues, checkCapacitorBridge());
+    Array.prototype.push.apply(issues, checkPTT());
     Array.prototype.push.apply(issues, checkDomIds(plan));
     Array.prototype.push.apply(issues, checkStorage());
+
+    try {
+      const runtimeIssues = await checkSupabaseRuntime(plan);
+      Array.prototype.push.apply(issues, runtimeIssues);
+    } catch (e) {
+      issues.push({ level: 'warn', code: 'RUNTIME_PROBE_CRASH', msg: e.message });
+    }
+
     checkAssets(plan, assetIssues => {
       Array.prototype.push.apply(issues, assetIssues);
       logToLS(plan, issues);
@@ -434,6 +476,9 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-  else run();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { run(); });
+  } else {
+    run();
+  }
 })(typeof window !== 'undefined' ? window : globalThis);
