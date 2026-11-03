@@ -1,6 +1,6 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - remoteAudio en DOM + unlock anticipado
+   - Estructura original que funcionaba (sin remoteAudio en DOM)
    - ptt_stop usa muted (no pause) para no cortar el stream
    - try/catch en startTalking y stopTalking
    - Captura del error real de subscribe()
@@ -47,27 +47,21 @@
     }
   }
 
-  function ensureRemoteAudio() {
-    if (remoteAudio) return remoteAudio;
-    remoteAudio = new Audio();
-    remoteAudio.autoplay = true;
-    remoteAudio.playsInline = true;
-    remoteAudio.style.display = 'none';
-    document.body.appendChild(remoteAudio);
-    return remoteAudio;
-  }
-
   async function unlockRemoteAudioEarly() {
-    const el = ensureRemoteAudio();
+    if (!remoteAudio) {
+      remoteAudio = new Audio();
+      remoteAudio.autoplay = true;
+      remoteAudio.playsInline = true;
+    }
     try {
-      const prevMuted = el.muted;
-      el.muted = true;
-      await el.play();
-      el.pause();
-      el.muted = prevMuted;
+      const prevMuted = remoteAudio.muted;
+      remoteAudio.muted = true;
+      await remoteAudio.play();
+      remoteAudio.pause();
+      remoteAudio.muted = prevMuted;
     } catch (e) {
-      try { el.muted = false; } catch (_) {}
-      console.warn('[ptt] Unlock anticipado falló:', e);
+      try { remoteAudio.muted = false; } catch (_) {}
+      console.warn('[ptt] Unlock anticipado falló (se reintentará con el click):', e);
     }
   }
 
@@ -75,7 +69,6 @@
     currentIncidentId = incidentId;
     currentRole = role;
 
-    ensureRemoteAudio();
     await unlockRemoteAudioEarly();
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
@@ -123,8 +116,7 @@
         }
       })
       .on('broadcast', { event: 'ptt_start' }, () => {
-        const el = ensureRemoteAudio();
-        try { el.muted = false; el.play().catch(() => {}); } catch (_) {}
+        if (remoteAudio) { try { remoteAudio.muted = false; remoteAudio.play().catch(() => {}); } catch (_) {} }
       })
       .on('broadcast', { event: 'ptt_stop' }, () => {
         if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
@@ -150,13 +142,17 @@
     };
 
     pc.ontrack = (event) => {
-      const el = ensureRemoteAudio();
-      el.srcObject = event.streams[0];
-      el.muted = false;
-      el.play().catch((e) => {
+      if (!remoteAudio) {
+        remoteAudio = new Audio();
+        remoteAudio.autoplay = true;
+        remoteAudio.playsInline = true;
+      }
+      remoteAudio.srcObject = event.streams[0];
+      remoteAudio.muted = false;
+      remoteAudio.play().catch((e) => {
         console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
         const unlock = () => {
-          try { el.play(); } catch (_) {}
+          if (remoteAudio) remoteAudio.play().catch(() => {});
           document.removeEventListener('click', unlock);
           document.removeEventListener('touchstart', unlock);
         };
@@ -326,21 +322,16 @@
     },
 
     unlockAudio() {
-      const el = ensureRemoteAudio();
-      el.muted = false;
-      return el.play().then(() => true).catch(() => false);
+      if (!remoteAudio) return Promise.resolve(false);
+      remoteAudio.muted = false;
+      return remoteAudio.play().then(() => true).catch(() => false);
     },
 
     destroy() {
       if (pc) { try { pc.close(); } catch (_) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
       if (signalChannel) { try { signalChannel.unsubscribe(); } catch (_) {} signalChannel = null; }
-      if (remoteAudio) {
-        try { remoteAudio.pause(); } catch (_) {}
-        remoteAudio.srcObject = null;
-        try { remoteAudio.remove(); } catch (_) {}
-        remoteAudio = null;
-      }
+      if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} remoteAudio.srcObject = null; remoteAudio = null; }
       isPressing = false;
       isInitialized = false;
       currentIncidentId = null;
