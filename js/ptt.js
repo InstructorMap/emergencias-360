@@ -43,45 +43,58 @@
     }
   }
 
-  async function initSignaling(supabase, incidentId, role) {
-    currentIncidentId = incidentId;
-    currentRole = role;
+ async function initSignaling(supabase, incidentId, role) {
+  currentIncidentId = incidentId;
+  currentRole = role;
 
-    signalChannel = supabase.channel('ptt_' + incidentId, {
-      config: { broadcast: { self: false } }
+  signalChannel = supabase.channel('ptt_' + incidentId, {
+    config: {
+      broadcast: { self: false },
+      private: true  // <-- canal privado para que RLS aplique
+    }
+  });
+
+  // Esperar a que el canal esté SUBSCRIBED antes de usarlo
+  await new Promise((resolve, reject) => {
+    signalChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        resolve();
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        reject(new Error('Canal de señalización falló: ' + status));
+      }
     });
+  });
 
-    signalChannel
-      .on('broadcast', { event: 'ptt_offer' }, async ({ payload }) => {
-        if (role !== 'central') return;
-        await handleOffer(supabase, payload.sdp);
-      })
-      .on('broadcast', { event: 'ptt_answer' }, async ({ payload }) => {
-        if (role !== 'guardia') return;
-        if (pc && pc.signalingState === 'have-local-offer') {
-          try {
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          } catch (e) {
-            lastSignalingError = 'answer: ' + e.message;
-            console.warn('[ptt] Error aplicando answer:', e);
-          }
+  signalChannel
+    .on('broadcast', { event: 'ptt_offer' }, async ({ payload }) => {
+      if (role !== 'central') return;
+      await handleOffer(supabase, payload.sdp);
+    })
+    .on('broadcast', { event: 'ptt_answer' }, async ({ payload }) => {
+      if (role !== 'guardia') return;
+      if (pc && pc.signalingState === 'have-local-offer') {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        } catch (e) {
+          lastSignalingError = 'answer: ' + e.message;
+          console.warn('[ptt] Error aplicando answer:', e);
         }
-      })
-      .on('broadcast', { event: 'ptt_ice' }, async ({ payload }) => {
-        if (pc && payload.candidate) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          } catch (e) {
-            lastSignalingError = 'ice: ' + e.message;
-            console.warn('[ptt] ICE error:', e);
-          }
+      }
+    })
+    .on('broadcast', { event: 'ptt_ice' }, async ({ payload }) => {
+      if (pc && payload.candidate) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (e) {
+          lastSignalingError = 'ice: ' + e.message;
+          console.warn('[ptt] ICE error:', e);
         }
-      })
-      .on('broadcast', { event: 'ptt_stop' }, () => {
-        if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} }
-      })
-      .subscribe();
-  }
+      }
+    })
+    .on('broadcast', { event: 'ptt_stop' }, () => {
+      if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} }
+    });
+}
 
   async function createPeerConnection(supabase) {
     if (pc) { try { pc.close(); } catch (_) {} pc = null; }
@@ -124,17 +137,27 @@
     return pc;
   }
 
-  async function startAsCaller(supabase) {
-    if (!localStream) return;
-    await createPeerConnection(supabase);
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    signalChannel.send({
-      type: 'broadcast', event: 'ptt_offer',
-      payload: { sdp: pc.localDescription.toJSON() }
-    });
+ async function startAsCaller(supabase) {
+  if (!localStream) throw new Error('Sin micrófono');
+  if (!signalChannel) throw new Error('Canal de señalización no inicializado');
+
+  await createPeerConnection(supabase);
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const sendResult = await signalChannel.send({
+    type: 'broadcast',
+    event: 'ptt_offer',
+    payload: { sdp: pc.localDescription.toJSON() }
+  });
+
+  // Con acknowledgeBroadcasts: true, send() devuelve { ok: true } si el server recibió
+  if (sendResult && sendResult.ok === false) {
+    throw new Error('El servidor Realtime rechazó la oferta SDP. ¿Política RLS?');
   }
+}
 
   async function handleOffer(supabase, sdp) {
     if (!localStream) {
@@ -216,13 +239,26 @@
       return true;
     },
 
-    async startTalking(supabase) {
-      if (!isInitialized || isPressing) return;
-      isPressing = true;
-      if (currentRole === 'guardia') await startAsCaller(supabase);
-      startRecording();
-      if (signalChannel) signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
-    },
+   async startTalking(supabase) {
+  if (!isInitialized || isPressing) return;
+  isPressing = true;
+
+  try {
+    if (currentRole === 'guardia') {
+      await startAsCaller(supabase);
+    }
+    startRecording();
+    if (signalChannel) {
+      signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
+    }
+  } catch (e) {
+    isPressing = false;
+    lastSignalingError = 'startTalking: ' + e.message;
+    console.error('[ptt] startTalking falló:', e);
+    // Propagar el error para que app-guardia.js muestre un toast
+    throw e;
+  }
+}
 
     async stopTalking(supabase) {
       if (!isPressing) return null;
