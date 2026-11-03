@@ -1,9 +1,8 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
+   - unlockRemoteAudioEarly NO bloquea initSignaling
    - private: true (canal privado con RLS)
-   - ptt_start desmutea, ptt_stop mutea (no pausa)
-   - try/catch en startTalking y stopTalking
-   - Captura del error real de subscribe()
+   - ptt_start desmutea, ptt_stop mutea
    ============================================================ */
 
 (function (global) {
@@ -69,7 +68,8 @@
     currentIncidentId = incidentId;
     currentRole = role;
 
-    await unlockRemoteAudioEarly();
+    // NO bloqueante: si el unlock falla o se cuelga, el canal se crea igual
+    unlockRemoteAudioEarly().catch(() => {});
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
       config: {
