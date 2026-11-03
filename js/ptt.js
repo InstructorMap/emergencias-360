@@ -55,11 +55,12 @@
     });
 
     await new Promise((resolve, reject) => {
-      signalChannel.subscribe((status) => {
+      signalChannel.subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           resolve();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          reject(new Error('Canal de señalización falló: ' + status));
+          lastSignalingError = 'subscribe: ' + status + ' — ' + (err ? err.message : 'sin detalle');
+          reject(new Error('Canal de señalización falló: ' + status + ' — ' + (err ? err.message : 'sin detalle')));
         }
       });
     });
