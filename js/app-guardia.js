@@ -1,11 +1,7 @@
 /* ============================================================
-   app-guardia.js v9.0 — Guardia Móvil EMP (B2 alto contraste)
+   app-guardia.js v9.1 — Guardia Móvil EMP (B2 alto contraste)
+   - PTT con manejo de errores visible (Opción A)
    - Re-render quirúrgico (sin parpadeo)
-   - Cards profesionales (gv-card)
-   - PTT flotante fijo
-   - Toggle claro/oscuro persistente
-   - Media list estilizada
-   - F2: push FCM + on_duty + speed alert
    ============================================================ */
 
 (function () {
@@ -105,7 +101,6 @@
     } catch (_) {}
   }
 
-  // ============ TEMA CLARO/OSCURO ============
   function initTheme() {
     try {
       const saved = localStorage.getItem(THEME_KEY);
@@ -125,7 +120,6 @@
     applyTheme();
   }
 
-  // ============ ALERTA DE VELOCIDAD ============
   async function checkSpeedAlert(speedMps) {
     if (typeof speedMps !== 'number' || speedMps <= 0) return;
     const kmh = speedMps * 3.6;
@@ -151,7 +145,6 @@
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
   }
 
-  // ============ F2: PUSH Y ON_DUTY ============
   async function setOnDutyStatus(isOnDuty) {
     try {
       const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
@@ -325,6 +318,7 @@
       render();
     });
   }
+
   function initPTTDiagButton() {
     let btn = document.getElementById('btnPttDiag');
     if (!btn) {
@@ -345,44 +339,27 @@
       return;
     }
     const d = ptt.debug();
-    const unlockBtn = d.remoteAudioPaused
-      ? '\n\n👉 Tocá "Activar audio" para desbloquear el sonido.'
-      : '';
     const lines = [
-      '=== DIAGNÓSTICO PTT ===',
-      '',
+      '=== DIAGNÓSTICO PTT ===', '',
       'INIT: ' + d.initialized,
       'PRESSING: ' + d.pressing,
       'INCIDENT: ' + (d.incidentId || 'none'),
       'ROLE: ' + (d.role || 'none'),
-      'CHANNEL: ' + d.channelState,
-      '',
+      'CHANNEL: ' + d.channelState, '',
       'PC EXISTS: ' + d.pcExists,
       'PC CONNECTION: ' + d.pcConnectionState,
       'PC ICE: ' + d.pcIceState,
-      'PC SIGNALING: ' + d.pcSignalingState,
-      '',
-      'MIC ACTIVE: ' + d.localStreamActive + ' (' + d.localStreamTracks + ' tracks)',
-      '',
+      'PC SIGNALING: ' + d.pcSignalingState, '',
+      'MIC ACTIVE: ' + d.localStreamActive + ' (' + d.localStreamTracks + ' tracks)', '',
       'REMOTE AUDIO EXISTS: ' + d.remoteAudioExists,
-      'REMOTE AUDIO PAUSED: ' + d.remoteAudioPaused,
-      'REMOTE AUDIO MUTED: ' + d.remoteAudioMuted,
-      'REMOTE AUDIO VOLUME: ' + d.remoteAudioVolume,
-      'REMOTE AUDIO STREAM: ' + d.remoteAudioHasStream,
-      '',
+      'REMOTE AUDIO PAUSED: ' + d.remoteAudioPaused, '',
       'TURN CACHED: ' + d.turnCached + ' (expira en ' + d.turnExpiryIn + 's)',
       'LAST ICE ERROR: ' + (d.lastIceError || 'ninguno'),
-      'LAST SIGNALING ERROR: ' + (d.lastSignalingError || 'ninguno'),
-      unlockBtn
+      'LAST SIGNALING ERROR: ' + (d.lastSignalingError || 'ninguno')
     ];
-    const doUnlock = d.remoteAudioPaused && confirm(lines.join('\n') + '\n\n¿Intentar activar audio ahora?');
-    if (doUnlock) {
-      ptt.unlockAudio().then(ok => toast(ok ? '🔊 Audio activado' : '❌ No se pudo activar'));
-    } else {
-      alert(lines.join('\n'));
-    }
+    alert(lines.join('\n'));
   }
-  // ============ GPS ============
+
   function updateGpsStatus(text, color) {
     const node = document.getElementById('gpsStatusText');
     if (!node) return;
@@ -455,7 +432,6 @@
     }), 'Enviando GPS…');
   }
 
-  // ============ APOYO ============
   function openSupportDialog(incident) {
     const overlay = el('div', { className: 'guardia-modal-overlay' });
     const confirmBtn = el('button', {
@@ -514,7 +490,7 @@
     if (incident.manualAddress) return 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(incident.manualAddress);
     return null;
   }
-  // ============ RENDER: UNIT STATUS ============
+
   function renderUnitStatus() {
     const container = $('#unitStatus');
     if (!container) return;
@@ -547,7 +523,6 @@
     ]));
   }
 
-  // ============ RENDER: INCIDENTE ACTIVO (quirúrgico) ============
   function computeIncidentHash(incident) {
     if (!incident) return 'none';
     return [
@@ -622,7 +597,7 @@
         el('span', { className: 'gv-incident-time', textContent: fmtDateTime(incident.createdAt) })
       ]),
       el('div', { className: 'gv-incident-badges' }, [
-        el('span', { className: 'gv-badge gv-badge-' + incident.status.toLowerCase().replace('_', '_'), textContent: incident.status.replace(/_/g, ' ') }),
+        el('span', { className: 'gv-badge gv-badge-' + incident.status.toLowerCase(), textContent: incident.status.replace(/_/g, ' ') }),
         incident.priority ? el('span', { className: 'gv-badge gv-badge-' + incident.priority.toLowerCase(), textContent: incident.priority }) : null
       ].filter(Boolean))
     ]);
@@ -938,7 +913,7 @@
     ]);
   }
 
-  // ============ PTT FLOTANTE FIJO ============
+  // ============ PTT FLOTANTE FIJO (CON MANEJO DE ERRORES) ============
   function renderPTTFloating(incident) {
     let existing = document.getElementById('gvPttFloating');
     const canPTT = incident && ['EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1 && typeof window.E360PTT !== 'undefined';
@@ -973,10 +948,18 @@
           ui.lastRenderHash = null;
           renderActiveIncident();
         } else {
-          const sb = Store._getState().supabase;
-          const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
-          if (ok) { ui.pttIncidentId = incident.id; toast('PTT conectado'); }
-          else { toast('No se pudo acceder al micrófono'); }
+          try {
+            const sb = Store._getState().supabase;
+            const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
+            if (ok) {
+              ui.pttIncidentId = incident.id;
+              toast('PTT conectado');
+            } else {
+              toast('❌ No se pudo conectar PTT (micrófono o canal)');
+            }
+          } catch (err) {
+            toast('❌ Error PTT: ' + (err.message || 'desconocido'));
+          }
           ui.lastRenderHash = null;
           renderActiveIncident();
         }
@@ -993,21 +976,35 @@
     if (isConnected) {
       const startTalk = async (e) => {
         if (e) e.preventDefault();
-        const sb = Store._getState().supabase;
-        await window.E360PTT.startTalking(sb);
-        talkBtn.textContent = '🔴 TRANSMITIENDO…';
-        talkBtn.classList.add('is-transmitting');
-        statusEl.textContent = '🔴 Transmitiendo a Central';
-        if (navigator.vibrate) { try { navigator.vibrate(50); } catch (_) {} }
+        try {
+          const sb = Store._getState().supabase;
+          await window.E360PTT.startTalking(sb);
+          talkBtn.textContent = '🔴 TRANSMITIENDO…';
+          talkBtn.classList.add('is-transmitting');
+          statusEl.textContent = '🔴 Transmitiendo a Central';
+          if (navigator.vibrate) { try { navigator.vibrate(50); } catch (_) {} }
+        } catch (err) {
+          talkBtn.classList.remove('is-transmitting');
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          statusEl.textContent = '❌ Error de conexión PTT';
+          toast('❌ PTT error: ' + (err.message || 'desconocido'));
+        }
       };
       const stopTalk = async (e) => {
         if (e) e.preventDefault();
-        const sb = Store._getState().supabase;
-        const path = await window.E360PTT.stopTalking(sb);
-        talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
-        talkBtn.classList.remove('is-transmitting');
-        statusEl.textContent = path ? '✅ Clip guardado en el incidente' : 'PTT detenido';
-        if (path) { toast('Clip de audio guardado'); setTimeout(() => { ui.lastRenderHash = null; renderActiveIncident(); }, 1500); }
+        try {
+          const sb = Store._getState().supabase;
+          const path = await window.E360PTT.stopTalking(sb);
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          talkBtn.classList.remove('is-transmitting');
+          statusEl.textContent = path ? '✅ Clip guardado en el incidente' : 'PTT detenido';
+          if (path) { toast('Clip de audio guardado'); setTimeout(() => { ui.lastRenderHash = null; renderActiveIncident(); }, 1500); }
+        } catch (err) {
+          talkBtn.classList.remove('is-transmitting');
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          statusEl.textContent = '❌ Error al detener PTT';
+          toast('❌ ' + (err.message || 'error'));
+        }
       };
       talkBtn.addEventListener('mousedown', startTalk);
       talkBtn.addEventListener('mouseup', stopTalk);
@@ -1021,7 +1018,7 @@
     wrapper.appendChild(talkBtn);
     document.body.appendChild(wrapper);
   }
-  // ============ RENDER: HISTORIAL ============
+
   async function renderHistory() {
     const list = $('#historyList');
     const empty = $('#historyEmpty');
@@ -1044,14 +1041,12 @@
     } catch (_) { if (empty) empty.hidden = false; }
   }
 
-  // ============ RENDER GENERAL ============
   function render() {
     renderUnitStatus();
     renderActiveIncident();
     renderHistory();
   }
 
-  // ============ SUBSCRIPCIÓN ============
   function initSubscription() {
     Store.subscribe(msg => {
       if (!msg) return;
@@ -1064,17 +1059,16 @@
     setInterval(() => render(), 5000);
   }
 
-  // ============ BOOT ============
   async function bootGuardia() {
     await applyBranding();
     initSelectors();
     initTheme();
+    initPTTDiagButton();
     render();
     ui.initialBootDone = true;
     initSubscription();
   }
 
-  // ============ INIT ============
   document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     const themeBtn = $('#btnThemeToggle');
