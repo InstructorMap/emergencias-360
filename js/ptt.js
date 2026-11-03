@@ -1,5 +1,6 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
+   - startRecording recrea el localStream si está muerto
    - unlockRemoteAudioEarly NO bloquea initSignaling
    - private: true (canal privado con RLS)
    - ptt_start desmutea, ptt_stop mutea
@@ -68,7 +69,6 @@
     currentIncidentId = incidentId;
     currentRole = role;
 
-    // NO bloqueante: si el unlock falla o se cuelga, el canal se crea igual
     unlockRemoteAudioEarly().catch(() => {});
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
@@ -211,8 +211,20 @@
     }
   }
 
-  function startRecording() {
-    if (!localStream) return;
+  async function startRecording() {
+    // Verificar si el localStream sigue vivo; si no, recrearlo
+    let streamOk = localStream && localStream.getAudioTracks().some(t => t.readyState === 'live');
+    if (!streamOk) {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+      } catch (e) {
+        console.warn('[ptt] No se pudo recrear el micrófono:', e);
+        return;
+      }
+    }
+
     recordedChunks = [];
     try {
       const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -272,7 +284,7 @@
         if (currentRole === 'guardia') {
           await startAsCaller(supabase);
         }
-        startRecording();
+        await startRecording();
         if (signalChannel) {
           signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
         }
