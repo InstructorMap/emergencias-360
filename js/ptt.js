@@ -1,6 +1,7 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - Unlock anticipado de audio remoto al conectar
+   - remoteAudio en DOM + unlock anticipado
+   - ptt_stop usa muted (no pause) para no cortar el stream
    - try/catch en startTalking y stopTalking
    - Captura del error real de subscribe()
    ============================================================ */
@@ -46,23 +47,27 @@
     }
   }
 
-  // Desbloquea el audio remoto ANTES de que llegue el primer track.
-  // El clic en "Conectar PTT" ya es una interacción del usuario.
+  function ensureRemoteAudio() {
+    if (remoteAudio) return remoteAudio;
+    remoteAudio = new Audio();
+    remoteAudio.autoplay = true;
+    remoteAudio.playsInline = true;
+    remoteAudio.style.display = 'none';
+    document.body.appendChild(remoteAudio);
+    return remoteAudio;
+  }
+
   async function unlockRemoteAudioEarly() {
-    if (!remoteAudio) {
-      remoteAudio = new Audio();
-      remoteAudio.autoplay = true;
-      remoteAudio.playsInline = true;
-    }
+    const el = ensureRemoteAudio();
     try {
-      const prevMuted = remoteAudio.muted;
-      remoteAudio.muted = true;
-      await remoteAudio.play();
-      remoteAudio.pause();
-      remoteAudio.muted = prevMuted;
+      const prevMuted = el.muted;
+      el.muted = true;
+      await el.play();
+      el.pause();
+      el.muted = prevMuted;
     } catch (e) {
-      try { remoteAudio.muted = false; } catch (_) {}
-      console.warn('[ptt] Unlock anticipado falló (se reintentará con el click):', e);
+      try { el.muted = false; } catch (_) {}
+      console.warn('[ptt] Unlock anticipado falló:', e);
     }
   }
 
@@ -70,7 +75,7 @@
     currentIncidentId = incidentId;
     currentRole = role;
 
-    // Unlock anticipado: el usuario acaba de tocar "Conectar PTT"
+    ensureRemoteAudio();
     await unlockRemoteAudioEarly();
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
@@ -117,8 +122,12 @@
           }
         }
       })
+      .on('broadcast', { event: 'ptt_start' }, () => {
+        const el = ensureRemoteAudio();
+        try { el.muted = false; el.play().catch(() => {}); } catch (_) {}
+      })
       .on('broadcast', { event: 'ptt_stop' }, () => {
-        if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} }
+        if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
       });
   }
 
@@ -141,16 +150,13 @@
     };
 
     pc.ontrack = (event) => {
-      if (!remoteAudio) {
-        remoteAudio = new Audio();
-        remoteAudio.autoplay = true;
-        remoteAudio.playsInline = true;
-      }
-      remoteAudio.srcObject = event.streams[0];
-      remoteAudio.play().catch((e) => {
+      const el = ensureRemoteAudio();
+      el.srcObject = event.streams[0];
+      el.muted = false;
+      el.play().catch((e) => {
         console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
         const unlock = () => {
-          if (remoteAudio) remoteAudio.play().catch(() => {});
+          try { el.play(); } catch (_) {}
           document.removeEventListener('click', unlock);
           document.removeEventListener('touchstart', unlock);
         };
@@ -320,16 +326,21 @@
     },
 
     unlockAudio() {
-      if (!remoteAudio) return Promise.resolve(false);
-      remoteAudio.muted = false;
-      return remoteAudio.play().then(() => true).catch(() => false);
+      const el = ensureRemoteAudio();
+      el.muted = false;
+      return el.play().then(() => true).catch(() => false);
     },
 
     destroy() {
       if (pc) { try { pc.close(); } catch (_) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
       if (signalChannel) { try { signalChannel.unsubscribe(); } catch (_) {} signalChannel = null; }
-      if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} remoteAudio.srcObject = null; remoteAudio = null; }
+      if (remoteAudio) {
+        try { remoteAudio.pause(); } catch (_) {}
+        remoteAudio.srcObject = null;
+        try { remoteAudio.remove(); } catch (_) {}
+        remoteAudio = null;
+      }
       isPressing = false;
       isInitialized = false;
       currentIncidentId = null;
