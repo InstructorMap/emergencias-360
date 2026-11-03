@@ -1,6 +1,7 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - Unlock anticipado de audio remoto al conectar
+   - private: true (canal privado con RLS)
+   - ptt_start desmutea, ptt_stop mutea (no pausa)
    - try/catch en startTalking y stopTalking
    - Captura del error real de subscribe()
    ============================================================ */
@@ -46,8 +47,6 @@
     }
   }
 
-  // Desbloquea el audio remoto ANTES de que llegue el primer track.
-  // El clic en "Conectar PTT" ya es una interacción del usuario.
   async function unlockRemoteAudioEarly() {
     if (!remoteAudio) {
       remoteAudio = new Audio();
@@ -70,7 +69,6 @@
     currentIncidentId = incidentId;
     currentRole = role;
 
-    // Unlock anticipado: el usuario acaba de tocar "Conectar PTT"
     await unlockRemoteAudioEarly();
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
@@ -117,8 +115,11 @@
           }
         }
       })
+      .on('broadcast', { event: 'ptt_start' }, () => {
+        if (remoteAudio) { try { remoteAudio.muted = false; remoteAudio.play().catch(() => {}); } catch (_) {} }
+      })
       .on('broadcast', { event: 'ptt_stop' }, () => {
-        if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} }
+        if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
       });
   }
 
@@ -147,6 +148,7 @@
         remoteAudio.playsInline = true;
       }
       remoteAudio.srcObject = event.streams[0];
+      remoteAudio.muted = false;
       remoteAudio.play().catch((e) => {
         console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
         const unlock = () => {
