@@ -1,6 +1,6 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - startRecording recrea el localStream si está muerto
+   - startRecording recrea localStream si el track está muerto
    - unlockRemoteAudioEarly NO bloquea initSignaling
    - private: true (canal privado con RLS)
    - ptt_start desmutea, ptt_stop mutea
@@ -212,7 +212,7 @@
   }
 
   async function startRecording() {
-    // Verificar si el localStream sigue vivo; si no, recrearlo
+    // CLAVE: verificar si el localStream sigue vivo antes de grabar
     let streamOk = localStream && localStream.getAudioTracks().some(t => t.readyState === 'live');
     if (!streamOk) {
       try {
@@ -284,7 +284,7 @@
         if (currentRole === 'guardia') {
           await startAsCaller(supabase);
         }
-        await startRecording();
+        await startRecording();  // ahora es async
         if (signalChannel) {
           signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
         }
