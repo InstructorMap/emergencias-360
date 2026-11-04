@@ -1,9 +1,9 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
+   - destroy() elimina #gvPttFloating para forzar recreación
    - SIN unlock anticipado (evita AbortError)
    - startRecording recrea localStream si el track está muerto
    - private: true (canal privado con RLS)
-   - ptt_start desmutea, ptt_stop mutea
    ============================================================ */
 
 (function (global) {
@@ -340,6 +340,12 @@
       currentRole = null;
       lastIceError = null;
       lastSignalingError = null;
+
+      // Forzar recreación del botón flotante en la UI
+      try {
+        const floating = document.getElementById('gvPttFloating');
+        if (floating) floating.remove();
+      } catch (_) {}
     }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
