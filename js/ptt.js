@@ -1,7 +1,7 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
+   - unlockRemoteAudioEarly espera play() antes de pause()
    - startRecording recrea localStream si el track está muerto
-   - unlockRemoteAudioEarly NO bloquea initSignaling
    - private: true (canal privado con RLS)
    - ptt_start desmutea, ptt_stop mutea
    ============================================================ */
@@ -56,8 +56,11 @@
     try {
       const prevMuted = remoteAudio.muted;
       remoteAudio.muted = true;
-      await remoteAudio.play();
-      remoteAudio.pause();
+      const playPromise = remoteAudio.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+        remoteAudio.pause();
+      }
       remoteAudio.muted = prevMuted;
     } catch (e) {
       try { remoteAudio.muted = false; } catch (_) {}
@@ -116,7 +119,13 @@
         }
       })
       .on('broadcast', { event: 'ptt_start' }, () => {
-        if (remoteAudio) { try { remoteAudio.muted = false; remoteAudio.play().catch(() => {}); } catch (_) {} }
+        if (remoteAudio) {
+          try {
+            remoteAudio.muted = false;
+            const p = remoteAudio.play();
+            if (p !== undefined) p.catch(() => {});
+          } catch (_) {}
+        }
       })
       .on('broadcast', { event: 'ptt_stop' }, () => {
         if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
@@ -149,16 +158,19 @@
       }
       remoteAudio.srcObject = event.streams[0];
       remoteAudio.muted = false;
-      remoteAudio.play().catch((e) => {
-        console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
-        const unlock = () => {
-          if (remoteAudio) remoteAudio.play().catch(() => {});
-          document.removeEventListener('click', unlock);
-          document.removeEventListener('touchstart', unlock);
-        };
-        document.addEventListener('click', unlock);
-        document.addEventListener('touchstart', unlock);
-      });
+      const playPromise = remoteAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+          console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
+          const unlock = () => {
+            if (remoteAudio) remoteAudio.play().catch(() => {});
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+          };
+          document.addEventListener('click', unlock);
+          document.addEventListener('touchstart', unlock);
+        });
+      }
     };
 
     return pc;
@@ -212,7 +224,6 @@
   }
 
   async function startRecording() {
-    // CLAVE: verificar si el localStream sigue vivo antes de grabar
     let streamOk = localStream && localStream.getAudioTracks().some(t => t.readyState === 'live');
     if (!streamOk) {
       try {
@@ -284,7 +295,7 @@
         if (currentRole === 'guardia') {
           await startAsCaller(supabase);
         }
-        await startRecording();  // ahora es async
+        await startRecording();
         if (signalChannel) {
           signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
         }
@@ -336,7 +347,9 @@
     unlockAudio() {
       if (!remoteAudio) return Promise.resolve(false);
       remoteAudio.muted = false;
-      return remoteAudio.play().then(() => true).catch(() => false);
+      const p = remoteAudio.play();
+      if (p === undefined) return Promise.resolve(true);
+      return p.then(() => true).catch(() => false);
     },
 
     destroy() {
