@@ -1,6 +1,6 @@
 /* ============================================================
    js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - unlockRemoteAudioEarly espera play() antes de pause()
+   - SIN unlock anticipado (evita AbortError)
    - startRecording recrea localStream si el track está muerto
    - private: true (canal privado con RLS)
    - ptt_start desmutea, ptt_stop mutea
@@ -47,32 +47,9 @@
     }
   }
 
-  async function unlockRemoteAudioEarly() {
-    if (!remoteAudio) {
-      remoteAudio = new Audio();
-      remoteAudio.autoplay = true;
-      remoteAudio.playsInline = true;
-    }
-    try {
-      const prevMuted = remoteAudio.muted;
-      remoteAudio.muted = true;
-      const playPromise = remoteAudio.play();
-      if (playPromise !== undefined) {
-        await playPromise;
-        remoteAudio.pause();
-      }
-      remoteAudio.muted = prevMuted;
-    } catch (e) {
-      try { remoteAudio.muted = false; } catch (_) {}
-      console.warn('[ptt] Unlock anticipado falló (se reintentará con el click):', e);
-    }
-  }
-
   async function initSignaling(supabase, incidentId, role) {
     currentIncidentId = incidentId;
     currentRole = role;
-
-    unlockRemoteAudioEarly().catch(() => {});
 
     signalChannel = supabase.channel('ptt_' + incidentId, {
       config: {
