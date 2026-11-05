@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       throw new Error('Faltan secrets CLOUDFLARE_TURN_KEY_ID o CLOUDFLARE_TURN_API_TOKEN.');
     }
 
-    // TTL de 1 hora (3600s). Cloudflare acepta hasta 48hs (172800s) [citation:1][citation:6]
+    // TTL de 1 hora (3600s). Cloudflare acepta hasta 48hs (172800s)
     const body = await req.json().catch(() => ({}));
     const ttl = Math.min(Number(body.ttl) || 3600, 172800);
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
     const data = await response.json();
 
-    // Filtrar URLs con puerto 53 (bloqueado por navegadores) [citation:2][citation:4]
+    // Filtrar URLs con puerto 53 (bloqueado por navegadores)
     if (data.iceServers && Array.isArray(data.iceServers.urls)) {
       data.iceServers.urls = data.iceServers.urls.filter(
         (url: string) => !url.includes(':53?') && !url.includes(':53&')
