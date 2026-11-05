@@ -1,6 +1,7 @@
 /* ============================================================
-   app-guardia.js v9.1 — Guardia Móvil EMP (B2 alto contraste)
-   - PTT con manejo de errores visible (Opción A)
+   app-guardia.js v9.2 — Guardia Móvil EMP (B2 alto contraste)
+   - renderPTTFloating recrea el botón cuando cambia el estado
+   - PTT con manejo de errores visible
    - Re-render quirúrgico (sin parpadeo)
    ============================================================ */
 
@@ -913,7 +914,7 @@
     ]);
   }
 
-  // ============ PTT FLOTANTE FIJO (CON MANEJO DE ERRORES) ============
+  // ============ PTT FLOTANTE FIJO ============
   function renderPTTFloating(incident) {
     let existing = document.getElementById('gvPttFloating');
     const canPTT = incident && ['EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1 && typeof window.E360PTT !== 'undefined';
@@ -925,14 +926,26 @@
 
     const isConnected = ui.pttIncidentId === incident.id;
 
+    // Si el botón existe pero el estado de conexión cambió, eliminar y recrear
     if (existing) {
-      existing.querySelector('.gv-ptt-connect').className = 'gv-ptt-connect' + (isConnected ? ' connected' : '');
-      existing.querySelector('.gv-ptt-connect').innerHTML = isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR';
-      existing.querySelector('.gv-ptt-talk').disabled = !isConnected;
-      return;
+      const wasConnected = existing.dataset.connected === '1';
+      if (wasConnected === isConnected) {
+        // Mismo estado: solo actualizar visualmente
+        const connBtn = existing.querySelector('.gv-ptt-connect');
+        if (connBtn) {
+          connBtn.className = 'gv-ptt-connect' + (isConnected ? ' connected' : '');
+          connBtn.innerHTML = isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR';
+        }
+        const talkBtn = existing.querySelector('.gv-ptt-talk');
+        if (talkBtn) talkBtn.disabled = !isConnected;
+        return;
+      }
+      existing.remove();
+      existing = null;
     }
 
     const wrapper = el('div', { className: 'gv-ptt-floating', id: 'gvPttFloating' });
+    wrapper.dataset.connected = isConnected ? '1' : '0';
 
     const statusEl = el('div', { className: 'gv-ptt-status', textContent: isConnected ? 'PTT conectado — presioná para hablar' : 'Conectá PTT para hablar con Central' });
     wrapper.appendChild(statusEl);
