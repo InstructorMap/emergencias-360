@@ -1,5 +1,5 @@
 /* ============================================================
-   E360Store v8.3 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
+   E360Store v8.4 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
    - F2: getSpeedLimit / setSpeedLimit (tabla config)
    - getIncidentEta: usa velocidad real de unitLocation.speed con fallback 40 km/h
    - loginWithEmail(email, password): login del admin y operadores por email
@@ -11,6 +11,7 @@
    - getAuditLogs / getOrganizations / updateOrganizationFlags
    - getBranding / loadBranding / setBranding / uploadBrandingFile
    - C1: applyBrandingToPage / notifySOSEmitted / withButtonLoading / humanizeError
+   - C2: initOfflineBanner / toastOfflineCritico / humanizeError ampliado
    - API síncrona intacta (getProfile, getIncidents, etc.)
    - Offline: lee de localStorage con TTL 7 días.
    ============================================================ */
@@ -1661,19 +1662,201 @@
 
     humanizeError(err) {
       const msg = String((err && err.message) || err || 'Error desconocido');
-      if (/Failed to fetch|NetworkError|network|offline/i.test(msg)) {
-        return 'Sin conexión a internet. Verificá tu red o llamá por teléfono a EMP (2245-444600 Dolores / 2246-529000 La Costa).';
+      const code = String((err && (err.code || err.status)) || '');
+
+      // --- Sin conexión / red ---
+      if (/Failed to fetch|NetworkError|network ?error|ERR_INTERNET_DISCONNECTED|ERR_NETWORK|offline/i.test(msg)
+          || code === 'PGRST000' || code === 'PGRST001' || code === 'PGRST002') {
+        return 'Sin conexión a internet. Verificá tu red o llamá a EMP (2245-444600 Dolores / 2246-529000 La Costa).';
       }
-      if (/Invalid login credentials|incorrectos/i.test(msg)) {
+
+      // --- Timeout ---
+      if (/ETIMEDOUT|timeout|AbortError|timed out/i.test(msg)) {
+        return 'La operación tardó demasiado. Reintentá en unos segundos.';
+      }
+
+      // --- Rate limit ---
+      if (code === '429' || /rate limit|too many requests/i.test(msg)) {
+        return 'Demasiados intentos. Esperá un momento y volvé a probar.';
+      }
+
+      // --- JWT expirado / sesión ---
+      if (/JWT expired|jwt expired|invalid jwt|PGRST301/i.test(msg) || code === 'PGRST301') {
+        return 'Tu sesión expiró. Volvé a iniciar sesión.';
+      }
+
+      // --- Credenciales ---
+      if (/Invalid login credentials|incorrectos/i.test(msg) || code === 'invalid_credentials') {
         return 'Credenciales incorrectas. Verificá tu DNI/Email y contraseña.';
       }
-      if (/row-level security|permission denied/i.test(msg)) {
+
+      // --- RLS / permisos ---
+      if (/row-level security|permission denied|new row violates/i.test(msg)
+          || code === '42501') {
         return 'Tu cuenta no tiene permisos para realizar esta acción.';
       }
-      if (/duplicate key|already exists/i.test(msg)) {
+
+      // --- Duplicado ---
+      if (/duplicate key|already exists|unique constraint/i.test(msg)
+          || code === '23505') {
         return 'Ya existe un registro con ese DNI o identificador.';
       }
+
+      // --- Cero filas en .single() ---
+      if (/no rows|PGRST116|JSON object requested/i.test(msg) || code === 'PGRST116') {
+        return 'No se encontró el registro solicitado.';
+      }
+
+      // --- Validación de datos ---
+      if (/invalid input syntax|null value in column|violates not-null/i.test(msg)
+          || code === '22P02' || code === '23502') {
+        return 'Datos inválidos o incompletos. Revisá el formulario.';
+      }
+
+      // --- Fallback: devolver el mensaje original (ya viene humanizado por Supabase Auth) ---
       return msg;
+    },
+
+    // ============ C2: BANNER OFFLINE ============
+    /**
+     * C2 — Banner "Sin conexión" + bloqueo opcional de botones críticos.
+     * Opción A: banner fijo arriba, no cerrable, desaparece al volver online.
+     * Llamar en cada página: E360Store.initOfflineBanner();
+     * Opciones: { bannerId?: string, criticalButtons?: string[] }
+     *   - bannerId: id del div (default 'offlineBanner').
+     *   - criticalButtons: array de IDs de botones a deshabilitar offline.
+     * Idempotente: si se llama dos veces, solo refresca el estado.
+     */
+    initOfflineBanner(options) {
+      if (typeof document === 'undefined') return;
+
+      const opts = options || {};
+      const bannerId = opts.bannerId || 'offlineBanner';
+
+      // Evitar doble init: solo refrescar estado
+      if (document.body.dataset.offlineBannerInit === '1') {
+        if (typeof this._refreshOfflineBanner === 'function') this._refreshOfflineBanner();
+        return;
+      }
+      document.body.dataset.offlineBannerInit = '1';
+
+      // Reusar el banner si ya existe en el HTML; si no, crearlo
+      let banner = document.getElementById(bannerId);
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = bannerId;
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+        document.body.appendChild(banner);
+      } else {
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
+      }
+
+      // Contenido: ícono + texto + teléfonos clickeables
+      banner.innerHTML = '';
+
+      const icon = document.createElement('span');
+      icon.className = 'offline-banner-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = '📶';
+
+      const txt = document.createElement('span');
+      txt.appendChild(document.createTextNode('Sin conexión — algunas funciones no están disponibles. Llamá a EMP: '));
+
+      const phoneDol = document.createElement('a');
+      phoneDol.href = 'tel:2245444600';
+      phoneDol.className = 'offline-banner-phone';
+      phoneDol.textContent = '2245-444600 (Dolores)';
+
+      const sep = document.createTextNode(' · ');
+
+      const phoneCosta = document.createElement('a');
+      phoneCosta.href = 'tel:2246529000';
+      phoneCosta.className = 'offline-banner-phone';
+      phoneCosta.textContent = '2246-529000 (La Costa)';
+
+      txt.appendChild(phoneDol);
+      txt.appendChild(sep);
+      txt.appendChild(phoneCosta);
+
+      banner.appendChild(icon);
+      banner.appendChild(txt);
+
+      // Función interna: refleja el estado real en el DOM
+      const applyState = () => {
+        const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+        if (online) {
+          document.body.classList.remove('offline');
+          banner.setAttribute('aria-hidden', 'true');
+        } else {
+          document.body.classList.add('offline');
+          banner.setAttribute('aria-hidden', 'false');
+        }
+        // Deshabilitar / habilitar botones críticos si se pasaron
+        const ids = opts.criticalButtons || [];
+        ids.forEach((id) => {
+          const btn = document.getElementById(id);
+          if (!btn) return;
+          if (online) {
+            if (btn.dataset.offlineDisabled === '1') {
+              btn.disabled = false;
+              btn.removeAttribute('aria-disabled');
+              btn.dataset.offlineDisabled = '0';
+            }
+          } else {
+            if (btn.dataset.offlineDisabled !== '1') {
+              btn.disabled = true;
+              btn.setAttribute('aria-disabled', 'true');
+              btn.dataset.offlineDisabled = '1';
+            }
+          }
+        });
+      };
+
+      this._refreshOfflineBanner = applyState;
+
+      // Listeners
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', applyState);
+        window.addEventListener('offline', applyState);
+      }
+
+      // Chequeo inicial
+      applyState();
+    },
+
+    /**
+     * C2 — Toast para acciones críticas offline (Turno 2).
+     * Uso: E360Store.toastOfflineCritico();
+     */
+    toastOfflineCritico() {
+      if (typeof document === 'undefined' || !document.body) return;
+      const prev = document.getElementById('e360ToastOffline');
+      if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+      const toast = document.createElement('div');
+      toast.id = 'e360ToastOffline';
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'assertive');
+      toast.style.cssText = [
+        'position:fixed', 'left:50%', 'bottom:90px',
+        'transform:translateX(-50%)',
+        'background:#7A1C32', 'color:#fff',
+        'padding:14px 18px', 'border-radius:12px',
+        'font-size:0.88rem', 'font-weight:600',
+        'box-shadow:0 10px 30px rgba(0,0,0,0.35)',
+        'z-index:99999', 'max-width:90vw', 'text-align:center',
+        'line-height:1.4'
+      ].join(';');
+      toast.innerHTML = '📵 Sin conexión — esta acción requiere internet.<br>' +
+        'Llamá a EMP: <a href="tel:2245444600" style="color:#fff;text-decoration:underline;font-weight:800">2245-444600</a> (Dolores) o ' +
+        '<a href="tel:2246529000" style="color:#fff;text-decoration:underline;font-weight:800">2246-529000</a> (La Costa).';
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 5000);
     },
 
     _getState() { return state; },
