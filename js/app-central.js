@@ -1,5 +1,5 @@
 /* ============================================================
-   app-central.js v8.6 — Consola Operativa EMP (C1 + F2 + F3)
+   app-central.js v8.7 — Consola Operativa EMP (C1 + F2 + F3)
    - Login staff por email con spinner
    - F2: push FCM + on_duty + deep_link ?incident=
    - Mapa Leaflet con marcadores de incidentes y unidades
@@ -7,6 +7,7 @@
    - F3: PTT (con manejo de errores), adjuntos, export ZIP, incidente manual
    - Triage con tipo de guardia (107/ENF/AMB/DOM/VIR/AP/EP)
    - Botón de diagnóstico PTT (🔍) en el header
+   - Audio unlock listener global para PTT
    ============================================================ */
 
 (function () {
@@ -250,6 +251,23 @@
         ui.selectedIncidentId = incId;
       }
     } catch (_) {}
+  }
+
+  // ============ AUDIO UNLOCK GLOBAL (PTT) ============
+  function initAudioUnlockListener() {
+    const unlock = () => {
+      if (typeof window.E360PTT === 'undefined' || !window.E360PTT.debug) return;
+      try {
+        const d = window.E360PTT.debug();
+        if (d && d.remoteAudioExists && d.remoteAudioPaused) {
+          window.E360PTT.unlockAudio().then(ok => {
+            if (ok) toast('🔊 Audio activado');
+          });
+        }
+      } catch (_) {}
+    };
+    document.addEventListener('click', unlock);
+    document.addEventListener('touchstart', unlock);
   }
 
   // ============ LOGIN ============
@@ -1154,6 +1172,7 @@
     initMap();
     await renderSpeedLimitControl();
     initSubscription();
+    initAudioUnlockListener();
     renderAll();
   }
 
