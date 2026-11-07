@@ -1,10 +1,11 @@
 /* ============================================================
-   app-b2b.js v8.2 — Módulo B2B EMP (C1 Aplicado)
+   app-b2b.js v8.3 — Módulo B2B EMP (C1 + C2)
    - Login staff (admin/operador) por email con spinner
    - applyBrandingToPage() en el boot y pantalla de login
    - Alta/edición de establecimientos con withButtonLoading
    - Toggle status con spinner
    - QR de emergencia por establecimiento
+   - C2: requireOnline() en acciones críticas offline
    ============================================================ */
 
 (function () {
@@ -55,6 +56,17 @@
 
   function fmtErr(err) {
     return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
+  // C2: guarda offline. Devuelve true si puede seguir, false si bloqueó.
+  function onlineOrToast() {
+    if (typeof Store.requireOnline === 'function') return Store.requireOnline();
+    const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+    if (!online) {
+      if (typeof Store.toastOfflineCritico === 'function') Store.toastOfflineCritico();
+      return false;
+    }
+    return true;
   }
 
   const ui = { baseFilter: 'ALL', editingId: null };
@@ -156,6 +168,7 @@
     if (!form) return;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!onlineOrToast()) return;
       const msg = $('#b2bMsg');
       const btn = $('#b2bSubmit');
       if (msg) msg.textContent = '';
@@ -235,6 +248,7 @@
         className: est.status === 'activo' ? 'btn-danger' : '',
         textContent: est.status === 'activo' ? 'Suspender' : 'Activar',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           await runLoading(toggleBtn, async () => {
             try {
               const next = est.status === 'activo' ? 'suspendido' : 'activo';
