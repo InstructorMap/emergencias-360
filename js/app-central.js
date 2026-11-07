@@ -1,5 +1,5 @@
 /* ============================================================
-   app-central.js v8.8 — Consola Operativa EMP (C1 + F2 + F3 + C2)
+   app-central.js v8.9 — Consola Operativa EMP (C1 + F2 + F3 + C2)
    - Login staff por email con spinner
    - F2: push FCM + on_duty + deep_link ?incident=
    - Mapa Leaflet con marcadores de incidentes y unidades
@@ -7,8 +7,8 @@
    - F3: PTT (con manejo de errores), adjuntos, export ZIP, incidente manual
    - Triage con tipo de guardia (107/ENF/AMB/DOM/VIR/AP/EP)
    - Botón de diagnóstico PTT (🔍) en el header
-   - Audio unlock listener global para PTT
    - C2: requireOnline() en acciones críticas offline
+   - F3-mejora: PTT flotante en central + unlock de audio limpio
    ============================================================ */
 
 (function () {
@@ -86,7 +86,8 @@
     lastPendingCount: 0,
     map: null,
     mapMarkers: {},
-    pttIncidentId: null
+    pttIncidentId: null,
+    pttConnected: false
   };
 
   // ============ MAPA LEAFLET ============
@@ -109,14 +110,6 @@
     }).addTo(ui.map);
 
     setTimeout(() => { try { ui.map.invalidateSize(); } catch (_) {} }, 300);
-  }
-
-  function clearMapMarkers() {
-    if (!ui.map) return;
-    Object.keys(ui.mapMarkers).forEach((key) => {
-      try { ui.map.removeLayer(ui.mapMarkers[key]); } catch (_) {}
-    });
-    ui.mapMarkers = {};
   }
 
   function incidentIcon(status) {
@@ -265,23 +258,6 @@
     } catch (_) {}
   }
 
-  // ============ AUDIO UNLOCK GLOBAL (PTT) ============
-  function initAudioUnlockListener() {
-    const unlock = () => {
-      if (typeof window.E360PTT === 'undefined' || !window.E360PTT.debug) return;
-      try {
-        const d = window.E360PTT.debug();
-        if (d && d.remoteAudioExists && d.remoteAudioPaused) {
-          window.E360PTT.unlockAudio().then(ok => {
-            if (ok) toast('🔊 Audio activado');
-          });
-        }
-      } catch (_) {}
-    };
-    document.addEventListener('click', unlock);
-    document.addEventListener('touchstart', unlock);
-  }
-
   // ============ LOGIN ============
   function showLogin() {
     const ov = $('#centralLoginOverlay'); if (ov) ov.hidden = false;
@@ -325,6 +301,8 @@
     const logout = $('#centralLogout');
     if (logout) logout.addEventListener('click', async () => {
       if (!confirm('¿Cerrar sesión y salir de guardia?')) return;
+      // F3-mejora: destruir PTT flotante al salir
+      destroyFloatingPTT();
       await runLoading(logout, async () => {
         await setOnDutyStatus(false);
         await Store.logout();
@@ -364,6 +342,8 @@
     sel.addEventListener('change', () => {
       ui.baseFilter = sel.value;
       ui.selectedIncidentId = null;
+      // F3-mejora: al cambiar base, si el PTT no corresponde al incidente seleccionado, destruirlo
+      if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) destroyFloatingPTT();
       renderAll();
     });
   }
@@ -475,18 +455,20 @@
     if (!container) return;
     container.innerHTML = '';
 
+    // F3-mejora: si el incidente seleccionado cambió y hay PTT de otro incidente, destruirlo
     if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) {
-      if (typeof window.E360PTT !== 'undefined') window.E360PTT.destroy();
-      ui.pttIncidentId = null;
+      destroyFloatingPTT();
     }
 
     if (!ui.selectedIncidentId) {
       container.appendChild(el('div', { className: 'detail-empty', textContent: 'Seleccioná un incidente.' }));
+      renderFloatingPTT(null);
       return;
     }
     const inc = Store.getIncidentById(ui.selectedIncidentId);
     if (!inc) {
       container.appendChild(el('div', { className: 'detail-empty', textContent: 'Incidente no disponible.' }));
+      renderFloatingPTT(null);
       return;
     }
 
@@ -589,7 +571,7 @@
       container.appendChild(patientBlock);
       container.appendChild(geoBlock);
       container.appendChild(actionsBlock);
-      container.appendChild(buildPTTBlock(inc));
+      container.appendChild(buildPTTBlock(inc)); // bloque embebido (referencia + unlock contextual)
       container.appendChild(buildMediaBlock(inc));
     } else {
       container.appendChild(patientBlock);
@@ -613,6 +595,9 @@
       ))
     ]);
     container.appendChild(bitacoraBlock);
+
+    // F3-mejora: render del PTT flotante
+    renderFloatingPTT(inc);
   }
 
   function buildActions(inc) {
@@ -783,91 +768,19 @@
     ]);
   }
 
-  // ============ F3: PTT (CON MANEJO DE ERRORES) ============
+  // ============ F3: PTT EMBEBIDO (referencia + unlock contextual) ============
   function buildPTTBlock(inc) {
     const block = el('div', { className: 'detail-block' }, [el('h3', { textContent: '📻 Comunicación PTT' })]);
     const pttReady = typeof window.E360PTT !== 'undefined';
-    const stateEl = el('div', { className: 'ptt-status', textContent: pttReady ? 'PTT listo. Presioná para hablar.' : 'PTT no disponible en este dispositivo.' });
+    const stateEl = el('div', { className: 'ptt-status', textContent: pttReady ? 'PTT disponible. Usá el panel flotante (abajo a la derecha) para hablar.' : 'PTT no disponible en este dispositivo.' });
 
     if (!pttReady) {
       block.appendChild(stateEl);
       return block;
     }
 
-    const isConnected = ui.pttIncidentId === inc.id;
-    const btnConnect = el('button', {
-      type: 'button',
-      className: 'btn-action',
-      textContent: isConnected ? '🔌 Desconectar PTT' : '🔗 Conectar PTT al incidente',
-      onclick: async () => {
-        if (!isConnected && !onlineOrToast()) return;
-        if (isConnected) {
-          window.E360PTT.destroy();
-          ui.pttIncidentId = null;
-          renderDetail();
-        } else {
-          try {
-            const sb = Store._getState().supabase;
-            const ok = await window.E360PTT.init(sb, inc.id, 'central');
-            if (ok) {
-              ui.pttIncidentId = inc.id;
-              toast('PTT conectado');
-            } else {
-              toast('❌ No se pudo conectar PTT (micrófono o canal)');
-            }
-          } catch (err) {
-            toast('❌ Error PTT: ' + (err.message || 'desconocido'));
-          }
-          renderDetail();
-        }
-      }
-    });
-
-    const btnTalk = el('button', {
-      type: 'button',
-      className: 'btn-action btn-ok',
-      textContent: '🎙 Mantener para hablar',
-      disabled: !isConnected,
-      style: 'user-select:none;touch-action:none;'
-    });
-
-    if (isConnected) {
-      const startTalk = async (e) => {
-        if (e) e.preventDefault();
-        if (!onlineOrToast()) return;
-        try {
-          const sb = Store._getState().supabase;
-          await window.E360PTT.startTalking(sb);
-          stateEl.textContent = '🔴 Transmitiendo…';
-          btnTalk.classList.add('is-transmitting');
-        } catch (err) {
-          stateEl.textContent = '❌ Error de conexión PTT';
-          btnTalk.classList.remove('is-transmitting');
-          toast('❌ PTT error: ' + (err.message || 'desconocido'));
-        }
-      };
-      const stopTalk = async (e) => {
-        if (e) e.preventDefault();
-        try {
-          const sb = Store._getState().supabase;
-          const path = await window.E360PTT.stopTalking(sb);
-          stateEl.textContent = path ? '✅ Clip guardado' : 'PTT detenido';
-          btnTalk.classList.remove('is-transmitting');
-          if (path) setTimeout(() => renderDetail(), 1500);
-        } catch (err) {
-          stateEl.textContent = '❌ Error al detener PTT';
-          btnTalk.classList.remove('is-transmitting');
-          toast('❌ ' + (err.message || 'error'));
-        }
-      };
-      btnTalk.addEventListener('mousedown', startTalk);
-      btnTalk.addEventListener('mouseup', stopTalk);
-      btnTalk.addEventListener('mouseleave', stopTalk);
-      btnTalk.addEventListener('touchstart', startTalk, { passive: false });
-      btnTalk.addEventListener('touchend', stopTalk, { passive: false });
-      btnTalk.addEventListener('touchcancel', stopTalk);
-    }
-
+    // F3-mejora: el botón de hablar ahora vive en el flotante.
+    // Acá dejamos solo el botón de "Activar audio" si el autoplay bloqueó.
     try {
       const d = (window.E360PTT.debug ? window.E360PTT.debug() : null);
       if (d && d.remoteAudioExists && d.remoteAudioPaused) {
@@ -884,8 +797,178 @@
     } catch (_) {}
 
     block.appendChild(stateEl);
-    block.appendChild(el('div', { className: 'inline-form' }, [btnConnect, btnTalk]));
     return block;
+  }
+
+  // ============ F3-mejora: PTT FLOTANTE EN CENTRAL ============
+  function destroyFloatingPTT() {
+    if (typeof window.E360PTT !== 'undefined') {
+      try { window.E360PTT.destroy(); } catch (_) {}
+    }
+    ui.pttIncidentId = null;
+    ui.pttConnected = false;
+    const existing = document.getElementById('cvPttFloating');
+    if (existing) existing.remove();
+  }
+
+  function renderFloatingPTT(incident) {
+    let existing = document.getElementById('cvPttFloating');
+
+    const canPTT = incident
+      && ['EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1
+      && typeof window.E360PTT !== 'undefined';
+
+    if (!canPTT) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    const isConnected = ui.pttIncidentId === incident.id && ui.pttConnected;
+
+    // Re-render quirúrgico: si ya existe y el estado no cambió, solo actualizar
+    if (existing) {
+      const wasConnected = existing.dataset.connected === '1';
+      if (wasConnected === isConnected) {
+        // Actualizar botón conectar
+        const connBtn = existing.querySelector('.cv-ptt-connect');
+        if (connBtn) {
+          connBtn.className = 'cv-ptt-connect' + (isConnected ? ' connected' : '');
+          connBtn.innerHTML = isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR';
+        }
+        const talkBtn = existing.querySelector('.cv-ptt-talk');
+        if (talkBtn) talkBtn.disabled = !isConnected;
+        // Mostrar/ocultar unlock según estado real
+        updateUnlockButton(existing);
+        return;
+      }
+      existing.remove();
+      existing = null;
+    }
+
+    const wrapper = el('div', { className: 'cv-ptt-floating', id: 'cvPttFloating' });
+    wrapper.dataset.connected = isConnected ? '1' : '0';
+
+    const statusEl = el('div', {
+      className: 'cv-ptt-status',
+      textContent: isConnected ? 'PTT conectado — presioná para hablar' : 'Conectá PTT para hablar con Guardia'
+    });
+
+    const connectBtn = el('button', {
+      type: 'button',
+      className: 'cv-ptt-connect' + (isConnected ? ' connected' : ''),
+      innerHTML: isConnected ? '🔌<br>DESCONECTAR' : '🔗<br>CONECTAR',
+      onclick: async () => {
+        if (isConnected) {
+          destroyFloatingPTT();
+          toast('PTT desconectado');
+          renderDetail();
+        } else {
+          if (!onlineOrToast()) return;
+          try {
+            const sb = Store._getState().supabase;
+            const ok = await window.E360PTT.init(sb, incident.id, 'central');
+            if (ok) {
+              ui.pttIncidentId = incident.id;
+              ui.pttConnected = true;
+              toast('PTT conectado');
+            } else {
+              toast('❌ No se pudo conectar PTT (micrófono o canal)');
+            }
+          } catch (err) {
+            toast('❌ Error PTT: ' + (err.message || 'desconocido'));
+          }
+          renderDetail();
+        }
+      }
+    });
+
+    const talkBtn = el('button', {
+      type: 'button',
+      className: 'cv-ptt-talk',
+      textContent: '🎙 MANTENER PARA HABLAR',
+      disabled: !isConnected
+    });
+
+    if (isConnected) {
+      const startTalk = async (e) => {
+        if (e) e.preventDefault();
+        if (!onlineOrToast()) return;
+        try {
+          const sb = Store._getState().supabase;
+          await window.E360PTT.startTalking(sb);
+          talkBtn.textContent = '🔴 TRANSMITIENDO…';
+          talkBtn.classList.add('is-transmitting');
+          statusEl.textContent = '🔴 Transmitiendo a Guardia';
+          if (navigator.vibrate) { try { navigator.vibrate(50); } catch (_) {} }
+        } catch (err) {
+          talkBtn.classList.remove('is-transmitting');
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          statusEl.textContent = '❌ Error de conexión PTT';
+          toast('❌ PTT error: ' + (err.message || 'desconocido'));
+        }
+      };
+      const stopTalk = async (e) => {
+        if (e) e.preventDefault();
+        try {
+          const sb = Store._getState().supabase;
+          const path = await window.E360PTT.stopTalking(sb);
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          talkBtn.classList.remove('is-transmitting');
+          statusEl.textContent = path ? '✅ Clip guardado' : 'PTT detenido';
+          if (path) { toast('Clip de audio guardado'); setTimeout(() => renderDetail(), 1500); }
+        } catch (err) {
+          talkBtn.classList.remove('is-transmitting');
+          talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          statusEl.textContent = '❌ Error al detener PTT';
+          toast('❌ ' + (err.message || 'error'));
+        }
+      };
+      talkBtn.addEventListener('mousedown', startTalk);
+      talkBtn.addEventListener('mouseup', stopTalk);
+      talkBtn.addEventListener('mouseleave', stopTalk);
+      talkBtn.addEventListener('touchstart', startTalk, { passive: false });
+      talkBtn.addEventListener('touchend', stopTalk, { passive: false });
+      talkBtn.addEventListener('touchcancel', stopTalk);
+    }
+
+    wrapper.appendChild(statusEl);
+    wrapper.appendChild(connectBtn);
+    wrapper.appendChild(talkBtn);
+
+    // F3-mejora: botón unlock contextual (solo si remoteAudioPaused)
+    const unlockBtn = el('button', {
+      type: 'button',
+      className: 'cv-ptt-unlock',
+      textContent: '🔊 Activar audio',
+      style: 'display:none;',
+      onclick: () => {
+        window.E360PTT.unlockAudio().then(ok => {
+          toast(ok ? '🔊 Audio activado' : '❌ No se pudo activar');
+          updateUnlockButton(wrapper);
+        });
+      }
+    });
+    wrapper.appendChild(unlockBtn);
+
+    document.body.appendChild(wrapper);
+    updateUnlockButton(wrapper);
+  }
+
+  // Muestra/oculta el botón unlock según el estado real de remoteAudio
+  function updateUnlockButton(wrapper) {
+    if (!wrapper) return;
+    const unlockBtn = wrapper.querySelector('.cv-ptt-unlock');
+    if (!unlockBtn) return;
+    try {
+      const d = window.E360PTT.debug();
+      if (d && d.remoteAudioExists && d.remoteAudioPaused) {
+        unlockBtn.style.display = 'block';
+      } else {
+        unlockBtn.style.display = 'none';
+      }
+    } catch (_) {
+      unlockBtn.style.display = 'none';
+    }
   }
 
   // ============ F3: MEDIA ============
@@ -1041,7 +1124,7 @@
     }
     const d = ptt.debug();
     const unlockBtn = d.remoteAudioPaused
-      ? '\n\n👉 Tocá "Activar audio" para desbloquear el sonido.'
+      ? '\n\n👉 Tocá "Activar audio" en el panel flotante para desbloquear el sonido.'
       : '';
     const lines = [
       '=== DIAGNÓSTICO PTT ===', '',
@@ -1065,12 +1148,7 @@
       'LAST SIGNALING ERROR: ' + (d.lastSignalingError || 'ninguno'),
       unlockBtn
     ];
-    const doUnlock = d.remoteAudioPaused && confirm(lines.join('\n') + '\n\n¿Intentar activar audio ahora?');
-    if (doUnlock) {
-      ptt.unlockAudio().then(ok => toast(ok ? '🔊 Audio activado' : '❌ No se pudo activar'));
-    } else {
-      alert(lines.join('\n'));
-    }
+    alert(lines.join('\n'));
   }
 
   function openManualIncidentModal() {
@@ -1198,7 +1276,8 @@
     initMap();
     await renderSpeedLimitControl();
     initSubscription();
-    initAudioUnlockListener();
+    // F3-mejora: ya NO se usa initAudioUnlockListener() global.
+    // El botón "Activar audio" vive en el PTT flotante (contextual).
     renderAll();
   }
 
@@ -1216,6 +1295,11 @@
       if (session.loggedIn) await Store.logout();
       showLogin();
     }
+  });
+
+  // F3-mejora: limpiar PTT flotante al cerrar la pestaña
+  window.addEventListener('beforeunload', () => {
+    destroyFloatingPTT();
   });
 
   window.addEventListener('resize', () => {
