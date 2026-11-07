@@ -10,6 +10,9 @@
 </head>
 <body class="b2b-body">
 
+  <!-- C2: banner offline -->
+  <div id="offlineBanner" role="status" aria-live="polite"></div>
+
   <div class="login-overlay" id="b2bLoginOverlay" hidden>
     <div class="login-card">
       <div class="login-logo" id="b2bLoginLogo">
@@ -127,5 +130,24 @@
   <script src="js/qr.js"></script>
   <script src="js/app-b2b.js"></script>
   <script src="js/healthcheck.js"></script>
+
+  <!-- C2: inicializar banner offline -->
+  <script>
+    (function () {
+      function boot() {
+        if (window.E360Store && typeof window.E360Store.initOfflineBanner === 'function') {
+          window.E360Store.initOfflineBanner({
+            // Turno 2: descomentar para bloquear acciones críticas offline
+            // criticalButtons: ['b2bSubmit']
+          });
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+    })();
+  </script>
 </body>
 </html>
