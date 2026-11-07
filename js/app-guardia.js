@@ -1,8 +1,9 @@
 /* ============================================================
-   app-guardia.js v9.2 — Guardia Móvil EMP (B2 alto contraste)
+   app-guardia.js v9.3 — Guardia Móvil EMP (B2 alto contraste)
    - renderPTTFloating recrea el botón cuando cambia el estado
    - PTT con manejo de errores visible
    - Re-render quirúrgico (sin parpadeo)
+   - C2: requireOnline() en acciones críticas offline
    ============================================================ */
 
 (function () {
@@ -64,6 +65,17 @@
 
   function fmtErr(err) {
     return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
+  // C2: guarda offline. Devuelve true si puede seguir, false si bloqueó.
+  function onlineOrToast() {
+    if (typeof Store.requireOnline === 'function') return Store.requireOnline();
+    const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+    if (!online) {
+      if (typeof Store.toastOfflineCritico === 'function') Store.toastOfflineCritico();
+      return false;
+    }
+    return true;
   }
 
   const THROTTLE_MS = 20000;
@@ -369,6 +381,7 @@
   }
 
   function startWatch() {
+    if (!onlineOrToast()) return;
     if (!navigator.geolocation) { updateGpsStatus('GPS no disponible.', 'red'); return; }
     const inc = Store.getActiveIncidentForUnit(ui.unitId);
     if (!inc) { alert('Sin incidente activo.'); return; }
@@ -404,6 +417,7 @@
   }
 
   async function updatePositionManual(btn) {
+    if (!onlineOrToast()) return;
     if (!navigator.geolocation) { alert('GPS no disponible.'); return; }
     const inc = Store.getActiveIncidentForUnit(ui.unitId);
     if (!inc) { alert('Sin incidente activo.'); return; }
@@ -438,6 +452,7 @@
     const confirmBtn = el('button', {
       type: 'button', className: 'btn-confirm', textContent: 'Enviar',
       onclick: async () => {
+        if (!onlineOrToast()) return;
         await runLoading(confirmBtn, async () => {
           try {
             await Store.requestSupportFromCrew(
@@ -508,6 +523,7 @@
       style: 'min-height:44px;padding:0 16px;font-size:0.75rem;width:auto;margin:0;',
       textContent: ui.onDuty ? '🟢 EN GUARDIA' : '🔴 FUERA DE GUARDIA',
       onclick: async () => {
+        if (!onlineOrToast()) return;
         await setOnDutyStatus(!ui.onDuty);
         renderUnitStatus();
         toast(ui.onDuty ? 'En guardia activa (Push habilitado)' : 'Fuera de guardia');
@@ -699,7 +715,10 @@
       body.appendChild(el('button', {
         type: 'button', className: 'gv-btn gv-btn-warn', style: 'margin-top:8px;',
         textContent: '🚨 Solicitar Apoyo',
-        onclick: () => openSupportDialog(incident)
+        onclick: () => {
+          if (!onlineOrToast()) return;
+          openSupportDialog(incident);
+        }
       }));
     }
 
@@ -715,6 +734,7 @@
   function buildActionsCard(incident) {
     const body = el('div', { className: 'gv-card-body' });
     const run = async (btn, fn, label) => {
+      if (!onlineOrToast()) return;
       await runLoading(btn, async () => {
         try {
           await fn();
@@ -818,9 +838,13 @@
     if (canUpload && typeof window.E360Media !== 'undefined') {
       const sb = Store._getState().supabase;
 
-      photoBtn.addEventListener('click', () => photoInput.click());
+      photoBtn.addEventListener('click', () => {
+        if (!onlineOrToast()) return;
+        photoInput.click();
+      });
       photoInput.addEventListener('change', async () => {
         if (!photoInput.files || !photoInput.files[0]) return;
+        if (!onlineOrToast()) return;
         await runLoading(photoBtn, async () => {
           try {
             await window.E360Media.uploadPhoto(sb, incident.id, photoInput.files[0]);
@@ -831,6 +855,7 @@
       });
 
       videoBtn.addEventListener('click', async () => {
+        if (!onlineOrToast()) return;
         try {
           toast('Grabando 30s…');
           await window.E360Media.recordVideo(async (file) => {
@@ -926,11 +951,9 @@
 
     const isConnected = ui.pttIncidentId === incident.id;
 
-    // Si el botón existe pero el estado de conexión cambió, eliminar y recrear
     if (existing) {
       const wasConnected = existing.dataset.connected === '1';
       if (wasConnected === isConnected) {
-        // Mismo estado: solo actualizar visualmente
         const connBtn = existing.querySelector('.gv-ptt-connect');
         if (connBtn) {
           connBtn.className = 'gv-ptt-connect' + (isConnected ? ' connected' : '');
@@ -961,6 +984,7 @@
           ui.lastRenderHash = null;
           renderActiveIncident();
         } else {
+          if (!onlineOrToast()) return;
           try {
             const sb = Store._getState().supabase;
             const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
@@ -989,6 +1013,7 @@
     if (isConnected) {
       const startTalk = async (e) => {
         if (e) e.preventDefault();
+        if (!onlineOrToast()) return;
         try {
           const sb = Store._getState().supabase;
           await window.E360PTT.startTalking(sb);
