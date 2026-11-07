@@ -2761,3 +2761,96 @@ body.offline .b2b-header {
 }
 /* Modo adulto mayor: texto más grande */
 body.modo-mayor #offlineBanner { font-size: 1rem; padding: 12px 14px; }
+
+/* ============================================================
+   F3-mejora — PTT flotante en Central
+   ============================================================ */
+.cv-ptt-floating {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9500;                /* debajo de toasts (9999) y modales (9500+) */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  background: var(--color-surface, #1E293B);
+  border: 1px solid var(--color-border, #475569);
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  min-width: 210px;
+  max-width: 240px;
+}
+.cv-ptt-status {
+  font-size: 0.72rem;
+  color: var(--color-text-dim, #CBD5E1);
+  text-align: center;
+  line-height: 1.3;
+}
+.cv-ptt-connect {
+  background: #334155;
+  color: #F1F5F9;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.1;
+}
+.cv-ptt-connect.connected {
+  background: #7A1C32;
+  border-color: #DC2626;
+  color: #fff;
+}
+.cv-ptt-talk {
+  background: #16A34A;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 10px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  user-select: none;
+  touch-action: none;
+  min-height: 52px;
+}
+.cv-ptt-talk:disabled {
+  background: #475569;
+  color: #94A3B8;
+  cursor: not-allowed;
+}
+.cv-ptt-talk.is-transmitting {
+  background: #DC2626;
+  animation: cvPttPulse 0.9s infinite;
+}
+@keyframes cvPttPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.7); }
+  50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+}
+.cv-ptt-unlock {
+  background: #D97706;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+/* En mobile chico, achicar un poco */
+@media (max-width: 480px) {
+  .cv-ptt-floating {
+    right: 10px;
+    bottom: 10px;
+    min-width: 180px;
+    max-width: 200px;
+    padding: 8px;
+  }
+  .cv-ptt-talk { min-height: 46px; font-size: 0.8rem; }
+}
