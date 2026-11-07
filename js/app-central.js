@@ -1,5 +1,5 @@
 /* ============================================================
-   app-central.js v8.7 — Consola Operativa EMP (C1 + F2 + F3)
+   app-central.js v8.8 — Consola Operativa EMP (C1 + F2 + F3 + C2)
    - Login staff por email con spinner
    - F2: push FCM + on_duty + deep_link ?incident=
    - Mapa Leaflet con marcadores de incidentes y unidades
@@ -8,6 +8,7 @@
    - Triage con tipo de guardia (107/ENF/AMB/DOM/VIR/AP/EP)
    - Botón de diagnóstico PTT (🔍) en el header
    - Audio unlock listener global para PTT
+   - C2: requireOnline() en acciones críticas offline
    ============================================================ */
 
 (function () {
@@ -62,6 +63,17 @@
 
   function fmtErr(err) {
     return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
+  // C2: guarda offline. Devuelve true si puede seguir, false si bloqueó.
+  function onlineOrToast() {
+    if (typeof Store.requireOnline === 'function') return Store.requireOnline();
+    const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+    if (!online) {
+      if (typeof Store.toastOfflineCritico === 'function') Store.toastOfflineCritico();
+      return false;
+    }
+    return true;
   }
 
   const ui = {
@@ -386,6 +398,7 @@
     btn.dataset.bound = '1';
 
     btn.addEventListener('click', async () => {
+      if (!onlineOrToast()) return;
       const val = parseInt(input.value, 10);
       if (!val || val < 10 || val > 160) {
         if (status) status.textContent = 'Valor inválido (10–160 km/h).';
@@ -607,6 +620,7 @@
     const op = ui.operatorName || 'central';
 
     const run = async (btn, fn, label) => {
+      if (!onlineOrToast()) return;
       await runLoading(btn, async () => {
         try { await fn(); renderAll(); }
         catch (err) { alert('Acción rechazada: ' + fmtErr(err)); }
@@ -617,6 +631,7 @@
       const cancelBtn = el('button', {
         type: 'button', className: 'btn-action btn-danger', textContent: 'Cancelar Incidente',
         onclick: () => {
+          if (!onlineOrToast()) return;
           const reason = prompt('Motivo de cancelación (obligatorio):');
           if (!reason) return;
           run(cancelBtn, () => Store.cancelIncident(inc.id, reason, op), 'Cancelando…');
@@ -785,6 +800,7 @@
       className: 'btn-action',
       textContent: isConnected ? '🔌 Desconectar PTT' : '🔗 Conectar PTT al incidente',
       onclick: async () => {
+        if (!isConnected && !onlineOrToast()) return;
         if (isConnected) {
           window.E360PTT.destroy();
           ui.pttIncidentId = null;
@@ -818,6 +834,7 @@
     if (isConnected) {
       const startTalk = async (e) => {
         if (e) e.preventDefault();
+        if (!onlineOrToast()) return;
         try {
           const sb = Store._getState().supabase;
           await window.E360PTT.startTalking(sb);
@@ -851,7 +868,6 @@
       btnTalk.addEventListener('touchcancel', stopTalk);
     }
 
-    // Botón de desbloqueo de audio si el autoplay bloqueó el audio remoto
     try {
       const d = (window.E360PTT.debug ? window.E360PTT.debug() : null);
       if (d && d.remoteAudioExists && d.remoteAudioPaused) {
@@ -896,9 +912,13 @@
     if (canUpload && typeof window.E360Media !== 'undefined') {
       const sb = Store._getState().supabase;
 
-      photoBtn.addEventListener('click', () => photoInput.click());
+      photoBtn.addEventListener('click', () => {
+        if (!onlineOrToast()) return;
+        photoInput.click();
+      });
       photoInput.addEventListener('change', async () => {
         if (!photoInput.files || !photoInput.files[0]) return;
+        if (!onlineOrToast()) return;
         await runLoading(photoBtn, async () => {
           try {
             await window.E360Media.uploadPhoto(sb, inc.id, photoInput.files[0]);
@@ -909,6 +929,7 @@
       });
 
       videoBtn.addEventListener('click', async () => {
+        if (!onlineOrToast()) return;
         try {
           toast('Grabando 30s…');
           await window.E360Media.recordVideo(async (file) => {
@@ -970,6 +991,7 @@
     const btn = el('button', {
       type: 'button', className: 'btn-action btn-ok', textContent: '⬇ Descargar ZIP completo',
       onclick: async () => {
+        if (!onlineOrToast()) return;
         await runLoading(btn, async () => {
           try {
             const exp = await Store.getIncidentExportUrl(inc.id);
@@ -992,7 +1014,10 @@
     if (!btn) return;
     if (btn.dataset.bound === '1') return;
     btn.dataset.bound = '1';
-    btn.addEventListener('click', () => openManualIncidentModal());
+    btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      openManualIncidentModal();
+    });
   }
 
   function initPTTDiagButton() {
@@ -1053,6 +1078,7 @@
     const saveBtn = el('button', {
       type: 'button', className: 'btn-primary', textContent: 'Crear incidente',
       onclick: async () => {
+        if (!onlineOrToast()) return;
         const guardiaCode = $('#miGuardia').value;
         const priority = $('#miPriority').value;
         const dni = $('#miDni').value.trim();
