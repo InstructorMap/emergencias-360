@@ -11,6 +11,9 @@
 </head>
 <body class="guardia-body theme-dark">
 
+  <!-- C2: banner offline -->
+  <div id="offlineBanner" role="status" aria-live="polite"></div>
+
   <div class="login-overlay" id="guardiaLoginOverlay" hidden>
     <div class="login-card">
       <div class="login-logo" id="guardiaLoginLogo">
@@ -97,5 +100,24 @@
   <script src="js/media.js"></script>
   <script src="js/app-guardia.js"></script>
   <script src="js/healthcheck.js"></script>
+
+  <!-- C2: inicializar banner offline -->
+  <script>
+    (function () {
+      function boot() {
+        if (window.E360Store && typeof window.E360Store.initOfflineBanner === 'function') {
+          window.E360Store.initOfflineBanner({
+            // Turno 2: descomentar para bloquear acciones críticas offline
+            // criticalButtons: ['btnGpsStart', 'btnGpsStop', 'btnSupport', 'btnActionGo', 'btnActionClose']
+          });
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+      } else {
+        boot();
+      }
+    })();
+  </script>
 </body>
 </html>
