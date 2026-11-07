@@ -1,6 +1,7 @@
 /* ============================================================
-   healthcheck.js v8.4 — Auto-diagnóstico visual
+   healthcheck.js v8.5 — Auto-diagnóstico visual
    - C1 + F2 + F3 (PTT, Storage, TURN)
+   - C2: initOfflineBanner / toastOfflineCritico + #offlineBanner
    - Probe de red opcional con ?healthcheck=storage
    ============================================================ */
 
@@ -46,7 +47,9 @@
       'getActiveContext', 'setActiveBase', 'getSupabaseStatus', 'subscribe',
       'calcCarnetStatus', 'daysToExpire',
       'createManualIncident', 'getIncidentMedia', 'getIncidentExportUrl',
-      'getSpeedLimit', 'setSpeedLimit'
+      'getSpeedLimit', 'setSpeedLimit',
+      // C2:
+      'initOfflineBanner', 'toastOfflineCritico'
     ];
 
     const baseGlobals = ['E360Config', 'E360StateMachine', 'E360Store', 'E360SupabaseConfig'];
@@ -81,7 +84,9 @@
           'tab-ficha', 'btnRecategorizar', 'medicacionHoy', 'medicacionLista', 'btnAddMedicacion',
           'formFicha', 'fNombre', 'fDni', 'fCuil', 'fTelefono', 'fGrupo', 'fAlergias', 'fPatologias', 'fContacto', 'fConsent',
           'fichaMsg', 'misIncidentes', 'pagosContainer',
-          'nav-inicio', 'nav-sos', 'nav-credencial', 'nav-beneficios', 'nav-ficha'
+          'nav-inicio', 'nav-sos', 'nav-credencial', 'nav-beneficios', 'nav-ficha',
+          // C2:
+          'offlineBanner'
         ],
         assets: [
           'js/supabase.config.js', 'js/config.js', 'js/state-machine.js',
@@ -98,7 +103,9 @@
           'centralLoginOverlay', 'centralLoginForm', 'centralLoginEmail', 'centralLoginPassword', 'centralLoginBtn', 'centralLoginMsg',
           'centralApp', 'centralHeaderBrand', 'centralLogout',
           'centralBaseSelector', 'alertCounter', 'incidentList', 'incidentEmpty',
-          'detailContainer', 'fleetContainer'
+          'detailContainer', 'fleetContainer',
+          // C2:
+          'offlineBanner'
         ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/ptt.js', 'js/media.js', 'js/app-central.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
@@ -113,7 +120,9 @@
           'guardiaApp', 'guardiaHeaderBrand', 'guardiaLogout',
           'guardiaBaseSelector', 'guardiaUnitSelector',
           'unitStatus', 'noIncidentPanel', 'activeIncidentContainer',
-          'historyList', 'historyEmpty'
+          'historyList', 'historyEmpty',
+          // C2:
+          'offlineBanner'
         ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/ptt.js', 'js/media.js', 'js/app-guardia.js', 'css/styles.css', 'css/guardia-v2.css'],
         expectedVersion: expectedVersion()
@@ -128,7 +137,9 @@
           'b2bApp', 'b2bHeaderBrand', 'b2bLogout', 'b2bBaseSelector',
           'b2bForm', 'b2bId', 'b2bName', 'b2bType', 'b2bBase', 'b2bStatus', 'b2bAddress',
           'b2bPhone', 'b2bTipoUnidad', 'b2bProtocol', 'b2bSubmit', 'b2bCancelEdit', 'b2bMsg',
-          'b2bList', 'b2bEmpty', 'formTitle'
+          'b2bList', 'b2bEmpty', 'formTitle',
+          // C2:
+          'offlineBanner'
         ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/qr.js', 'js/app-b2b.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
@@ -149,7 +160,9 @@
           'formMercadoPago', 'mpEnabled', 'mpPublicKey', 'mpAccessToken',
           'formExtServices', 'extMedicoUrl', 'extSeguroUrl',
           'benefitsTbody', 'adminMsg', 'b2bTbody',
-          'btnExportAudit', 'btnRefreshAudit', 'auditList'
+          'btnExportAudit', 'btnRefreshAudit', 'auditList',
+          // C2:
+          'offlineBanner'
         ],
         assets: ['js/supabase.config.js', 'js/config.js', 'js/state-machine.js', 'js/store.js', 'js/app-admin.js', 'css/styles.css'],
         expectedVersion: expectedVersion()
