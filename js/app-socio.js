@@ -1,358 +1,1471 @@
 /* ============================================================
-   js/ptt.js — Push-to-Talk EMP (F3) + debug()
-   - startAsCaller recrea localStream si es null o está muerto
-   - startRecording recrea localStream si el track está muerto
-   - destroy() elimina #gvPttFloating para forzar recreación
-   - private: true (canal privado con RLS)
-   - ptt_start desmutea, ptt_stop mutea
+   app-socio.js v8.4 — Controlador de socio.html
+   - C1: branding, SOS toast, withButtonLoading, humanizeError
+   - C2: requireOnline() en acciones críticas offline
+   - ETA refresh cada 30s mientras EN_CAMINO / EN_ESCENA
+   - Fix medicación: muestra "Hoy" + "Próximas" y calcula
+     próxima ocurrencia (hoy si no pasó, mañana si ya pasó)
+   - Fix boot: initBanner() ahora se llama (antes quedó colgado)
+   - Aviso legal EMP corregido en PDF y verificación pública
    ============================================================ */
 
-(function (global) {
+(function () {
   'use strict';
 
-  let pc = null;
-  let localStream = null;
-  let mediaRecorder = null;
-  let recordedChunks = [];
-  let currentIncidentId = null;
-  let currentRole = null;
-  let signalChannel = null;
-  let remoteAudio = null;
-  let isPressing = false;
-  let isInitialized = false;
+  const Store = window.E360Store;
+  const C = window.E360Config;
+  const QR = window.E360QR || null;
 
-  let cachedIceServers = null;
-  let iceServersExpiry = 0;
-  let lastIceError = null;
-  let lastSignalingError = null;
+  const APK_URL = 'https://github.com/InstructorMap/emergencias-360/releases/latest/download/app-debug.apk';
+  const ETA_REFRESH_MS = 30000;
 
-  async function fetchIceServers(supabase) {
-    if (cachedIceServers && Date.now() < iceServersExpiry) {
-      return cachedIceServers;
+  if (!Store || !C) {
+    console.error('[app-socio] Faltan dependencias core.');
+    return;
+  }
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  function el(tag, attrs, children) {
+    const node = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach((k) => {
+        const val = attrs[k];
+        if (val === null || val === undefined || val === false) return;
+        if (val === true) { node.setAttribute(k, ''); return; }
+        if (k === 'className') { node.className = val; return; }
+        if (k === 'textContent') { node.textContent = val; return; }
+        if (k === 'onclick' && typeof val === 'function') { node.addEventListener('click', val); return; }
+        node.setAttribute(k, val);
+      });
     }
+    (children || []).forEach((c) => {
+      if (c === null || c === undefined) return;
+      if (typeof c === 'string') node.appendChild(document.createTextNode(c));
+      else node.appendChild(c);
+    });
+    return node;
+  }
+
+  async function runLoading(btn, fn, label) {
+    if (typeof Store.withButtonLoading === 'function') {
+      return await Store.withButtonLoading(btn, fn, label);
+    }
+    return await fn();
+  }
+
+  function fmtErr(err) {
+    return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
+  // C2: helper de guarda offline. Devuelve true si puede seguir, false si bloqueó.
+  function onlineOrToast() {
+    if (typeof Store.requireOnline === 'function') {
+      return Store.requireOnline();
+    }
+    // Fallback si store.js todavía no tiene requireOnline
+    const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+    if (!online) {
+      if (typeof Store.toastOfflineCritico === 'function') Store.toastOfflineCritico();
+      return false;
+    }
+    return true;
+  }
+
+  let currentIncident = null;
+  let currentLocation = null;
+  let manualAddress = '';
+  let activeLocality = 'Dolores';
+  let b2bContext = null;
+  let credencialInterval = null;
+  let credencialCodigo = null;
+  let credencialSegundos = 180;
+  let activeFamilyIndex = 0;
+  let branding = null;
+  let etaInterval = null;
+
+  const MODO_MAYOR_KEY = 'e360_modo_mayor';
+  const CODIGO_DURACION_SEG = 180;
+
+  // ============================================================
+  // ETA REFRESH AUTOMÁTICO (cada 30s)
+  // ============================================================
+  function stopEtaRefresh() {
+    if (etaInterval) { clearInterval(etaInterval); etaInterval = null; }
+  }
+
+  function startEtaRefresh() {
+    stopEtaRefresh();
+    etaInterval = setInterval(() => {
+      if (!currentIncident) return;
+      const status = currentIncident.status;
+      if (status !== 'EN_CAMINO' && status !== 'EN_ESCENA') return;
+      const latest = Store.getIncidentById(currentIncident.id);
+      if (latest) {
+        currentIncident = latest;
+        renderIncident(latest);
+      }
+    }, ETA_REFRESH_MS);
+  }
+
+  // ============================================================
+  // MODO ADULTO MAYOR
+  // ============================================================
+  function initModoMayor() {
+    const btn = $('#btnModoMayor');
+    if (!btn) return;
+    const activo = (function () {
+      try { return localStorage.getItem(MODO_MAYOR_KEY) === '1'; } catch (_) { return false; }
+    })();
+    document.body.classList.toggle('modo-mayor', activo);
+    btn.setAttribute('aria-pressed', activo ? 'true' : 'false');
+    btn.addEventListener('click', () => {
+      const ahora = !document.body.classList.contains('modo-mayor');
+      document.body.classList.toggle('modo-mayor', ahora);
+      btn.setAttribute('aria-pressed', ahora ? 'true' : 'false');
+      try { localStorage.setItem(MODO_MAYOR_KEY, ahora ? '1' : '0'); } catch (_) {}
+    });
+  }
+
+  // ============================================================
+  // BRANDING GLOBAL (C1)
+  // ============================================================
+  async function loadBranding() {
+    branding = typeof Store.applyBrandingToPage === 'function'
+      ? await Store.applyBrandingToPage()
+      : await Store.loadBranding();
+    if (branding && branding.logoUrl) {
+      const headerBrand = $('#headerBrand');
+      if (headerBrand) {
+        const svg = headerBrand.querySelector('svg');
+        if (svg) {
+          const img = document.createElement('img');
+          img.src = branding.logoUrl;
+          img.alt = 'EMP';
+          img.className = 'emp-logo-chip';
+          img.style.height = '38px';
+          img.style.width = 'auto';
+          svg.replaceWith(img);
+        } else {
+          const existingImg = headerBrand.querySelector('img');
+          if (existingImg) existingImg.src = branding.logoUrl;
+        }
+      }
+      const ctLogo = $('#ctLogo');
+      if (ctLogo) {
+        ctLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" class="emp-logo-chip" style="max-width:140px;max-height:44px;" />';
+      }
+      const loginLogo = $('#loginLogo');
+      if (loginLogo) {
+        loginLogo.innerHTML = '<img src="' + branding.logoUrl + '" alt="EMP" class="emp-logo-chip" style="max-width:180px;max-height:56px;" />';
+      }
+    }
+  }
+
+  // ============================================================
+  // MODO PÚBLICO: ?carnet= y ?pulsera=
+  // ============================================================
+  function getPublicMode() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('carnet')) return { mode: 'carnet', token: params.get('carnet') };
+    if (params.has('pulsera')) return { mode: 'pulsera', token: params.get('pulsera') };
+    return null;
+  }
+
+  async function renderPublicVerify(mode, token) {
+    const appNormal = $('#appNormal');
+    const publicMode = $('#publicVerifyMode');
+    if (appNormal) appNormal.hidden = true;
+    if (publicMode) publicMode.hidden = false;
+
+    let data = null;
+    let isPulsera = false;
     try {
-      const { data, error } = await supabase.functions.invoke('get-turn-credentials', {
-        body: { ttl: 3600 }
-      });
-      if (error) throw error;
-      if (!data || !data.iceServers) throw new Error('Respuesta inválida de TURN');
-      const servers = Array.isArray(data.iceServers) ? data.iceServers : [data.iceServers];
-      cachedIceServers = [{ urls: 'stun:stun.l.google.com:19302' }, ...servers];
-      iceServersExpiry = Date.now() + (50 * 60 * 1000);
-      lastIceError = null;
-      return cachedIceServers;
-    } catch (e) {
-      lastIceError = e.message || String(e);
-      console.warn('[ptt] Sin credenciales TURN, usando solo STUN:', e);
-      return [{ urls: 'stun:stun.l.google.com:19302' }];
-    }
-  }
-
-  async function initSignaling(supabase, incidentId, role) {
-    currentIncidentId = incidentId;
-    currentRole = role;
-
-    signalChannel = supabase.channel('ptt_' + incidentId, {
-      config: {
-        broadcast: { self: false, acknowledgeBroadcasts: true },
-        private: true
+      if (mode === 'carnet') {
+        data = await Store.getPublicCarnetInfo(token);
+      } else {
+        data = await Store.getPublicPulseraInfo(token);
+        isPulsera = true;
       }
-    });
+    } catch (_) {
+      data = null;
+    }
 
-    await new Promise((resolve, reject) => {
-      signalChannel.subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          resolve();
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          lastSignalingError = 'subscribe: ' + status + ' — ' + (err ? err.message : 'sin detalle');
-          reject(new Error('Canal de señalización falló: ' + status + ' — ' + (err ? err.message : 'sin detalle')));
-        }
-      });
-    });
+    if (!publicMode) return;
+    publicMode.innerHTML = '';
 
-    signalChannel
-      .on('broadcast', { event: 'ptt_offer' }, async ({ payload }) => {
-        if (role !== 'central') return;
-        await handleOffer(supabase, payload.sdp);
-      })
-      .on('broadcast', { event: 'ptt_answer' }, async ({ payload }) => {
-        if (role !== 'guardia') return;
-        if (pc && pc.signalingState === 'have-local-offer') {
-          try {
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          } catch (e) {
-            lastSignalingError = 'answer: ' + e.message;
-            console.warn('[ptt] Error aplicando answer:', e);
+    const header = el('header', { className: 'pub-header' }, [
+      el('a', { href: 'index.html', className: 'emp-brand' }, [
+        (function () {
+          if (branding && branding.logoUrl) {
+            const img = document.createElement('img');
+            img.src = branding.logoUrl;
+            img.alt = 'EMP';
+            img.className = 'emp-logo-chip';
+            img.style.height = '38px';
+            return img;
           }
-        }
-      })
-      .on('broadcast', { event: 'ptt_ice' }, async ({ payload }) => {
-        if (pc && payload.candidate) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          } catch (e) {
-            lastSignalingError = 'ice: ' + e.message;
-            console.warn('[ptt] ICE error:', e);
-          }
-        }
-      })
-      .on('broadcast', { event: 'ptt_start' }, () => {
-        if (remoteAudio) {
-          try {
-            remoteAudio.muted = false;
-            const p = remoteAudio.play();
-            if (p !== undefined) p.catch(() => {});
-          } catch (_) {}
-        }
-      })
-      .on('broadcast', { event: 'ptt_stop' }, () => {
-        if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
-      });
-  }
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('viewBox', '0 0 140 48');
+          svg.innerHTML = '<text x="0" y="34" font-family="Montserrat, sans-serif" font-size="30" font-weight="900" fill="#0B3C78">EMP</text><path d="M2 40 h22 l5 -10 l7 18 l6 -14 l4 6 h94" stroke="#EA580C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+          return svg;
+        })()
+      ]),
+      el('span', { className: 'pub-badge', textContent: isPulsera ? 'EMERGENCIA' : 'VERIFICACIÓN' })
+    ]);
+    publicMode.appendChild(header);
 
-  async function ensureLocalStream() {
-    let streamOk = localStream && localStream.getAudioTracks().some(t => t.readyState === 'live');
-    if (streamOk) return localStream;
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
-      });
-      return localStream;
-    } catch (e) {
-      console.warn('[ptt] No se pudo obtener/recrear el micrófono:', e);
-      return null;
-    }
-  }
-
-  async function createPeerConnection(supabase) {
-    if (pc) { try { pc.close(); } catch (_) {} pc = null; }
-    const iceServers = await fetchIceServers(supabase);
-    pc = new RTCPeerConnection({ iceServers });
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && signalChannel) {
-        signalChannel.send({
-          type: 'broadcast', event: 'ptt_ice',
-          payload: { candidate: event.candidate.toJSON() }
-        });
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      if (pc) console.log('[ptt] ICE state:', pc.iceConnectionState);
-    };
-
-    pc.ontrack = (event) => {
-      if (!remoteAudio) {
-        remoteAudio = new Audio();
-        remoteAudio.autoplay = true;
-        remoteAudio.playsInline = true;
-      }
-      remoteAudio.srcObject = event.streams[0];
-      remoteAudio.muted = false;
-      const playPromise = remoteAudio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((e) => {
-          console.warn('[ptt] Autoplay bloqueado en ontrack, reintentando con click:', e);
-          const unlock = () => {
-            if (remoteAudio) remoteAudio.play().catch(() => {});
-            document.removeEventListener('click', unlock);
-            document.removeEventListener('touchstart', unlock);
-          };
-          document.addEventListener('click', unlock);
-          document.addEventListener('touchstart', unlock);
-        });
-      }
-    };
-
-    return pc;
-  }
-
-  async function startAsCaller(supabase) {
-    const stream = await ensureLocalStream();
-    if (!stream) throw new Error('Sin micrófono (no se pudo acceder al micrófono)');
-    if (!signalChannel) throw new Error('Canal de señalización no inicializado');
-
-    await createPeerConnection(supabase);
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    const sendResult = await signalChannel.send({
-      type: 'broadcast',
-      event: 'ptt_offer',
-      payload: { sdp: pc.localDescription.toJSON() }
-    });
-
-    if (sendResult && sendResult.ok === false) {
-      throw new Error('El servidor Realtime rechazó la oferta SDP. ¿Política RLS?');
-    }
-  }
-
-  async function handleOffer(supabase, sdp) {
-    const stream = await ensureLocalStream();
-    if (!stream) {
-      lastSignalingError = 'getUserMedia: sin micrófono';
+    if (!data) {
+      publicMode.appendChild(el('div', { className: 'pub-card pub-invalid' }, [
+        el('div', { className: 'pub-icon', textContent: '❌' }),
+        el('h1', { textContent: isPulsera ? 'Pulsera no registrada' : 'Credencial no válida' }),
+        el('p', {
+          textContent: isPulsera
+            ? 'El código escaneado no corresponde a una pulsera activa de EMP.'
+            : 'El código escaneado no corresponde a un socio registrado en EMP.'
+        }),
+        el('p', { className: 'pub-hint', textContent: 'Verificá el código o consultá en administración (2245-444602 Dolores / 2246-526777 La Costa).' })
+      ]));
       return;
     }
-    await createPeerConnection(supabase);
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-    try {
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      signalChannel.send({
-        type: 'broadcast', event: 'ptt_answer',
-        payload: { sdp: pc.localDescription.toJSON() }
-      });
-    } catch (e) {
-      lastSignalingError = 'handleOffer: ' + e.message;
-      console.warn('[ptt] Error respondiendo oferta:', e);
+
+    if (isPulsera) {
+      const card = el('div', { className: 'pub-card pub-pulsera pub-sos-alert' }, [
+        el('div', { className: 'pub-sos-header', textContent: '🚨 EMERGENCIA — DATOS DEL SOCIO' }),
+        el('h1', { className: 'pub-name', textContent: data.nombre || '—' }),
+        el('div', { className: 'pub-info-grid' }, [
+          pubInfoRow('N° Socio', data.socioNumber || '—'),
+          pubInfoRow('DNI', data.dni || '—'),
+          pubInfoRow('Plan', data.planLabel || '—'),
+          pubInfoRow('Grupo sanguíneo', data.grupoSanguineo || 'No informado'),
+        ]),
+        data.alergias ? el('div', { className: 'pub-alert pub-alert-red' }, [
+          el('strong', { textContent: '⚠ ALERGIAS' }),
+          el('div', { textContent: data.alergias })
+        ]) : null,
+        data.patologias ? el('div', { className: 'pub-alert' }, [
+          el('strong', { textContent: 'Patologías' }),
+          el('div', { textContent: data.patologias })
+        ]) : null,
+        data.medications && data.medications.length ? el('div', { className: 'pub-meds' }, [
+          el('strong', { textContent: '💊 Medicación activa' }),
+          el('ul', {}, data.medications.map(m => el('li', { textContent: m.nombre + (m.dosis ? ' — ' + m.dosis : '') + (m.frecuencia ? ' · ' + m.frecuencia : '') })))
+        ]) : null,
+        el('div', { className: 'pub-actions' }, [
+          el('a', { href: 'tel:2245444600', className: 'btn-sos-call', textContent: '🚨 LLAMAR A EMP DOLORES (2245-444600)' }),
+          el('a', { href: 'tel:2246529000', className: 'btn-sos-call', textContent: '🚨 LLAMAR A EMP LA COSTA (2246-529000)' }),
+          data.contacto ? el('a', { href: 'tel:' + String(data.contacto).replace(/[^\d+]/g, ''), className: 'btn-secondary', textContent: '📞 Contacto: ' + data.contacto }) : null
+        ].filter(Boolean)),
+        el('p', { className: 'pub-hint', textContent: 'Esta app es una herramienta de gestión. Ante una urgencia real, llamá a EMP al 2245-444600 (Dolores) o 2246-529000 (La Costa). Si no tenés cobertura EMP, llamá al 107 (SAME) o 911 (Policía).' })
+      ].filter(Boolean));
+      publicMode.appendChild(card);
+    } else {
+      const statusClass = 'pub-' + data.carnetStatus;
+      const statusLabel = { activo: 'ACTIVO', vencido: 'VENCIDO', suspendido: 'SUSPENDIDO' }[data.carnetStatus] || data.carnetStatus;
+      const icon = { activo: '✅', vencido: '⏰', suspendido: '⛔' }[data.carnetStatus] || '❔';
+      const validUntilTxt = data.carnetValidUntil ? new Date(data.carnetValidUntil).toLocaleDateString('es-AR') : '—';
+
+      const card = el('div', { className: 'pub-card ' + statusClass }, [
+        el('div', { className: 'pub-icon', textContent: icon }),
+        el('h1', { textContent: 'Credencial ' + statusLabel }),
+        pubInfoRow('N° de socio', data.socioNumber || '—'),
+        pubInfoRow('Titular', data.nombre),
+        pubInfoRow('Plan', data.planLabel),
+        pubInfoRow('DNI', data.dniMasked),
+        pubInfoRow('Vigencia', validUntilTxt),
+        data.carnetStatus === 'activo' && data.daysToExpire !== null ? pubInfoRow('Días restantes', String(data.daysToExpire)) : null,
+        el('p', { className: 'pub-hint', textContent: 'Datos mínimos de verificación de Socio Activo EMP. No se exponen datos clínicos.' })
+      ].filter(Boolean));
+      publicMode.appendChild(card);
     }
+
+    publicMode.appendChild(el('a', { href: 'index.html', className: 'btn-primary', textContent: 'Volver al sitio', style: 'display:block;margin:24px auto;max-width:300px;text-align:center;' }));
   }
 
-  async function startRecording() {
-    const stream = await ensureLocalStream();
-    if (!stream) {
-      console.warn('[ptt] No hay stream para grabar');
-      return;
-    }
-
-    recordedChunks = [];
-    try {
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus' : 'audio/webm';
-      mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-    } catch (e) { return; }
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.start();
+  function pubInfoRow(k, v) {
+    return el('div', { className: 'pub-info-row' }, [
+      el('span', { className: 'pub-k', textContent: k }),
+      el('span', { className: 'pub-v', textContent: v })
+    ]);
   }
 
-  async function stopRecordingAndUpload(supabase) {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') return null;
-    return new Promise((resolve) => {
-      mediaRecorder.onstop = async () => {
-        if (recordedChunks.length === 0) { resolve(null); return; }
-        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-        const fileName = 'audio/' + currentIncidentId + '/ptt_' + Date.now() + '.webm';
+  // ============================================================
+  // LOGIN
+  // ============================================================
+  function showLogin() {
+    const overlay = $('#loginOverlay');
+    if (overlay) overlay.hidden = false;
+    const app = $('#appNormal');
+    if (app) app.hidden = true;
+  }
+
+  function hideLogin() {
+    const overlay = $('#loginOverlay');
+    if (overlay) overlay.hidden = true;
+    const app = $('#appNormal');
+    if (app) app.hidden = false;
+  }
+
+  function initLoginForm() {
+    const form = $('#loginForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('#loginMsg');
+      const btn = $('#loginBtn');
+      const dni = $('#loginDni').value.trim();
+      const password = $('#loginPassword').value;
+      if (!dni || !password) {
+        if (msg) { msg.textContent = 'Completá DNI y contraseña.'; msg.style.color = 'var(--emp-sos)'; }
+        return;
+      }
+      await runLoading(btn, async () => {
         try {
-          const { data, error } = await supabase.storage
-            .from('incident-media')
-            .upload(fileName, blob, { contentType: 'audio/webm', upsert: false });
-          if (error) throw error;
-          const { data: userData } = await supabase.auth.getUser();
-          await supabase.from('incident_media').insert({
-            incident_id: currentIncidentId, type: 'audio',
-            storage_path: data.path,
-            uploaded_by: userData?.user?.email || 'desconocido',
-            duration_seconds: Math.max(1, Math.round(blob.size / 16000))
-          });
-          resolve(data.path);
-        } catch (e) { resolve(null); }
-      };
-      try { mediaRecorder.stop(); } catch (_) { resolve(null); }
+          const profile = await Store.login(dni, password);
+          if (msg) { msg.textContent = ''; }
+          if (profile && profile.mustChangePassword) {
+            showChangePassword();
+          } else {
+            hideLogin();
+            renderAll();
+          }
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = 'var(--emp-sos)'; }
+        }
+      }, 'Ingresando…');
     });
   }
 
-  global.E360PTT = {
-    async init(supabase, incidentId, role) {
-      if (isInitialized) this.destroy();
-      const stream = await ensureLocalStream();
-      if (!stream) {
-        lastSignalingError = 'getUserMedia: sin micrófono';
-        return false;
-      }
-      try {
-        await initSignaling(supabase, incidentId, role);
-      } catch (e) {
-        lastSignalingError = 'init: ' + e.message;
-        return false;
-      }
-      isInitialized = true;
-      return true;
-    },
+  function showChangePassword() {
+    const overlay = $('#changePasswordOverlay');
+    if (overlay) overlay.hidden = false;
+  }
+  function hideChangePassword() {
+    const overlay = $('#changePasswordOverlay');
+    if (overlay) overlay.hidden = true;
+  }
 
-    async startTalking(supabase) {
-      if (!isInitialized || isPressing) return;
-      isPressing = true;
-      try {
-        if (currentRole === 'guardia') {
-          await startAsCaller(supabase);
+  function initChangePasswordForm() {
+    const form = $('#changePasswordForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = $('#changePasswordMsg');
+      const btn = $('#changePasswordBtn');
+      const p1 = $('#newPassword').value;
+      const p2 = $('#newPasswordConfirm').value;
+      if (p1.length < 6) { if (msg) { msg.textContent = 'Mínimo 6 caracteres.'; msg.style.color = 'var(--emp-sos)'; } return; }
+      if (p1 !== p2) { if (msg) { msg.textContent = 'Las contraseñas no coinciden.'; msg.style.color = 'var(--emp-sos)'; } return; }
+      await runLoading(btn, async () => {
+        try {
+          await Store.changePassword(p1);
+          hideChangePassword();
+          hideLogin();
+          renderAll();
+          toast('Contraseña actualizada correctamente');
+        } catch (err) {
+          if (msg) { msg.textContent = fmtErr(err); msg.style.color = 'var(--emp-sos)'; }
         }
-        await startRecording();
-        if (signalChannel) {
-          signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
-        }
-      } catch (e) {
-        isPressing = false;
-        lastSignalingError = 'startTalking: ' + e.message;
-        console.error('[ptt] startTalking falló:', e);
-        throw e;
-      }
-    },
+      }, 'Cambiando…');
+    });
+  }
 
-    async stopTalking(supabase) {
-      if (!isPressing) return null;
-      isPressing = false;
-      if (signalChannel) signalChannel.send({ type: 'broadcast', event: 'ptt_stop', payload: {} });
-      const path = await stopRecordingAndUpload(supabase);
-      if (pc) { try { pc.close(); } catch (_) {} pc = null; }
-      return path;
-    },
+  function initLogout() {
+    const btn = $('#btnLogout');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Cerrar sesión?')) return;
+      await runLoading(btn, async () => {
+        await Store.logout();
+        location.reload();
+      }, 'Saliendo…');
+    });
+  }
 
-    isActive() { return isPressing; },
-    isReady() { return isInitialized; },
+  // ============================================================
+  // TABS
+  // ============================================================
+  function initTabs() {
+    const navBtns = $$('.nav-btn');
+    const panels = $$('.tab-panel');
+    navBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        navBtns.forEach((b) => {
+          b.classList.toggle('active', b === btn);
+          b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+        });
+        panels.forEach((p) => { p.hidden = p.dataset.tab !== target; });
 
-    debug() {
-      return {
-        initialized: isInitialized,
-        pressing: isPressing,
-        incidentId: currentIncidentId,
-        role: currentRole,
-        channelState: signalChannel ? signalChannel.state : 'none',
-        pcExists: !!pc,
-        pcConnectionState: pc ? pc.connectionState : 'none',
-        pcIceState: pc ? pc.iceConnectionState : 'none',
-        pcSignalingState: pc ? pc.signalingState : 'none',
-        localStreamActive: localStream ? localStream.getAudioTracks().some(t => t.enabled && !t.muted) : false,
-        localStreamTracks: localStream ? localStream.getAudioTracks().length : 0,
-        remoteAudioExists: !!remoteAudio,
-        remoteAudioPaused: remoteAudio ? remoteAudio.paused : null,
-        remoteAudioMuted: remoteAudio ? remoteAudio.muted : null,
-        remoteAudioVolume: remoteAudio ? remoteAudio.volume : null,
-        remoteAudioHasStream: remoteAudio && remoteAudio.srcObject ? true : false,
-        turnCached: !!cachedIceServers,
-        turnExpiryIn: cachedIceServers ? Math.max(0, Math.round((iceServersExpiry - Date.now()) / 1000)) : 0,
-        lastIceError: lastIceError,
-        lastSignalingError: lastSignalingError
-      };
-    },
+        if (target === 'beneficios') renderBenefits(activeLocality);
+        if (target === 'ficha') { loadProfileIntoForm(); renderMedicacion(); renderMisIncidentes(); renderPagos(); }
+        if (target === 'credencial') { renderCredencial(); startCredencialTimer(); } else { stopCredencialTimer(); }
+        if (target === 'inicio') renderInicio();
+      });
+    });
+  }
 
-    unlockAudio() {
-      if (!remoteAudio) return Promise.resolve(false);
-      remoteAudio.muted = false;
-      const p = remoteAudio.play();
-      if (p === undefined) return Promise.resolve(true);
-      return p.then(() => true).catch(() => false);
-    },
+  function switchTab(target) {
+    const btn = $$('.nav-btn').find(b => b.dataset.target === target);
+    if (btn) btn.click();
+  }
 
-    destroy() {
-      if (pc) { try { pc.close(); } catch (_) {} pc = null; }
-      if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
-      if (signalChannel) { try { signalChannel.unsubscribe(); } catch (_) {} signalChannel = null; }
-      if (remoteAudio) { try { remoteAudio.pause(); } catch (_) {} remoteAudio.srcObject = null; remoteAudio = null; }
-      isPressing = false;
-      isInitialized = false;
-      currentIncidentId = null;
-      currentRole = null;
-      lastIceError = null;
-      lastSignalingError = null;
+  // ============================================================
+  // BANNER LEGAL
+  // ============================================================
+  function initBanner() {
+    const btn = $('#btnToggleBanner');
+    const detalle = $('#bannerDetalle');
+    if (!btn || !detalle) return;
+    btn.addEventListener('click', () => {
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      detalle.hidden = expanded;
+      btn.textContent = expanded ? 'Ver aviso legal' : 'Ocultar aviso legal';
+    });
+  }
 
-      try {
-        const floating = document.getElementById('gvPttFloating');
-        if (floating) floating.remove();
-      } catch (_) {}
+  // ============================================================
+  // CONEXIÓN + BASE
+  // ============================================================
+  function initConnection() {
+    const dot = $('#connDot'), text = $('#connText');
+    function update() {
+      const online = navigator.onLine;
+      if (dot) dot.className = 'dot ' + (online ? 'dot-online' : 'dot-offline');
+      if (text) text.textContent = online ? 'Online' : 'Offline';
     }
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    update();
+  }
+
+  function initBaseSelector() {
+    const select = $('#baseSelector');
+    if (!select) return;
+    const ctx = Store.getActiveContext();
+    select.value = ctx.activeBaseId;
+    updateBasePhone(ctx.base.phone);
+    select.addEventListener('change', () => {
+      Store.setActiveBase(select.value);
+      const newCtx = Store.getActiveContext();
+      updateBasePhone(newCtx.base.phone);
+      renderInicio();
+    });
+  }
+
+  function updateBasePhone(phone) {
+    const btn = $('#btnCallBase');
+    const btnInicio = $('#btnCallBaseInicio');
+    const tel = phone ? String(phone).replace(/[^0-9+]/g, '') : '';
+    if (btn && tel) btn.setAttribute('href', 'tel:' + tel);
+    if (btnInicio && tel) {
+      btnInicio.setAttribute('href', 'tel:' + tel);
+      btnInicio.textContent = '📞 ' + phone;
+    }
+  }
+
+  // ============================================================
+  // PILL SOCIO
+  // ============================================================
+  function renderPillSocio() {
+    const pill = $('#pillSocio');
+    if (!pill) return;
+    const profile = Store.getActiveProfile();
+    if (!profile) {
+      pill.textContent = 'Sin socio';
+      pill.className = 'pill-socio-habilitado pill-socio-none';
+      return;
+    }
+    const st = Store.calcCarnetStatus(profile);
+    if (st === 'activo') { pill.textContent = '✓ Socio Activo'; pill.className = 'pill-socio-habilitado pill-socio-ok'; }
+    else if (st === 'suspendido') { pill.textContent = '⛔ Suspendido'; pill.className = 'pill-socio-habilitado pill-socio-bad'; }
+    else { pill.textContent = '⏰ Vencido'; pill.className = 'pill-socio-habilitado pill-socio-warn'; }
+
+    const av = $('#avatarCircle');
+    if (av && profile.nombre) {
+      const parts = profile.nombre.split(/[\s,]+/).filter(Boolean);
+      const initials = (parts[0] ? parts[0][0] : '') + (parts[1] ? parts[1][0] : '');
+      av.textContent = initials.toUpperCase() || 'MP';
+    }
+  }
+
+  // ============================================================
+  // B2B
+  // ============================================================
+  function initB2BFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const b2bId = params.get('b2b');
+    if (!b2bId) return;
+    const est = Store.getB2BById(b2bId);
+    if (!est) return;
+    b2bContext = est;
+    if (est.baseId && est.baseId !== Store.getActiveContext().activeBaseId) {
+      Store.setActiveBase(est.baseId);
+      const sel = $('#baseSelector');
+      if (sel) sel.value = est.baseId;
+    }
+    const manualInput = $('#manualDir');
+    const manualFallback = $('#manualFallback');
+    if (manualInput && manualFallback) {
+      manualInput.value = est.name + ' — ' + est.address;
+      manualAddress = manualInput.value.trim();
+      manualFallback.hidden = false;
+    }
+    const banner = $('#b2bBanner');
+    if (banner) {
+      banner.hidden = false;
+      banner.innerHTML = '';
+      banner.appendChild(el('strong', { textContent: '📍 Área Protegida Detectada por QR: ' + est.name }));
+      banner.appendChild(el('div', { textContent: est.address + ' · Base ' + est.baseId + ' · Rubro: ' + est.type }));
+      if (est.protocol) banner.appendChild(el('div', { className: 'b2b-proto', textContent: 'Protocolo: ' + est.protocol }));
+    }
+    switchTab('sos');
+  }
+
+  // ============================================================
+  // GPS
+  // ============================================================
+  function initGPS() {
+    const status = $('#gpsStatus');
+    const btn = $('#btnGps');
+    const fallback = $('#manualFallback');
+    const manualInput = $('#manualDir');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      if (!navigator.geolocation) { if (status) status.textContent = 'GPS: no disponible.'; if (fallback) fallback.hidden = false; return; }
+      if (status) status.textContent = 'GPS: obteniendo ubicación…';
+      runLoading(btn, () => new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+            if (status) status.textContent = 'GPS: ' + currentLocation.lat.toFixed(5) + ', ' + currentLocation.lng.toFixed(5) + ' (±' + Math.round(currentLocation.accuracy) + 'm)';
+            if (fallback) fallback.hidden = true;
+            resolve();
+          },
+          () => {
+            if (status) status.textContent = 'GPS: no se pudo obtener. Usá la dirección manual.';
+            if (fallback) fallback.hidden = false;
+            resolve();
+          },
+          { enableHighAccuracy: true, timeout: C.GPS_TIMEOUT_MS, maximumAge: C.GPS_MAX_AGE_MS }
+        );
+      }), 'Obteniendo GPS…');
+    });
+    if (manualInput) manualInput.addEventListener('input', () => { manualAddress = manualInput.value.trim(); });
+  }
+
+  // ============================================================
+  // SOS
+  // ============================================================
+  const HOLD_MS = C.SOS_HOLD_MS || 1500;
+  let holdTimer = null, holdStart = 0, holdRAF = null, sosFired = false;
+
+  function setProgress(pct, btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn) return;
+    btn.style.setProperty('--progress', pct + '%');
+  }
+
+  function startHold(e, btnId) {
+    if (sosFired) return;
+    if (e.type === 'touchstart') e.preventDefault();
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn || btn.disabled) return;
+    btn.classList.add('pressing');
+    holdStart = Date.now();
+    function tick() {
+      const elapsed = Date.now() - holdStart;
+      setProgress(Math.min(100, (elapsed / HOLD_MS) * 100), btnId);
+      if (elapsed < HOLD_MS) holdRAF = requestAnimationFrame(tick);
+    }
+    holdRAF = requestAnimationFrame(tick);
+    holdTimer = setTimeout(() => { sosFired = true; cancelHold(true, btnId); fireSOS(btnId); }, HOLD_MS);
+  }
+
+  function cancelHold(force, btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (btn) btn.classList.remove('pressing');
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (holdRAF) { cancelAnimationFrame(holdRAF); holdRAF = null; }
+    if (!force) setProgress(0, btnId);
+  }
+
+  function initSOSButton(btnId) {
+    const btn = document.getElementById(btnId || 'btnSOS');
+    if (!btn) return;
+    btn.addEventListener('touchstart', (e) => startHold(e, btnId), { passive: false });
+    btn.addEventListener('mousedown', (e) => startHold(e, btnId));
+    btn.addEventListener('touchend', () => cancelHold(false, btnId));
+    btn.addEventListener('mouseup', () => cancelHold(false, btnId));
+    btn.addEventListener('mouseleave', () => cancelHold(false, btnId));
+    btn.addEventListener('touchcancel', () => cancelHold(false, btnId));
+  }
+
+  async function fireSOS(triggerBtnId) {
+    // C2: SOS requiere internet. Si está offline, toast con teléfonos.
+    if (!onlineOrToast()) {
+      sosFired = false;
+      setProgress(0, 'btnSOS');
+      setProgress(0, 'btnSOSInicio');
+      return;
+    }
+    const activeProfile = Store.getActiveProfile();
+    const triggerBtn = document.getElementById(triggerBtnId || 'btnSOS');
+    try {
+      const incident = await runLoading(triggerBtn, async () => {
+        return await Store.createSOSIncident({
+          location: currentLocation,
+          manualAddress: manualAddress,
+          profileDni: activeProfile ? activeProfile.dni : null,
+          b2bEstablishmentId: b2bContext ? b2bContext.id : null,
+          detail: b2bContext ? ('Ingreso B2B: ' + b2bContext.name) : 'Alerta SOS emitida por socio.'
+        });
+      }, 'Emitiendo SOS…');
+
+      currentIncident = incident;
+      renderIncident(incident);
+      renderMisIncidentes();
+      startEtaRefresh();
+      setProgress(100, 'btnSOS');
+      setProgress(100, 'btnSOSInicio');
+
+      if (typeof Store.notifySOSEmitted === 'function') {
+        await Store.notifySOSEmitted(incident);
+      } else {
+        toast('🚨 Alerta SOS enviada a Central EMP');
+      }
+
+      setTimeout(() => { setProgress(0, 'btnSOS'); setProgress(0, 'btnSOSInicio'); sosFired = false; }, 500);
+    } catch (err) {
+      toast('Error al emitir SOS: ' + fmtErr(err));
+      sosFired = false;
+    }
+  }
+
+  // ============================================================
+  // RENDER INCIDENTE (con ETA 30s)
+  // ============================================================
+  const STATE_LABELS = {
+    RECIBIDA_SERVIDOR: { text: 'Alerta emitida. Aguardando confirmación de central.', color: 'amber' },
+    ACEPTADA_POR_CENTRAL: { text: 'Central confirmó recepción.', color: 'blue' },
+    CLASIFICADA: { text: 'Incidente clasificado. Asignando recurso.', color: 'blue' },
+    MOVIL_ASIGNADO: { text: 'Móvil asignado. Preparando salida.', color: 'green' },
+    EN_CAMINO: { text: 'Móvil en camino.', color: 'green' },
+    EN_ESCENA: { text: 'El móvil arribó al lugar.', color: 'green' },
+    EN_TRASLADO: { text: 'Traslado en curso.', color: 'green' },
+    CERRADA: { text: 'Incidente cerrado.', color: 'green' },
+    CANCELADA: { text: 'Incidente cancelado.', color: 'red' }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+  const TIMELINE_STEPS = [
+    { key: 'RECIBIDA_SERVIDOR', label: 'Enviada' },
+    { key: 'ACEPTADA_POR_CENTRAL', label: 'Aceptada' },
+    { key: 'CLASIFICADA', label: 'Clasificada' },
+    { key: 'MOVIL_ASIGNADO', label: 'Móvil asignado' },
+    { key: 'EN_CAMINO', label: 'En camino' },
+    { key: 'EN_ESCENA', label: 'En escena' },
+    { key: 'EN_TRASLADO', label: 'En traslado' },
+    { key: 'CERRADA', label: 'Cerrado' }
+  ];
+
+  function renderIncident(incident) {
+    const panel = $('#incidentPanel'), stateEl = $('#incidentState'), timelineEl = $('#timeline');
+    if (!panel || !stateEl || !timelineEl) return;
+    panel.hidden = false;
+    const info = STATE_LABELS[incident.status] || { text: incident.status, color: 'amber' };
+    stateEl.textContent = info.text;
+    stateEl.setAttribute('data-color', info.color);
+    timelineEl.innerHTML = '';
+    const doneSet = new Set((incident.statusHistory || []).map(h => h.status));
+    TIMELINE_STEPS.forEach(step => {
+      const li = document.createElement('li');
+      li.textContent = step.label;
+      if (doneSet.has(step.key)) li.classList.add('done');
+      timelineEl.appendChild(li);
+    });
+    const etaBlock = $('#etaBlock'), etaMain = $('#etaMain'), etaSource = $('#etaSource');
+    if (etaBlock && etaMain) {
+      try {
+        const eta = Store.getIncidentEta(incident.id);
+        if (eta && eta.hasEta && (incident.status === 'EN_CAMINO' || incident.status === 'EN_ESCENA')) {
+          etaBlock.hidden = false;
+          if (incident.status === 'EN_ESCENA') {
+            etaMain.textContent = 'Unidad en el lugar del incidente';
+            etaMain.className = 'eta-main eta-eta-near';
+          } else if (eta.etaMinutes <= 1) {
+            etaMain.textContent = 'Unidad próxima al punto — aguardando arribo';
+            etaMain.className = 'eta-main eta-eta-near';
+          } else {
+            etaMain.textContent = 'Llegada estimada: ' + eta.etaMinutes + ' min';
+            etaMain.className = 'eta-main ' + (eta.etaMinutes <= 5 ? 'eta-eta-near' : 'eta-eta-normal');
+          }
+          if (etaSource) {
+            const vel = eta.velocidadKmh ? ' · ' + eta.velocidadKmh + ' km/h' : '';
+            etaSource.textContent = 'Fuente: ' + (eta.source === 'gps' ? ('GPS de Unidad en Vivo' + vel) : 'Estimación desde Base (40 km/h)');
+          }
+        } else {
+          etaBlock.hidden = true;
+        }
+      } catch (_) { etaBlock.hidden = true; }
+    }
+    const estadoInicio = $('#incidentEstadoInicio');
+    if (estadoInicio) {
+      if (incident.status === 'CERRADA' || incident.status === 'CANCELADA') {
+        estadoInicio.textContent = 'Sin incidentes activos';
+        estadoInicio.className = 'card-sos-estado';
+      } else {
+        estadoInicio.textContent = info.text;
+        estadoInicio.className = 'card-sos-estado card-sos-estado-activo';
+      }
+    }
+  }
+
+  function initIncidentSubscription() {
+    Store.subscribe((msg) => {
+      if (!msg) return;
+      if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
+      if (msg.type === 'BRANDING_CHANGED') { loadBranding(); return; }
+      if (msg.type !== 'STATE_CHANGED') return;
+      if (Store.getActiveProfile()) {
+        renderPillSocio();
+        renderInicio();
+        const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
+        if (latest) {
+          currentIncident = latest;
+          renderIncident(latest);
+          if (latest.status === 'EN_CAMINO' || latest.status === 'EN_ESCENA') startEtaRefresh();
+          else if (latest.status === 'CERRADA' || latest.status === 'CANCELADA') stopEtaRefresh();
+        }
+        if ($('#tab-credencial') && !$('#tab-credencial').hidden) renderCredencial();
+        if ($('#tab-ficha') && !$('#tab-ficha').hidden) { renderMedicacion(); renderMisIncidentes(); renderPagos(); }
+      }
+    });
+  }
+
+  // ============================================================
+  // INICIO
+  // ============================================================
+  function renderInicio() {
+    const profile = Store.getActiveProfile();
+    const ctx = Store.getActiveContext();
+    const estadoInicio = $('#incidentEstadoInicio');
+    if (estadoInicio) {
+      const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
+      if (latest && latest.status !== 'CERRADA' && latest.status !== 'CANCELADA') {
+        const info = STATE_LABELS[latest.status] || { text: latest.status };
+        estadoInicio.textContent = info.text;
+        estadoInicio.className = 'card-sos-estado card-sos-estado-activo';
+      } else {
+        estadoInicio.textContent = 'Sin incidentes activos';
+        estadoInicio.className = 'card-sos-estado';
+      }
+    }
+    updateBasePhone(ctx.base.phone);
+    const farm = $('#servicioFarmacia');
+    if (farm && profile) {
+      const plan = C.PLANS[profile.plan] || {};
+      const label = farm.querySelector('.si-label');
+      if (label) label.textContent = 'Farmacias Adheridas (' + (plan.pharmacyDiscountLabel || plan.pharmacyDiscount || '20%') + ')';
+    }
+  }
+
+  // ============================================================
+  // FICHA
+  // ============================================================
+  function loadProfileIntoForm() {
+    const profile = Store.getActiveProfile();
+    if (!profile) return;
+    if ($('#fNombre')) $('#fNombre').value = profile.nombre || '';
+    if ($('#fDni')) $('#fDni').value = profile.dni || '';
+    if ($('#fCuil')) $('#fCuil').value = profile.cuil || '';
+    if ($('#fTelefono')) $('#fTelefono').value = profile.telefono || '';
+    if ($('#fGrupo')) $('#fGrupo').value = profile.grupoSanguineo || '';
+    if ($('#fAlergias')) $('#fAlergias').value = profile.alergias || '';
+    if ($('#fPatologias')) $('#fPatologias').value = profile.patologias || '';
+    if ($('#fContacto')) $('#fContacto').value = profile.contacto || '';
+    const planLabel = $('#currentPlanLabel');
+    if (planLabel) planLabel.textContent = (C.PLANS[profile.plan] || {}).label || profile.plan;
+  }
+
+  function initFichaForm() {
+    const form = $('#formFicha'), msg = $('#fichaMsg');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!onlineOrToast()) return;
+      if (msg) msg.textContent = '';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const nombre = $('#fNombre').value.trim();
+      const telefono = $('#fTelefono').value.trim();
+      const consent = $('#fConsent').checked;
+      if (!nombre || !telefono) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Completá nombre y teléfono.'; } return; }
+      if (!consent) { if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Debés aceptar el Consentimiento Informado.'; } return; }
+      await runLoading(submitBtn, async () => {
+        try {
+          await Store.saveProfile({
+            nombre, telefono,
+            cuil: $('#fCuil') ? $('#fCuil').value.trim() : '',
+            grupoSanguineo: $('#fGrupo').value,
+            alergias: $('#fAlergias').value.trim(),
+            patologias: $('#fPatologias').value.trim(),
+            contacto: $('#fContacto').value.trim()
+          });
+          if (msg) { msg.style.color = '#16A34A'; msg.textContent = 'Ficha guardada.'; }
+          toast('Ficha médica actualizada');
+          renderPillSocio();
+          renderInicio();
+          renderCredencial();
+          renderPagos();
+        } catch (err) {
+          if (msg) { msg.style.color = 'var(--emp-sos)'; msg.textContent = 'Error: ' + fmtErr(err); }
+        }
+      }, 'Guardando ficha…');
+    });
+  }
+
+  // ============================================================
+  // MEDICACIÓN
+  // ============================================================
+  function buildUpcomingDoses(meds, max) {
+    const out = [];
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    (meds || []).forEach((m) => {
+      const horarios = Array.isArray(m.horarios) ? m.horarios : [];
+      horarios.forEach((h) => {
+        const parts = String(h).split(':');
+        const hh = parseInt(parts[0], 10);
+        const mm = parseInt(parts[1], 10);
+        if (isNaN(hh) || isNaN(mm)) return;
+        const next = new Date();
+        next.setHours(hh, mm, 0, 0);
+        if (next.getTime() <= now) next.setTime(next.getTime() + DAY);
+        out.push({ med: m, at: next, hora: h });
+      });
+    });
+    out.sort((a, b) => a.at - b.at);
+    return max ? out.slice(0, max) : out;
+  }
+
+  function renderMedicacion() {
+    const hoy = $('#medicacionHoy');
+    const lista = $('#medicacionLista');
+    const count = $('#medicacionCount');
+    if (!hoy || !lista) return;
+
+    const banner = $('#medicacionBanner');
+    if (banner) {
+      banner.hidden = !!(window.E360Capacitor && window.E360Capacitor.isNative);
+    }
+
+    const meds = Store.getMedications();
+    if (count) count.textContent = String(meds.length);
+
+    const today = new Date().toISOString();
+    let doses = [];
+    try { doses = Store.getDosesForDay(today) || []; } catch (_) { doses = []; }
+
+    hoy.innerHTML = '';
+
+    if (!doses.length && !meds.length) {
+      hoy.appendChild(el('p', { className: 'empty-hint', textContent: 'Sin dosis programadas. Agregá medicación para ver recordatorios.' }));
+    } else {
+      // 1) Dosis de hoy (pendientes / tomadas)
+      if (doses.length) {
+        hoy.appendChild(el('h3', { className: 'dosis-title', textContent: 'Hoy' }));
+        doses.forEach(d => {
+          const med = meds.find(m => m.id === d.medicationId);
+          const hora = new Date(d.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+          const taken = d.status === 'tomada';
+          const btnTake = el('button', {
+            type: 'button', className: 'btn-secondary', textContent: 'Marcar tomada',
+            onclick: async () => {
+              if (!onlineOrToast()) return;
+              await runLoading(btnTake, async () => {
+                try {
+                  await Store.logDose(d.id, 'tomada', '');
+                  renderMedicacion();
+                  toast('Dosis registrada');
+                } catch (e) {
+                  toast('Error: ' + fmtErr(e));
+                }
+              }, 'Guardando…');
+            }
+          });
+          hoy.appendChild(el('div', { className: 'dosis-item ' + (taken ? 'dosis-tomada' : 'dosis-pendiente') }, [
+            el('div', { className: 'dosis-info' }, [
+              el('strong', { textContent: (med ? med.nombre : '—') + (med && med.dosis ? ' — ' + med.dosis : '') }),
+              el('span', { className: 'dosis-hora', textContent: hora })
+            ]),
+            taken ? el('span', { className: 'dosis-check', textContent: '✅ Tomada' }) : btnTake
+          ]));
+        });
+      } else if (meds.length) {
+        hoy.appendChild(el('p', { className: 'empty-hint', textContent: 'Sin dosis para hoy. Mirá las próximas abajo.' }));
+      }
+
+      // 2) Próximas dosis (calculadas desde horarios, hoy o mañana)
+      const upcoming = buildUpcomingDoses(meds, 6);
+      if (upcoming.length) {
+        hoy.appendChild(el('h3', { className: 'dosis-title', textContent: 'Próximas' }));
+        upcoming.forEach(u => {
+          const fechaTxt = u.at.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' · ' + u.hora;
+          hoy.appendChild(el('div', { className: 'dosis-item dosis-pendiente' }, [
+            el('div', { className: 'dosis-info' }, [
+              el('strong', { textContent: u.med.nombre + (u.med.dosis ? ' — ' + u.med.dosis : '') }),
+              el('span', { className: 'dosis-hora', textContent: fechaTxt })
+            ]),
+            el('span', { className: 'dosis-check', style: 'color:#64748B;', textContent: '⏳ Programada' })
+          ]));
+        });
+      }
+    }
+
+    lista.innerHTML = '';
+    if (!meds.length) {
+      lista.appendChild(el('p', { className: 'empty-hint', textContent: 'No hay medicaciones cargadas.' }));
+    } else {
+      meds.forEach(m => {
+        const btnDel = el('button', {
+          type: 'button', className: 'btn-muted', textContent: '✕', title: 'Eliminar',
+          onclick: async () => {
+            if (!onlineOrToast()) return;
+            if (!confirm('¿Eliminar ' + m.nombre + '?')) return;
+            await runLoading(btnDel, async () => {
+              try {
+                await Store.deleteMedication(m.id);
+                if (window.E360Capacitor && window.E360Capacitor.isNative) {
+                  try { await window.E360Capacitor.cancelMedicationReminders(m.id); } catch (_) {}
+                }
+                renderMedicacion();
+                toast('Medicación eliminada');
+              } catch (e) { toast('Error: ' + fmtErr(e)); }
+            }, '…');
+          }
+        });
+        lista.appendChild(el('div', { className: 'medicacion-card' }, [
+          el('div', { className: 'med-top' }, [
+            el('strong', { textContent: m.nombre }),
+            btnDel
+          ]),
+          el('div', { className: 'med-meta' }, [
+            m.dosis ? el('span', { textContent: 'Dosis: ' + m.dosis }) : null,
+            m.frecuencia ? el('span', { textContent: 'Frecuencia: ' + m.frecuencia }) : null,
+            m.horarios && m.horarios.length ? el('span', { textContent: 'Horarios: ' + m.horarios.join(', ') }) : null
+          ].filter(Boolean)),
+          m.notas ? el('p', { className: 'med-notas', textContent: m.notas }) : null
+        ]));
+      });
+    }
+  }
+
+  function initMedicacionForm() {
+    const btn = $('#btnAddMedicacion');
+    if (btn) btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      openMedicacionModal();
+    });
+
+    const btnAPK = $('#btnDescargarAPK');
+    if (btnAPK) {
+      btnAPK.addEventListener('click', () => {
+        window.open(APK_URL, '_blank', 'noopener');
+      });
+    }
+  }
+
+  function openMedicacionModal(existing) {
+    const overlay = el('div', { className: 'modal-overlay' });
+    const saveBtn = el('button', {
+      type: 'button', className: 'btn-primary', textContent: 'Guardar',
+      onclick: async () => {
+        if (!onlineOrToast()) return;
+        const nombre = $('#medNombre').value.trim();
+        if (!nombre) { toast('Ingresá el nombre'); return; }
+        const horarios = $('#medHorarios').value.split(',').map(s => s.trim()).filter(Boolean);
+        await runLoading(saveBtn, async () => {
+          try {
+            const savedMed = await Store.saveMedication({
+              id: existing ? existing.id : undefined,
+              nombre, dosis: $('#medDosis').value.trim(),
+              frecuencia: $('#medFrecuencia').value.trim(),
+              horarios, notas: $('#medNotas').value.trim()
+            });
+
+            if (savedMed && horarios.length) {
+              try { await Store.scheduleDosesForMedication(savedMed.id, new Date().toISOString()); } catch (e) {
+                console.warn('[app-socio] scheduleDoses falló:', e);
+              }
+            }
+
+            if (window.E360Capacitor && window.E360Capacitor.isNative) {
+              try {
+                const perm = await window.E360Capacitor.requestPermissions();
+                if (perm.granted) {
+                  await window.E360Capacitor.scheduleMedicationReminders(savedMed);
+                  if (perm.exactAlarm) {
+                    toast('Recordatorio programado. Sonará con la app cerrada.');
+                  } else {
+                    toast('Recordatorio programado (puede atrasarse unos minutos).');
+                  }
+                } else {
+                  toast('Permiso denegado. El recordatorio solo sonará con la app abierta.');
+                }
+              } catch (e) {
+                console.warn('[app-socio] Error programando notificación:', e);
+              }
+            }
+
+            if (overlay.parentNode) document.body.removeChild(overlay);
+            renderMedicacion();
+            toast('Medicación guardada');
+          } catch (e) { toast('Error: ' + fmtErr(e)); }
+        }, 'Guardando…');
+      }
+    });
+
+    const modal = el('div', { className: 'modal-card' }, [
+      el('h2', { textContent: existing ? 'Editar medicación' : 'Agregar medicación' }),
+      el('label', {}, [el('span', { textContent: 'Nombre' }), el('input', { type: 'text', id: 'medNombre', value: existing ? existing.nombre : '', maxlength: '80', required: true })]),
+      el('label', {}, [el('span', { textContent: 'Dosis (ej. 1 comprimido)' }), el('input', { type: 'text', id: 'medDosis', value: existing ? existing.dosis : '', maxlength: '60' })]),
+      el('label', {}, [el('span', { textContent: 'Frecuencia (ej. cada 8 hs)' }), el('input', { type: 'text', id: 'medFrecuencia', value: existing ? existing.frecuencia : '', maxlength: '60' })]),
+      el('label', {}, [el('span', { textContent: 'Horarios (ej. 08:00, 20:00)' }), el('input', { type: 'text', id: 'medHorarios', value: existing ? (existing.horarios || []).join(', ') : '', maxlength: '80', placeholder: '08:00, 20:00' })]),
+      el('label', {}, [el('span', { textContent: 'Notas' }), el('textarea', { id: 'medNotas', rows: '2', maxlength: '200' }, [existing && existing.notas ? document.createTextNode(existing.notas) : null])]),
+      el('div', { className: 'modal-actions' }, [
+        el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
+        saveBtn
+      ])
+    ]);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+    document.body.appendChild(overlay);
+  }
+
+  // ============================================================
+  // MIS INCIDENTES
+  // ============================================================
+  function renderMisIncidentes() {
+    const container = $('#misIncidentes');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = Store.getMyIncidents();
+    if (!list.length) {
+      container.appendChild(el('p', { className: 'empty-hint', textContent: 'Sin incidentes registrados.' }));
+      return;
+    }
+    list.forEach(inc => {
+      const fecha = new Date(inc.createdAt).toLocaleString('es-AR');
+      container.appendChild(el('div', { className: 'incidente-item' }, [
+        el('div', { className: 'inc-top' }, [
+          el('strong', { textContent: (STATE_LABELS[inc.status] || {}).text || inc.status }),
+          el('span', { className: 'inc-fecha', textContent: fecha })
+        ]),
+        inc.manualAddress ? el('div', { className: 'inc-meta', textContent: inc.manualAddress }) : null
+      ]));
+    });
+  }
+
+  // ============================================================
+  // CREDENCIAL
+  // ============================================================
+  function generarCodigo3Digitos() { return String(Math.floor(100 + Math.random() * 900)); }
+  function formatoTiempo(seg) { const m = Math.floor(seg / 60); const s = seg % 60; return m + ':' + (s < 10 ? '0' + s : s); }
+
+  function startCredencialTimer() {
+    stopCredencialTimer();
+    if (!credencialCodigo) { credencialCodigo = generarCodigo3Digitos(); credencialSegundos = CODIGO_DURACION_SEG; }
+    updateCodigoUI();
+    credencialInterval = setInterval(() => {
+      credencialSegundos -= 1;
+      if (credencialSegundos <= 0) { credencialCodigo = generarCodigo3Digitos(); credencialSegundos = CODIGO_DURACION_SEG; }
+      updateCodigoUI();
+    }, 1000);
+  }
+  function stopCredencialTimer() { if (credencialInterval) { clearInterval(credencialInterval); credencialInterval = null; } }
+  function updateCodigoUI() {
+    const cod = $('#csCodigo'); const ren = $('#csRenueva');
+    if (cod && credencialCodigo) cod.textContent = credencialCodigo.split('').join(' ');
+    if (ren) ren.textContent = formatoTiempo(credencialSegundos);
+  }
+
+  function getActiveFamilyMember() {
+    const profile = Store.getActiveProfile();
+    if (!profile) return null;
+    const family = Array.isArray(profile.familyGroup) && profile.familyGroup.length ? profile.familyGroup : [{ id: 'self', nombre: profile.nombre, dni: profile.dni, cuil: profile.cuil, orden: profile.orden || '00', filial: profile.filial || profile.baseId }];
+    if (activeFamilyIndex >= family.length) activeFamilyIndex = 0;
+    return family[activeFamilyIndex];
+  }
+
+  function buildCarnetUrl(profile) {
+    const origin = window.location.origin + window.location.pathname;
+    return origin + '?carnet=' + encodeURIComponent(profile.carnetToken || '');
+  }
+  function buildCarnetQrPayload(profile) { return '?carnet=' + encodeURIComponent(profile.carnetToken || ''); }
+
+  function renderCredencial() {
+    const profile = Store.getActiveProfile();
+    if (!profile) return;
+    const plan = C.PLANS[profile.plan] || { label: profile.plan };
+    if ($('#ctPlanLabel')) $('#ctPlanLabel').textContent = 'PLAN ' + (plan.label || profile.plan).toUpperCase();
+    const member = getActiveFamilyMember();
+    if ($('#ctNombre')) $('#ctNombre').textContent = (member && member.nombre) || profile.nombre || '—';
+    if ($('#ctCuilDni')) {
+      const cuil = (member && member.cuil) || profile.cuil || '—';
+      const dni = (member && member.dni) || profile.dni || '—';
+      $('#ctCuilDni').textContent = cuil + ' / ' + dni;
+    }
+    if ($('#ctSocio')) $('#ctSocio').textContent = profile.socioNumber || '—';
+    if ($('#ctOrden')) $('#ctOrden').textContent = (member && member.orden) || profile.orden || '00';
+    if ($('#ctSede')) $('#ctSede').textContent = ((member && member.filial) || profile.filial || profile.baseId || 'DOLORES').toUpperCase();
+
+    const qrWrap = $('#qrSvgWrap');
+    if (qrWrap) {
+      qrWrap.innerHTML = '';
+      if (QR && typeof QR.toSvg === 'function' && profile.carnetToken) {
+        try { qrWrap.innerHTML = QR.toSvg(buildCarnetQrPayload(profile), 220); }
+        catch (_) {
+          qrWrap.appendChild(el('div', { className: 'qr-fallback' }, [
+            el('div', { style: 'font-weight:700;color:#7A1C32;margin-bottom:6px;', textContent: 'Escaneá o dictá este ID' }),
+            el('div', { style: 'font-family:monospace;font-size:0.85rem;word-break:break-all;background:#F4F8FD;padding:8px;border-radius:8px;', textContent: (profile.socioNumber || '—') + ' · ' + (profile.carnetToken || '—') })
+          ]));
+        }
+      } else {
+        qrWrap.appendChild(el('div', { className: 'qr-fallback', textContent: 'QR no disponible' }));
+      }
+    }
+
+    const pildorasWrap = $('#gfPildoras');
+    if (pildorasWrap) {
+      pildorasWrap.innerHTML = '';
+      const family = Array.isArray(profile.familyGroup) && profile.familyGroup.length ? profile.familyGroup : [{ id: 'self', nombre: profile.nombre, dni: profile.dni }];
+      family.forEach((m, idx) => {
+        const activa = idx === activeFamilyIndex;
+        pildorasWrap.appendChild(el('button', {
+          type: 'button',
+          className: 'gf-pildora' + (activa ? ' gf-pildora-activa' : ''),
+          onclick: () => { activeFamilyIndex = idx; renderCredencial(); }
+        }, [
+          el('span', { className: 'gf-nombre', textContent: m.nombre || '—' }),
+          el('span', { className: 'gf-dni', textContent: 'DNI ' + (m.dni || '—') })
+        ]));
+      });
+    }
+    updateCodigoUI();
+  }
+
+  function initShareCredencial() {
+    const btn = $('#btnShareCredencial');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      const profile = Store.getActiveProfile();
+      if (!profile || !profile.carnetToken) { toast('Sin credencial.'); return; }
+      const url = buildCarnetUrl(profile);
+      if (navigator.share) navigator.share({ title: 'Credencial EMP', url }).catch(() => {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('Enlace copiado'), () => toast('No se pudo copiar'));
+      else toast('Enlace: ' + url);
+    });
+  }
+
+  function initDownloadPDF() {
+    const btn = $('#btnDownloadPDF');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      if (!onlineOrToast()) return;
+      const profile = Store.getActiveProfile();
+      if (!profile) return;
+      if (!window.jspdf || !window.jspdf.jsPDF) { toast('PDF no disponible todavía'); return; }
+      await runLoading(btn, async () => {
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [85.6, 54] });
+          doc.setFillColor(11, 60, 120);
+          doc.rect(0, 0, 85.6, 54, 'F');
+          doc.setFillColor(122, 28, 50);
+          doc.rect(0, 40, 85.6, 14, 'F');
+          if (branding && branding.logoUrl) {
+            try {
+              const img = new Image(); img.crossOrigin = 'anonymous'; img.src = branding.logoUrl;
+              await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+              doc.addImage(img, 'PNG', 4, 4, 24, 8);
+            } catch (_) {}
+          }
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+          const plan = C.PLANS[profile.plan] || { label: profile.plan };
+          doc.text('PLAN ' + (plan.label || profile.plan).toUpperCase(), 82, 8, { align: 'right' });
+          doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+          doc.text(profile.nombre || '—', 4, 20);
+          doc.setFontSize(6); doc.setFont('helvetica', 'normal');
+          doc.text('CUIL / DNI', 4, 28);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.cuil || '—') + ' / ' + (profile.dni || '—'), 4, 32);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('N° SOCIO', 40, 28);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text(profile.socioNumber || '—', 40, 32);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('ORDEN', 4, 37);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.orden || '00'), 4, 41);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+          doc.text('SEDE', 40, 37);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7);
+          doc.text((profile.baseId || 'DOLORES').toUpperCase(), 40, 41);
+          doc.setFontSize(3.8); doc.setTextColor(255, 255, 255);
+          doc.text('ASARI S.A.S. Proveedor Tecnológico · EMP Prestador Operativo (2245-444600 Dolores / 2246-529000 La Costa)', 42.8, 51.5, { align: 'center' });
+          if (QR && typeof QR.toCanvas === 'function' && profile.carnetToken) {
+            try {
+              const canvas = document.createElement('canvas');
+              QR.toCanvas(canvas, buildCarnetQrPayload(profile), 300);
+              doc.addImage(canvas.toDataURL('image/png'), 'PNG', 62, 10, 20, 20);
+            } catch (_) {}
+          }
+          doc.save('credencial_EMP_' + (profile.socioNumber || 'socio') + '.pdf');
+          toast('Credencial descargada');
+        } catch (e) { toast('Error al generar PDF: ' + fmtErr(e)); }
+      }, 'Generando PDF…');
+    });
+  }
+
+  // ============================================================
+  // BENEFICIOS
+  // ============================================================
+  function renderBenefits(locality) {
+    const list = $('#benefitsList'), empty = $('#benefitsEmpty');
+    if (!list) return;
+    list.innerHTML = '';
+    const items = Store.getVisibleBenefits(locality);
+    const hint = $('#planBenefitsHint');
+    const profile = Store.getActiveProfile();
+    if (hint) {
+      hint.innerHTML = '';
+      if (profile && profile.plan) {
+        const plan = C.PLANS[profile.plan] || { label: profile.plan };
+        hint.textContent = 'Tu plan ' + plan.label + ' incluye ' + (plan.pharmacyDiscountLabel || (plan.pharmacyDiscount || '20%')) + ' de descuento en farmacia.';
+        hint.hidden = false;
+      } else hint.hidden = true;
+    }
+    if (!items.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    items.forEach(b => {
+      list.appendChild(el('li', { className: 'benefit-card' }, [
+        el('h3', { textContent: b.name }),
+        el('p', { textContent: 'Categoría: ' + (b.category || '—') + ' · Localidad: ' + b.locality }),
+        el('p', { className: 'benefit-desc', textContent: b.benefitDetail || '' }),
+        el('p', { textContent: 'Convenio: ' + b.agreementRef + (b.validUntil ? ' · Vigencia: ' + b.validUntil : '') })
+      ]));
+    });
+  }
+  function initBenefitsFilter() {
+    $$('.btn-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.btn-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeLocality = btn.dataset.loc;
+        renderBenefits(activeLocality);
+      });
+    });
+    renderBenefits(activeLocality);
+  }
+
+  // ============================================================
+  // PAGOS
+  // ============================================================
+  function renderPagos() {
+    const container = $('#pagosContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const profile = Store.getActiveProfile();
+    const cfg = Store.getPaymentConfigPublic();
+    if (!profile) return;
+    const plan = C.PLANS[profile.plan] || { label: profile.plan };
+    const meta = (function () {
+      const st = Store.calcCarnetStatus(profile);
+      const days = Store.daysToExpire(profile);
+      if (st === 'suspendido') return { st, label: 'SUSPENDIDO', cls: 'carnet-status-suspendido', icon: '⛔' };
+      if (st === 'vencido') return { st, label: 'VENCIDO', cls: 'carnet-status-vencido', icon: '⏰' };
+      if (days !== null && days <= C.CARNET_WARN_DAYS) return { st: 'por_vencer', label: 'POR VENCER', cls: 'carnet-status-por_vencer', icon: '⚠️' };
+      return { st: 'activo', label: 'ACTIVO', cls: 'carnet-status-activo', icon: '✅' };
+    })();
+    const validTxt = profile.carnetValidUntil ? new Date(profile.carnetValidUntil).toLocaleDateString('es-AR') : '—';
+    const cuota = (cfg.cuotas && cfg.cuotas[profile.plan]) || '';
+    container.appendChild(el('div', { className: 'pagos-card' }, [
+      el('h2', { textContent: 'Estado de tu Plan EMP' }),
+      el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Plan actual' }), el('span', { className: 'pv', textContent: plan.label })]),
+      el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'N° de socio' }), el('span', { className: 'pv', textContent: profile.socioNumber || '—' })]),
+      el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Estado' }), el('span', { className: 'pv' }, [el('span', { className: 'carnet-status-pill ' + meta.cls, textContent: meta.icon + ' ' + meta.label })])]),
+      el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Vigencia' }), el('span', { className: 'pv', textContent: validTxt })]),
+      cuota ? el('div', { className: 'pagos-row' }, [el('span', { className: 'pk', textContent: 'Cuota mensual' }), el('span', { className: 'pv', textContent: '$ ' + cuota })]) : null
+    ].filter(Boolean)));
+  }
+
+  // ============================================================
+  // RECATEGORIZACIÓN
+  // ============================================================
+  function initRecategorizacion() {
+    const btn = $('#btnRecategorizar');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      openRecategorizacionModal();
+    });
+  }
+  function openRecategorizacionModal() {
+    const profile = Store.getActiveProfile();
+    if (!profile) return;
+    const overlay = el('div', { className: 'modal-overlay' });
+    const sendBtn = el('button', {
+      type: 'button', className: 'btn-primary', textContent: 'Enviar solicitud',
+      onclick: async () => {
+        if (!onlineOrToast()) return;
+        const planSel = $('#recPlan').value;
+        const msg = $('#recMsg').value.trim();
+        await runLoading(sendBtn, async () => {
+          try {
+            await Store.submitRecategorizacion(profile.dni, profile.plan, planSel, msg);
+            if (overlay.parentNode) document.body.removeChild(overlay);
+            toast('Solicitud enviada. Administración de EMP te contactará.');
+          } catch (e) { toast('Error: ' + fmtErr(e)); }
+        }, 'Enviando…');
+      }
+    });
+    const modal = el('div', { className: 'modal-card' }, [
+      el('h2', { textContent: 'Solicitar cambio de plan' }),
+      el('p', { textContent: 'Tu plan actual es ' + ((C.PLANS[profile.plan] || {}).label || profile.plan) + '. El cambio se coordina con un administrador para el pago de la diferencia.' }),
+      el('label', {}, [el('span', { textContent: 'Plan solicitado' }), (function () {
+        const sel = el('select', { id: 'recPlan' });
+        C.PLAN_IDS.forEach(pid => {
+          if (pid !== profile.plan) sel.appendChild(el('option', { value: pid, textContent: (C.PLANS[pid] || {}).label || pid }));
+        });
+        return sel;
+      })()]),
+      el('label', {}, [el('span', { textContent: 'Mensaje (opcional)' }), el('textarea', { id: 'recMsg', rows: '2', maxlength: '200' })]),
+      el('div', { className: 'modal-actions' }, [
+        el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
+        sendBtn
+      ])
+    ]);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+    document.body.appendChild(overlay);
+  }
+
+  // ============================================================
+  // TOAST
+  // ============================================================
+  let toastTimer = null;
+  function toast(text) {
+    let t = document.getElementById('e360Toast');
+    if (!t) { t = document.createElement('div'); t.id = 'e360Toast'; document.body.appendChild(t); }
+    t.textContent = text;
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // ============================================================
+  // ACCESOS RÁPIDOS
+  // ============================================================
+  function initAccesosRapidos() {
+    $$('.acceso-rapido').forEach(btn => {
+      btn.addEventListener('click', () => { const goto = btn.dataset.goto; if (goto) switchTab(goto); });
+    });
+    $$('.servicio-item').forEach(li => {
+      li.addEventListener('click', () => {
+        const ext = Store.getExternalServices();
+        const profile = Store.getActiveProfile();
+        const plan = profile ? (C.PLANS[profile.plan] || {}) : {};
+        if (li.id === 'servicioTeleconsulta') {
+          if (plan.hasTelemedicine && ext && ext.medicoVirtualUrl) {
+            if (!onlineOrToast()) return;
+            window.open(ext.medicoVirtualUrl, '_blank', 'noopener');
+          } else {
+            switchTab('ficha');
+            toast(plan.hasTelemedicine ? 'Consultá acceso a Médico Virtual en tu ficha.' : 'Médico Virtual incluido en Plan Oro y Platino.');
+          }
+        } else if (li.id === 'servicioPulsera') {
+          switchTab('ficha');
+        } else if (li.id === 'servicioFarmacia') {
+          switchTab('beneficios');
+        } else {
+          toast('Consultá en administración EMP (2245-406323).');
+        }
+      });
+    });
+  }
+
+  // ============================================================
+  // RENDER ALL
+  // ============================================================
+  function renderAll() {
+    renderPillSocio();
+    renderInicio();
+    renderCredencial();
+    renderBenefits(activeLocality);
+    renderMedicacion();
+    renderMisIncidentes();
+    renderPagos();
+    const profile = Store.getActiveProfile();
+    if (profile) loadProfileIntoForm();
+
+    const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
+    if (latest && (latest.status === 'EN_CAMINO' || latest.status === 'EN_ESCENA')) {
+      currentIncident = latest;
+      renderIncident(latest);
+      startEtaRefresh();
+    }
+  }
+
+  // ============================================================
+  // BOOT
+  // ============================================================
+  document.addEventListener('DOMContentLoaded', async () => {
+    const pub = getPublicMode();
+    if (pub) {
+      await loadBranding();
+      await renderPublicVerify(pub.mode, pub.token);
+      return;
+    }
+
+    await loadBranding();
+    const session = await Store.initSession();
+    await loadBranding();
+
+    initModoMayor();
+    initBanner();
+    initConnection();
+    initLoginForm();
+    initChangePasswordForm();
+    initLogout();
+    initBaseSelector();
+    initTabs();
+    initGPS();
+    initSOSButton('btnSOS');
+    initSOSButton('btnSOSInicio');
+    initIncidentSubscription();
+    initFichaForm();
+    initMedicacionForm();
+    initBenefitsFilter();
+    initShareCredencial();
+    initDownloadPDF();
+    initRecategorizacion();
+    initAccesosRapidos();
+    initB2BFromQuery();
+
+    if (session.loggedIn) {
+      if (session.mustChangePassword) {
+        showChangePassword();
+      } else {
+        hideLogin();
+        renderAll();
+      }
+    } else {
+      showLogin();
+    }
+  });
+
+  window.addEventListener('beforeunload', () => { stopEtaRefresh(); });
+})();
