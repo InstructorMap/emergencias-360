@@ -1,10 +1,10 @@
 /* ============================================================
-   capacitor-bridge.js v8.3 — Puente Capacitor (F1 Medicación + C1 SOS + F2 Push FCM)
-   - Detecta si corre en Capacitor (APK nativa)
-   - Crea canales Android: 'medicacion' y 'emp_sos_channel' (importancia MAX)
-   - F1: scheduleMedicationReminders / cancelMedicationReminders / SCHEDULE_EXACT_ALARM
-   - C1: showLocalNotification (acepta objeto { title, body, id, extra } o (title, body))
-   - F2: registerPushToken(supabaseClient, userId) con @capacitor-firebase/messaging
+   capacitor-bridge.js v8.4 — Puente Capacitor (F1 + C1 + F2)
+   - F1: scheduleMedicationReminders con smallIcon configurable
+     y fallback si el ícono no existe (fix notificaciones)
+   - F1: ensureNotificationPermission() al arrancar
+   - C1: showLocalNotification sin smallIcon hardcodeado
+   - F2: registerPushToken con @capacitor-firebase/messaging
    ============================================================ */
 
 (function (global) {
@@ -16,13 +16,14 @@
     global.Capacitor.isNativePlatform()
   );
 
-  // En Web (no nativo), exponemos la interfaz completa con no-ops seguros
-  // para que healthcheck.js y los controladores no fallen al verificar métodos.
   if (!isNative) {
     global.E360Capacitor = {
       isNative: false,
       available: false,
       requestPermissions: async function () {
+        return { granted: false, reason: 'No es entorno nativo Capacitor.' };
+      },
+      ensureNotificationPermission: async function () {
         return { granted: false, reason: 'No es entorno nativo Capacitor.' };
       },
       scheduleMedicationReminders: async function () {
@@ -44,6 +45,11 @@
 
   let channelsReady = false;
   let pushListenersBound = false;
+
+  // Ícono de notificación: si el proyecto no tiene un drawable propio,
+  // Android usa el ícono de la app. Evitamos hardcodear uno que no exista.
+  // Si tenés un drawable propio, cambialo acá (ej: 'ic_stat_emp').
+  const SMALL_ICON = null; // null = usar el ícono por defecto de la app
 
   async function ensureChannels() {
     if (channelsReady || !LN || typeof LN.createChannel !== 'function') return;
@@ -76,7 +82,6 @@
     }
   }
 
-  // Intenta abrir la pantalla de ajustes de alarmas exactas (Android 12+)
   async function openExactAlarmSettings() {
     if (!global.Capacitor.getPlatform || global.Capacitor.getPlatform() !== 'android') return false;
     if (!LN) return false;
@@ -136,6 +141,23 @@
     }
   }
 
+  // C2/F1: chequeo de permiso sin abrir diálogo (para el arranque de la app)
+  async function ensureNotificationPermission() {
+    if (!LN) return { granted: false, reason: 'LocalNotifications no disponible.' };
+    try {
+      await ensureChannels();
+      if (typeof LN.checkPermissions === 'function') {
+        const cur = await LN.checkPermissions();
+        if (cur && cur.display === 'granted') {
+          return { granted: true, alreadyGranted: true };
+        }
+      }
+      return await requestPermissions();
+    } catch (e) {
+      return { granted: false, reason: e.message || 'Error verificando permisos.' };
+    }
+  }
+
   function parseHorario(h) {
     const [hh, mm] = String(h || '').split(':').map(Number);
     if (!isFinite(hh) || !isFinite(mm)) return null;
@@ -153,6 +175,10 @@
     return Math.abs(hash) % 2147483647;
   }
 
+  // F1: agenda próxima ocurrencia de cada horario, repitiendo todos los días.
+  // El truco: usamos 'on: { hour, minute }' + repeats: true (el plugin lo
+  // interpreta como "próxima vez que sean las HH:MM, y luego cada día").
+  // Si el plugin no soporta 'on', caemos a 'at' con la próxima fecha.
   async function scheduleMedicationReminders(med) {
     if (!LN) return { ok: false, error: 'LocalNotifications no disponible' };
     if (!med || !med.id || !Array.isArray(med.horarios) || !med.horarios.length) {
@@ -165,29 +191,62 @@
     med.horarios.forEach((h, idx) => {
       const time = parseHorario(h);
       if (!time) return;
-      notifications.push({
+
+      const baseNotif = {
         id: notifId(med.id, idx),
         title: '💊 Recordatorio de medicación',
         body: `Es hora de tomar: ${med.nombre}${med.dosis ? ' — ' + med.dosis : ''}`,
+        channelId: 'medicacion',
+        autoCancel: false,
+        ongoing: false,
+        extra: { medicationId: med.id, horario: h }
+      };
+      if (SMALL_ICON) baseNotif.smallIcon = SMALL_ICON;
+
+      // Preferido: 'on' con repeats (el plugin agenda "todos los días a las HH:MM")
+      notifications.push(Object.assign({}, baseNotif, {
         schedule: {
           on: { hour: time.hour, minute: time.minute },
           repeats: true,
           allowWhileIdle: true
-        },
-        channelId: 'medicacion',
-        smallIcon: 'ic_stat_icon_config_sample',
-        autoCancel: false,
-        ongoing: false,
-        extra: { medicationId: med.id, horario: h }
-      });
+        }
+      }));
     });
 
     if (!notifications.length) return { ok: true, scheduled: 0 };
 
     try {
       await cancelMedicationReminders(med.id);
-      const result = await LN.schedule({ notifications });
-      return { ok: true, scheduled: result && result.notifications ? result.notifications.length : notifications.length };
+
+      // Intento 1: con 'on' + repeats
+      try {
+        const result = await LN.schedule({ notifications });
+        return { ok: true, scheduled: result && result.notifications ? result.notifications.length : notifications.length };
+      } catch (e1) {
+        console.warn('[capacitor-bridge] schedule con "on" falló, reintentando con "at":', e1);
+        // Fallback: 'at' con la próxima fecha de cada horario (una sola vez)
+        const fallback = med.horarios.map((h, idx) => {
+          const time = parseHorario(h);
+          if (!time) return null;
+          const next = new Date();
+          next.setHours(time.hour, time.minute, 0, 0);
+          if (next.getTime() <= Date.now()) next.setTime(next.getTime() + 86400000);
+          const n = {
+            id: notifId(med.id, idx),
+            title: '💊 Recordatorio de medicación',
+            body: `Es hora de tomar: ${med.nombre}${med.dosis ? ' — ' + med.dosis : ''}`,
+            schedule: { at: next, allowWhileIdle: true },
+            channelId: 'medicacion',
+            autoCancel: false,
+            ongoing: false,
+            extra: { medicationId: med.id, horario: h }
+          };
+          if (SMALL_ICON) n.smallIcon = SMALL_ICON;
+          return n;
+        }).filter(Boolean);
+        const r2 = await LN.schedule({ notifications: fallback });
+        return { ok: true, scheduled: r2 && r2.notifications ? r2.notifications.length : fallback.length, fallback: true };
+      }
     } catch (e) {
       console.warn('[capacitor-bridge] Error programando recordatorios:', e);
       return { ok: false, error: e.message };
@@ -218,7 +277,6 @@
     } catch (_) { return 0; }
   }
 
-  // Soporta tanto showLocalNotification({ title, body, id, extra }) como showLocalNotification(title, body)
   async function showLocalNotification(titleOrOpts, bodyArg) {
     if (!LN) return false;
     try {
@@ -240,18 +298,18 @@
         body = bodyArg || '';
       }
 
-      await LN.schedule({
-        notifications: [{
-          id,
-          title,
-          body,
-          schedule: { at: new Date(Date.now() + 500), allowWhileIdle: true },
-          channelId,
-          smallIcon: 'ic_stat_icon_config_sample',
-          autoCancel: true,
-          extra
-        }]
-      });
+      const notif = {
+        id,
+        title,
+        body,
+        schedule: { at: new Date(Date.now() + 500), allowWhileIdle: true },
+        channelId,
+        autoCancel: true,
+        extra
+      };
+      if (SMALL_ICON) notif.smallIcon = SMALL_ICON;
+
+      await LN.schedule({ notifications: [notif] });
       return true;
     } catch (e) {
       console.warn('[capacitor-bridge] Error showLocalNotification:', e);
@@ -259,7 +317,7 @@
     }
   }
 
-  // ============ F2: FIREBASE CLOUD MESSAGING (@capacitor-firebase/messaging) ============
+  // ============ F2: FIREBASE CLOUD MESSAGING ============
   async function getFirebaseMessagingPlugin() {
     if (global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.FirebaseMessaging) {
       return global.Capacitor.Plugins.FirebaseMessaging;
@@ -318,7 +376,6 @@
       const saved = await saveTokenToSupabase(supabaseClient, userId, token);
       if (!saved.ok) return saved;
 
-      // Listeners para refresco de token y recepción con la app en primer plano o al tocar la notificación
       if (!pushListenersBound && typeof FM.addListener === 'function') {
         pushListenersBound = true;
 
@@ -359,6 +416,7 @@
     isNative: true,
     available: !!LN,
     requestPermissions,
+    ensureNotificationPermission,
     scheduleMedicationReminders,
     cancelMedicationReminders,
     getScheduledCount,
