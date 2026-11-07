@@ -1,10 +1,11 @@
 /* ============================================================
-   app-admin.js v8.2 — Controlador de admin.html (C1 Aplicado)
+   app-admin.js v8.3 — Controlador de admin.html (C1 + C2)
    - applyBrandingToPage() en el boot y al editar colores/logos
    - withButtonLoading() con spinner en todas las acciones async
    - Guardado real de Beneficios conectado a Store.updateBenefitStatus()
    - Gestión de socios, alta individual, alta masiva, solicitudes,
      Mercado Pago, servicios tercerizados, B2B, auditoría, export CSV.
+   - C2: requireOnline() en acciones críticas offline
    ============================================================ */
 
 (function () {
@@ -66,6 +67,17 @@
 
   function fmtErr(err) {
     return typeof Store.humanizeError === 'function' ? Store.humanizeError(err) : (err.message || 'Error');
+  }
+
+  // C2: guarda offline. Devuelve true si puede seguir, false si bloqueó.
+  function onlineOrToast() {
+    if (typeof Store.requireOnline === 'function') return Store.requireOnline();
+    const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+    if (!online) {
+      if (typeof Store.toastOfflineCritico === 'function') Store.toastOfflineCritico();
+      return false;
+    }
+    return true;
   }
 
   let excelRows = [];
@@ -193,6 +205,7 @@
       const btnPlan = el('button', {
         type: 'button', textContent: '💾 Guardar plan',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           await runLoading(btnPlan, async () => {
             try { await Store.setProfilePlan(p.dni, planSel.value, 'admin'); toast('Plan actualizado'); renderSocios(); }
             catch (e) { toast('Error: ' + fmtErr(e)); }
@@ -203,6 +216,7 @@
       const btnRenew = el('button', {
         type: 'button', className: 'btn-muted', textContent: '🗓 Renovar',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           await runLoading(btnRenew, async () => {
             try { await Store.renewCarnet(p.dni, 'admin'); toast('Carnet renovado'); renderSocios(); }
             catch (e) { toast('Error: ' + fmtErr(e)); }
@@ -214,6 +228,7 @@
         type: 'button', className: 'btn-danger',
         textContent: p.carnetStatus === 'suspendido' ? '✅ Reactivar' : '⛔ Suspender',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           await runLoading(btnStatus, async () => {
             try {
               await Store.setCarnetStatus(p.dni, p.carnetStatus === 'suspendido' ? 'activo' : 'suspendido', 'admin');
@@ -258,6 +273,7 @@
     const btn = $('#btnExportSociosCSV');
     if (!btn) return;
     btn.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
       const profiles = Store.listProfiles().filter(p => p.role === 'socio');
       if (!profiles.length) { toast('Sin socios para exportar'); return; }
       const headers = ['nombre', 'dni', 'cuil', 'plan', 'base_id', 'telefono', 'grupo_sanguineo', 'alergias', 'patologias', 'contacto', 'cuota', 'carnet_status', 'carnet_valid_until', 'socio_number'];
@@ -286,6 +302,7 @@
     if (!form) return;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!onlineOrToast()) return;
       const msg = $('#altaIndividualMsg');
       const btn = $('#btnCreateSocio');
       if (msg) msg.textContent = '';
@@ -407,6 +424,7 @@
   }
 
   async function doImport() {
+    if (!onlineOrToast()) return;
     const btn = $('#btnImportExcel');
     const result = $('#importResult');
     await runLoading(btn, async () => {
@@ -567,6 +585,7 @@
         ? el('button', {
             type: 'button', className: 'btn-primary', textContent: '✅ Aplicar cambio',
             onclick: async () => {
+              if (!onlineOrToast()) return;
               await runLoading(btnApprove, async () => {
                 try {
                   await Store.setProfilePlan(r.dni, r.plan_solicitado, 'admin');
@@ -579,6 +598,7 @@
         : el('button', {
             type: 'button', className: 'btn-primary', textContent: '✅ Aprobar y crear socio',
             onclick: async () => {
+              if (!onlineOrToast()) return;
               await runLoading(btnApprove, async () => {
                 try {
                   const res = await Store.approveSocioRequest(r.id, r.plan_interes);
@@ -592,6 +612,7 @@
       const btnReject = el('button', {
         type: 'button', className: 'btn-danger', textContent: '❌ Rechazar',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           const motivo = prompt('Motivo del rechazo (opcional):');
           if (motivo === null) return;
           await runLoading(btnReject, async () => {
@@ -662,9 +683,13 @@
     const logoInput = $('#logoFile');
     const btnLogo = $('#btnUploadLogo');
     if (btnLogo && logoInput) {
-      btnLogo.addEventListener('click', () => logoInput.click());
+      btnLogo.addEventListener('click', () => {
+        if (!onlineOrToast()) return;
+        logoInput.click();
+      });
       logoInput.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
+        if (!onlineOrToast()) return;
         await runLoading(btnLogo, async () => {
           try {
             const url = await Store.uploadBrandingFile(file, 'logo');
@@ -678,9 +703,13 @@
     const favInput = $('#faviconFile');
     const btnFav = $('#btnUploadFavicon');
     if (btnFav && favInput) {
-      btnFav.addEventListener('click', () => favInput.click());
+      btnFav.addEventListener('click', () => {
+        if (!onlineOrToast()) return;
+        favInput.click();
+      });
       favInput.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
+        if (!onlineOrToast()) return;
         await runLoading(btnFav, async () => {
           try {
             const url = await Store.uploadBrandingFile(file, 'favicon');
@@ -694,6 +723,7 @@
     const form = $('#formBrandingColors');
     if (form) form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!onlineOrToast()) return;
       const submitBtn = form.querySelector('button[type="submit"]');
       await runLoading(submitBtn, async () => {
         try {
@@ -732,6 +762,7 @@
     if (!form) return;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!onlineOrToast()) return;
       const msg = $('#mpMsg');
       const submitBtn = form.querySelector('button[type="submit"]');
       await runLoading(submitBtn, async () => {
@@ -769,6 +800,7 @@
     if (!form) return;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!onlineOrToast()) return;
       const msg = $('#extServicesMsg');
       const submitBtn = form.querySelector('button[type="submit"]');
       await runLoading(submitBtn, async () => {
@@ -811,6 +843,7 @@
       const saveBtn = el('button', {
         type: 'button', textContent: '💾 Guardar',
         onclick: async () => {
+          if (!onlineOrToast()) return;
           await runLoading(saveBtn, async () => {
             try {
               await Store.updateBenefitStatus(b.id, statusSel.value, refInput.value.trim(), validInput.value, 'admin');
@@ -889,6 +922,7 @@
   function initAudit() {
     const btnExp = $('#btnExportAudit');
     if (btnExp) btnExp.addEventListener('click', async () => {
+      if (!onlineOrToast()) return;
       await runLoading(btnExp, async () => {
         try {
           const logs = await Store.getAuditLogs();
@@ -902,7 +936,10 @@
       }, 'Exportando…');
     });
     const btnRef = $('#btnRefreshAudit');
-    if (btnRef) btnRef.addEventListener('click', () => runLoading(btnRef, renderAudit, 'Actualizando…'));
+    if (btnRef) btnRef.addEventListener('click', () => {
+      if (!onlineOrToast()) return;
+      runLoading(btnRef, renderAudit, 'Actualizando…');
+    });
   }
 
   // ============================================================
