@@ -1,11 +1,12 @@
 /* ============================================================
-   app-socio.js v8.4 — Controlador de socio.html
+   app-socio.js v8.5 — Controlador de socio.html
    - C1: branding, SOS toast, withButtonLoading, humanizeError
    - C2: requireOnline() en acciones críticas offline
    - ETA refresh cada 30s mientras EN_CAMINO / EN_ESCENA
    - Fix medicación: muestra "Hoy" + "Próximas" y calcula
      próxima ocurrencia (hoy si no pasó, mañana si ya pasó)
    - Fix boot: initBanner() ahora se llama (antes quedó colgado)
+   - F1-fix: ensureNotificationPermission() al arrancar (nativo)
    - Aviso legal EMP corregido en PDF y verificación pública
    ============================================================ */
 
@@ -1464,6 +1465,19 @@
       }
     } else {
       showLogin();
+    }
+
+    // F1-fix: pedir permiso de notificaciones al arrancar (solo nativo).
+    // Evita que el usuario tenga que volver a guardar una medicación para
+    // que se dispare el diálogo de permisos en Android 13+.
+    if (window.E360Capacitor && window.E360Capacitor.isNative &&
+        typeof window.E360Capacitor.ensureNotificationPermission === 'function') {
+      try {
+        const perm = await window.E360Capacitor.ensureNotificationPermission();
+        if (!perm.granted) {
+          console.warn('[app-socio] Permisos de notificación no otorgados:', perm.reason);
+        }
+      } catch (_) {}
     }
   });
 
