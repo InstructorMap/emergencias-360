@@ -1,5 +1,5 @@
 /* ============================================================
-   E360Store v8.4 — Supabase Auth + caché híbrido + C1 Branding/SOS/Loading
+   E360Store v8.5 — Supabase Auth + caché híbrido + C1 + C2
    - F2: getSpeedLimit / setSpeedLimit (tabla config)
    - getIncidentEta: usa velocidad real de unitLocation.speed con fallback 40 km/h
    - loginWithEmail(email, password): login del admin y operadores por email
@@ -11,7 +11,9 @@
    - getAuditLogs / getOrganizations / updateOrganizationFlags
    - getBranding / loadBranding / setBranding / uploadBrandingFile
    - C1: applyBrandingToPage / notifySOSEmitted / withButtonLoading / humanizeError
-   - C2: initOfflineBanner / toastOfflineCritico / humanizeError ampliado
+   - C2: initOfflineBanner / toastOfflineCritico / requireOnline / guardOffline
+   - Fix medicación: logDose tolerante a PGRST116 (RLS en SELECT)
+   - Fix medicación: scheduleDosesForMedication agenda próxima ocurrencia
    - API síncrona intacta (getProfile, getIncidents, etc.)
    - Offline: lee de localStorage con TTL 7 días.
    ============================================================ */
@@ -1006,18 +1008,43 @@
       saveCache();
       return true;
     },
+
+    // ============ FIX C2: logDose tolerante a PGRST116 ============
     async logDose(doseId, status, notas) {
       requireUser();
       if (!state.supabase) throw new Error('Supabase no configurado.');
-      const update = { status: status || 'tomada', taken_at: status === 'tomada' ? nowISO() : null, notas: notas || '' };
-      const { data, error } = await state.supabase.from('dose_logs').update(update).eq('id', doseId).select().single();
+      const st = status || 'tomada';
+      const update = {
+        status: st,
+        taken_at: st === 'tomada' ? nowISO() : null,
+        notas: notas || ''
+      };
+      // No usamos .select().single(): si RLS bloquea el SELECT post-UPDATE,
+      // devuelve PGRST116 aunque el UPDATE se haya aplicado. Hacemos UPDATE a secas.
+      const { error } = await state.supabase.from('dose_logs').update(update).eq('id', doseId);
       if (error) throw new Error(error.message);
-      const mapped = mapDoseLogFromDB(data);
+
+      // Actualizar el cache local sin depender del SELECT
       const idx = state.doseLogs.findIndex(d => d.id === doseId);
+      const prev = idx !== -1 ? state.doseLogs[idx] : null;
+      const mapped = {
+        id: doseId,
+        medicationId: prev ? prev.medicationId : null,
+        profileId: prev ? prev.profileId : (state.profile ? state.profile.id : null),
+        scheduledAt: prev ? prev.scheduledAt : null,
+        takenAt: update.taken_at,
+        status: st,
+        notas: update.notas
+      };
       if (idx !== -1) state.doseLogs[idx] = mapped;
+      else state.doseLogs.push(mapped);
+
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return mapped;
     },
+
+    // ============ FIX C2: scheduleDosesForMedication agenda próxima ocurrencia ============
     async scheduleDosesForMedication(medicationId, dateISO) {
       requireUser();
       if (!state.supabase) throw new Error('Supabase no configurado.');
@@ -1025,19 +1052,44 @@
       if (!med) throw new Error('Medicación no encontrada.');
       const horarios = Array.isArray(med.horarios) ? med.horarios : [];
       if (!horarios.length) return [];
-      const base = new Date(dateISO);
+
+      const now = dateISO ? new Date(dateISO) : new Date();
+      const DAY_MS = 24 * 60 * 60 * 1000;
       const created = [];
+
       for (const h of horarios) {
-        const [hh, mm] = String(h).split(':').map(Number);
-        const dt = new Date(base);
-        dt.setHours(hh || 0, mm || 0, 0, 0);
+        const parts = String(h).split(':');
+        const hh = parseInt(parts[0], 10);
+        const mm = parseInt(parts[1], 10);
+        if (isNaN(hh) || isNaN(mm)) continue;
+
+        // Próxima ocurrencia: hoy a esa hora si aún no pasó; si no, mañana
+        const next = new Date(now);
+        next.setHours(hh, mm, 0, 0);
+        if (next.getTime() <= now.getTime()) {
+          next.setTime(next.getTime() + DAY_MS);
+        }
+
+        // Evitar duplicados: ya hay una dosis para esa med ese día?
+        const dayKey = next.toDateString();
+        const exists = state.doseLogs.some(d =>
+          d.medicationId === medicationId &&
+          d.scheduledAt &&
+          new Date(d.scheduledAt).toDateString() === dayKey
+        );
+        if (exists) continue;
+
         const record = {
           medication_id: medicationId,
           profile_id: state.profile.id,
-          scheduled_at: dt.toISOString(),
+          scheduled_at: next.toISOString(),
           status: 'pendiente'
         };
-        const { data, error } = await state.supabase.from('dose_logs').insert(record).select().single();
+        const { data, error } = await state.supabase
+          .from('dose_logs')
+          .insert(record)
+          .select()
+          .maybeSingle();
         if (!error && data) {
           const mapped = mapDoseLogFromDB(data);
           state.doseLogs.unshift(mapped);
@@ -1045,8 +1097,10 @@
         }
       }
       saveCache();
+      if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now() });
       return created;
     },
+
     getDosesForDay(dateISO) {
       const day = new Date(dateISO).toDateString();
       return state.doseLogs.filter(d => new Date(d.scheduledAt).toDateString() === day);
@@ -1718,15 +1772,6 @@
     },
 
     // ============ C2: BANNER OFFLINE ============
-    /**
-     * C2 — Banner "Sin conexión" + bloqueo opcional de botones críticos.
-     * Opción A: banner fijo arriba, no cerrable, desaparece al volver online.
-     * Llamar en cada página: E360Store.initOfflineBanner();
-     * Opciones: { bannerId?: string, criticalButtons?: string[] }
-     *   - bannerId: id del div (default 'offlineBanner').
-     *   - criticalButtons: array de IDs de botones a deshabilitar offline.
-     * Idempotente: si se llama dos veces, solo refresca el estado.
-     */
     initOfflineBanner(options) {
       if (typeof document === 'undefined') return;
 
@@ -1822,15 +1867,34 @@
         window.addEventListener('offline', applyState);
       }
 
+      // C2: delegación global de clicks en botones críticos cuando está offline
+      const criticalIds = opts.criticalButtons || [];
+      if (criticalIds.length && typeof document !== 'undefined') {
+        document.addEventListener('click', (ev) => {
+          const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+          if (online) return;
+          let node = ev.target;
+          while (node && node !== document.body) {
+            if (node.id && criticalIds.indexOf(node.id) !== -1) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              if (typeof this.toastOfflineCritico === 'function') this.toastOfflineCritico();
+              return;
+            }
+            node = node.parentNode;
+          }
+        }, true);
+      }
+
       // Chequeo inicial
       applyState();
     },
 
     /**
-     * C2 — Toast para acciones críticas offline (Turno 2).
-     * Uso: E360Store.toastOfflineCritico();
+     * C2 — Toast para acciones críticas offline.
+     * Uso: E360Store.toastOfflineCritico(); o E360Store.toastOfflineCritico('Mensaje custom');
      */
-    toastOfflineCritico() {
+    toastOfflineCritico(customMsg) {
       if (typeof document === 'undefined' || !document.body) return;
       const prev = document.getElementById('e360ToastOffline');
       if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
@@ -1849,7 +1913,8 @@
         'z-index:99999', 'max-width:90vw', 'text-align:center',
         'line-height:1.4'
       ].join(';');
-      toast.innerHTML = '📵 Sin conexión — esta acción requiere internet.<br>' +
+      const baseMsg = customMsg || '📵 Sin conexión — esta acción requiere internet.';
+      toast.innerHTML = baseMsg + '<br>' +
         'Llamá a EMP: <a href="tel:2245444600" style="color:#fff;text-decoration:underline;font-weight:800">2245-444600</a> (Dolores) o ' +
         '<a href="tel:2246529000" style="color:#fff;text-decoration:underline;font-weight:800">2246-529000</a> (La Costa).';
       document.body.appendChild(toast);
@@ -1857,6 +1922,35 @@
       setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
       }, 5000);
+    },
+
+    /**
+     * C2 — Guarda síncrona: devuelve true si está online, false si no (y muestra toast).
+     * Uso: if (!E360Store.requireOnline()) return;
+     */
+    requireOnline(customMsg) {
+      const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+      if (!online) {
+        this.toastOfflineCritico(customMsg);
+        return false;
+      }
+      return true;
+    },
+
+    /**
+     * C2 — Guarda async: si está offline, toast + throw OFFLINE_BLOCKED.
+     * Si está online, ejecuta fn() y devuelve su resultado.
+     * Uso: await E360Store.guardOffline(() => this.createSOSIncident(payload));
+     */
+    async guardOffline(fn, customMsg) {
+      const online = (typeof navigator !== 'undefined') ? navigator.onLine !== false : true;
+      if (!online) {
+        this.toastOfflineCritico(customMsg);
+        const e = new Error('OFFLINE_BLOCKED');
+        e.code = 'OFFLINE_BLOCKED';
+        throw e;
+      }
+      return await fn();
     },
 
     _getState() { return state; },
