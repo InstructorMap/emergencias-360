@@ -379,9 +379,17 @@
     if (!state.connected || !state.supabase) throw new Error('Supabase no configurado.');
     const dniStr = String(dni).replace(/\D/g, '');
     if (!dniStr) throw new Error('DNI inválido.');
-    const email = `${dniStr}@emp.local`;
-    const { data, error } = await state.supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error('DNI o contraseña incorrectos.');
+    // Compatibilidad: altas históricas y altas nuevas usan distintos alias internos.
+    // Nunca mostramos el alias al socio: su usuario sigue siendo el DNI.
+    const aliases = [`${dniStr}@emp.local`, `socio-${dniStr}@acceso.emp.invalid`];
+    let data = null;
+    let lastError = null;
+    for (const email of aliases) {
+      const attempt = await state.supabase.auth.signInWithPassword({ email, password });
+      if (!attempt.error && attempt.data?.session) { data = attempt.data; break; }
+      lastError = attempt.error;
+    }
+    if (!data) throw new Error('DNI o contraseña incorrectos.');
     state.session = data.session;
     state.user = data.user;
     await loadAllData();
