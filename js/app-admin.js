@@ -294,11 +294,11 @@
     let rows = padronSociosCache.filter(s => !(s.dni_documento && existing.has(String(s.dni_documento))));
     if(search) rows = rows.filter(s=>[s.nombre,s.numero_socio,s.dni_documento,s.localidad].some(v=>String(v||'').toLowerCase().includes(search)));
     // Los planes históricos no están definidos: no atribuir un plan sin evidencia.
-    if(filterPlan) rows = [];
+    if(filterPlan) rows = rows.filter(s=>s.plan===filterPlan);
     if(filterBase) rows = rows.filter(s=>String(s.base_id||'').toUpperCase()===filterBase);
     for(const s of rows) {
       const tr = document.createElement('tr');
-      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),s.numero_socio,'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
+      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),s.numero_socio,s.plan || 'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
         const td=document.createElement('td');td.textContent=v;tr.appendChild(td);
       }
       tbody.appendChild(tr);
