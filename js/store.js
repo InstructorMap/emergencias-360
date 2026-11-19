@@ -684,12 +684,21 @@
     async bulkCreateSocios(socios) {
       requireAdmin();
       if (!state.supabase) throw new Error('Supabase no configurado.');
-      const { data: result, error } = await state.supabase.functions.invoke('bulk-create-socios', { body: { socios } });
-      if (error) throw new Error(error.message);
-      if (result && result.error) throw new Error(result.error);
+      const valid = socios.filter(s => s.numero_socio && /^[0-9]{7,8}$/.test(String(s.dni)));
+      if (!valid.length) throw new Error('Se requiere numero_socio y DNI válido.');
+      let creados=0,skipeados=0; const errores=[];
+      for (let i=0;i<valid.length;i+=25) {
+        const lote=valid.slice(i,i+25).map(s=>({numero_socio:String(s.numero_socio),dni:String(s.dni)}));
+        const {data,error}=await state.supabase.functions.invoke('emp-admin-provision-socios',{body:{socios:lote}});
+        if(error || data?.error) {skipeados+=lote.length;errores.push('Lote '+(i+1)+': '+(error?.message||data?.error));continue;}
+        for(const r of data.results||[]) {
+          if(r.status==='created')creados++;
+          else {skipeados++;errores.push(r.numero_socio+': '+r.status);}
+        }
+      }
       await loadAllData();
       saveCache();
-      return result;
+      return {creados,skipeados,errores};
     },
 
     async setProfilePlan(dni, plan, adminName) {
