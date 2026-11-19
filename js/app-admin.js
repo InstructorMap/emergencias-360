@@ -183,7 +183,12 @@
       (p.socioNumber || '').toLowerCase().includes(search)
     );
     if (filterPlan) profiles = profiles.filter(p => p.plan === filterPlan);
-    if (filterBase) profiles = profiles.filter(p => p.baseId === filterBase);
+    if (filterBase) profiles = profiles.filter(p => {
+      const base=String(p.baseId||'').toUpperCase().replace(/[_-]/g,' ');
+      if(filterBase==='SIN_SEDE')return !base;
+      if(filterBase==='SANTA_TERESITA')return base==='SANTA TERESITA'||base==='ST'||base==='LA COSTA';
+      return base===filterBase.replace(/_/g,' ');
+    });
     if (count) count.textContent = String(profiles.length);
     tbody.innerHTML = '';
     if (padronSociosError) tbody.appendChild(el('tr',{},[el('td',{colSpan:5,textContent:'Error de padrón: '+padronSociosError})]));
@@ -299,10 +304,16 @@
     if(search) rows = rows.filter(s=>[s.nombre,s.numero_socio,s.dni_documento,s.localidad].some(v=>String(v||'').toLowerCase().includes(search)));
     // Los planes históricos no están definidos: no atribuir un plan sin evidencia.
     if(filterPlan) rows = rows.filter(s=>s.plan===filterPlan);
-    if(filterBase) rows = rows.filter(s=>String(s.base_id||'').toUpperCase()===filterBase);
+    if(filterBase) rows = rows.filter(s=>{
+      const base=String(s.base_id||s.localidad||'').trim().toUpperCase().replace(/[_-]/g,' ');
+      if(filterBase==='SIN_SEDE') return !base;
+      if(filterBase==='SANTA_TERESITA') return base==='SANTA TERESITA'||base==='ST';
+      if(filterBase==='DOLORES') return base==='DOLORES';
+      return base===filterBase.replace(/_/g,' ');
+    });
     for(const s of rows) {
       const tr = document.createElement('tr');
-      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),s.numero_socio,s.plan || 'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
+      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),'EMP-' + String(s.numero_socio||'').replace(/^EMP[- ]?/i,''),s.plan || 'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
         const td=document.createElement('td');td.textContent=v;tr.appendChild(td);
       }
       tbody.appendChild(tr);
