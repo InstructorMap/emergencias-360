@@ -367,8 +367,9 @@
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
       excelRows = json.map(row => ({
+        numero_socio: String(row.numero_socio || row.NumeroSocio || '').trim(),
         nombre: String(row.nombre || row.Nombre || '').trim(),
-        dni: String(row.dni || row.DNI || '').replace(/\D/g, ''),
+        dni: String(row.dni || row.DNI || row.usuario_dni || '').replace(/\D/g, ''),
         cuil: String(row.cuil || row.CUIL || '').trim(),
         plan: String(row.plan || row.Plan || 'BRONCE').toUpperCase(),
         base_id: String(row.base_id || row.base || row.Base || 'DOLORES').toUpperCase(),
@@ -394,7 +395,7 @@
     prev.hidden = false;
     if (actions) actions.hidden = false;
     prev.appendChild(el('div', { className: 'preview-title', textContent: excelRows.length + ' socios detectados en el archivo' }));
-    const valid = excelRows.filter(r => r.nombre && r.dni);
+    const valid = excelRows.filter(r => r.numero_socio && /^[0-9]{7,8}$/.test(r.dni));
     prev.appendChild(el('div', { className: 'preview-title', textContent: valid.length + ' filas válidas (con nombre y DNI)' }));
     const table = el('table', { className: 'admin-table' });
     const thead = el('thead', {}, [
@@ -409,7 +410,7 @@
     table.appendChild(thead);
     const tbody = el('tbody');
     excelRows.slice(0, 20).forEach(r => {
-      const ok = r.nombre && r.dni;
+      const ok = r.numero_socio && /^[0-9]{7,8}$/.test(r.dni);
       tbody.appendChild(el('tr', { style: ok ? '' : 'background:#FEE2E2;' }, [
         el('td', { textContent: r.nombre || '—' }),
         el('td', { textContent: r.dni || '—' }),
@@ -429,8 +430,10 @@
     const result = $('#importResult');
     await runLoading(btn, async () => {
       try {
-        const valid = excelRows.filter(r => r.nombre && r.dni);
+        const valid = excelRows.filter(r => r.numero_socio && /^[0-9]{7,8}$/.test(r.dni));
         if (!valid.length) { toast('No hay filas válidas'); return; }
+        if (new Set(valid.map(r => r.dni)).size !== valid.length) throw new Error('DNI repetidos en el archivo. Revisá antes de importar.');
+        if (!confirm('¿Crear ' + valid.length + ' cuentas reales de socios?')) return;
         const res = await Store.bulkCreateSocios(valid);
         if (result) {
           result.hidden = false;
