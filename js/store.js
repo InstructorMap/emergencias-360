@@ -544,6 +544,36 @@
     } catch (_) {}
   }
 
+  // Respaldo de sincronización mientras incidents no esté en la publicación Realtime.
+  // No sustituye FCM: el polling solo funciona con la aplicación abierta.
+  let incidentPollTimer = null;
+  let incidentPollBusy = false;
+  async function refreshIncidentsFallback() {
+    if (incidentPollBusy || !state.connected || !state.supabase || !state.session) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    incidentPollBusy = true;
+    try {
+      const { data, error } = await state.supabase.from('incidents')
+        .select('*').order('created_at', { ascending: false }).limit(200);
+      if (error || !data) return;
+      const next = data.map(mapIncidentFromDB);
+      const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation]));
+      if (fingerprint(next) !== fingerprint(state.incidents)) {
+        state.incidents = next;
+        if (state.profile && state.profile.dni) {
+          state.myIncidents = next.filter(i => i.profileDni === state.profile.dni).slice(0, 50);
+        }
+        saveCache();
+        emitStateChanged('poll-fallback');
+      }
+    } catch (e) { console.warn('[E360Store] fallback sync:', e); }
+    finally { incidentPollBusy = false; }
+  }
+  function startIncidentFallback() {
+    if (incidentPollTimer) return;
+    incidentPollTimer = setInterval(refreshIncidentsFallback, 8000);
+  }
+
   // ============ API PÚBLICA ============
   const E360Store = {
 
@@ -556,6 +586,7 @@
         state.user = data.session.user;
         await loadAllData();
         subscribeRealtime();
+        startIncidentFallback();
         saveCache();
         return { loggedIn: true, profile: state.profile, mustChangePassword: !!(state.profile && state.profile.mustChangePassword) };
       }
