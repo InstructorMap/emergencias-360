@@ -302,7 +302,7 @@
     const existing = new Set(Store.listProfiles().filter(p=>p.role==='socio').map(p=>String(p.dni||'')));
     let rows = padronSociosCache.filter(s => !(s.dni_documento && existing.has(String(s.dni_documento))));
     if(search) rows = rows.filter(s=>[s.nombre,s.numero_socio,s.dni_documento,s.localidad].some(v=>String(v||'').toLowerCase().includes(search)));
-    // Los planes históricos no están definidos: no atribuir un plan sin evidencia.
+    // Los planes históricos se administran en emp_padron_socios.
     if(filterPlan) rows = rows.filter(s=>s.plan===filterPlan);
     if(filterBase) rows = rows.filter(s=>{
       const base=String(s.base_id||s.localidad||'').trim().toUpperCase().replace(/[_-]/g,' ');
@@ -328,12 +328,12 @@
       const badge=document.createElement('span');badge.className='carnet-status-pill carnet-status-'+(s.estado==='activo'?'activo':'suspendido');
       badge.textContent=s.estado==='activo'?'ACTIVO':'SUSPENDIDO';statusCell.appendChild(badge);
       const actions=cell('');
-      const action=(label,handler)=>{const btn=document.createElement('button');btn.type='button';btn.textContent=label;btn.className='btn-muted';btn.style.margin='3px';btn.addEventListener('click',handler);actions.appendChild(btn);return btn;};
+      const action=(label,handler)=>{const btn=document.createElement('button');btn.type='button';btn.textContent=label;btn.className='btn-muted';btn.addEventListener('click',handler);let wrap=actions.querySelector('.row-actions');if(!wrap){wrap=document.createElement('div');wrap.className='row-actions';actions.appendChild(wrap);}wrap.appendChild(btn);return btn;};
       async function update(changes,button) {
         if(!onlineOrToast())return;
         await runLoading(button,async()=>{
           const {data,error}=await db.from('emp_padron_socios').update(changes).eq('numero_socio',s.numero_socio).select('numero_socio,plan,estado').single();
-          if(error)throw error;
+          if(error) {toast('Error al guardar: '+fmtErr(error));return;}
           Object.assign(s,data);
           toast('Socio actualizado');
           renderSocios();
@@ -341,6 +341,7 @@
       }
       const save=action('💾 Guardar plan',()=>update({plan:select.value},save));
       const toggle=action(s.estado==='activo'?'⛔ Suspender':'✅ Reactivar',()=>update({estado:s.estado==='activo'?'suspendido':'activo'},toggle));
+      toggle.className=s.estado==='activo'?'btn-danger':'btn-muted';
       const detail=action('📋 Ficha',()=>{toast('Socio '+s.numero_socio+' · '+s.nombre+' · Plan '+s.plan+' · '+s.estado);});
       tr.dataset.numeroSocio=s.numero_socio;
       tbody.appendChild(tr);
