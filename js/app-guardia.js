@@ -187,7 +187,15 @@
       const targetUserId = (authUser && authUser.id) || ui.crewId;
       if (!sb || !targetUserId) return;
       const res = await cap.registerPushToken(sb, targetUserId);
-      if (res && res.ok) { ui.pushRegistered = true; renderUnitStatus(); }
+      if (res && res.ok) {
+        ui.pushRegistered = true;
+        renderUnitStatus();
+      } else {
+        ui.pushRegistered = false;
+        renderUnitStatus();
+        console.error('[EMP Guardia] Push FCM no registrado:', res && res.error);
+        toast('⚠ Alertas SOS no activadas: ' + ((res && res.error) || 'verificá permisos y Firebase'));
+      }
     } catch (err) { console.warn('[app-guardia] initPushRegistration:', err); }
   }
 
