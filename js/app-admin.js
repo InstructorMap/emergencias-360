@@ -971,7 +971,11 @@
     if (!db) { tbody.textContent = 'Sin conexión a Supabase'; return; }
     tbody.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
     try {
-      const {data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page:padronPageIndex}});
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      let data, error;
+      try { ({data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page:padronPageIndex},signal:controller.signal})); }
+      finally { clearTimeout(timeout); }
       if (error || data?.error) throw new Error(error?.message || data?.error);
       padronTotal = data.total || 0;
       $('#padronTotal').textContent = String(padronTotal);
@@ -988,6 +992,8 @@
         tbody.appendChild(tr);
       }
     } catch(e) {
+      $('#padronTotal').textContent = 'Error';
+      $('#padronInfo').textContent = 'La consulta falló. Probá Actualizar padrón.';
       tbody.innerHTML='';
       const tr=document.createElement('tr'),td=document.createElement('td');
       td.colSpan=5;td.textContent='No se pudo cargar el padrón: '+e.message;tr.appendChild(td);tbody.appendChild(tr);
@@ -1006,7 +1012,7 @@
     await applyBranding();
     initSociosFilters();
     initPadron();
-    await renderPadron();
+    renderPadron();
     initExportSociosCSV();
     initAltaIndividual();
     initAltaMasiva();
