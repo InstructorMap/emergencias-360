@@ -284,7 +284,7 @@
       const rows = [];
       for (let page=0;page<20;page++) {
         const {data,error} = await db.from('emp_padron_socios')
-          .select('numero_socio,nombre,dni_documento,localidad,base_id,plan,perfil_id,estado_acceso')
+          .select('numero_socio,nombre,dni_documento,localidad,base_id,plan,estado,perfil_id,estado_acceso')
           .order('numero_socio',{ascending:true}).range(page*100,page*100+99);
         if(error) throw new Error(error.message);
         rows.push(...(data||[]));
@@ -311,11 +311,38 @@
       if(filterBase==='DOLORES') return base==='DOLORES';
       return base===filterBase.replace(/_/g,' ');
     });
+    const db=Store._getState().supabase;
     for(const s of rows) {
-      const tr = document.createElement('tr');
-      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),'EMP-' + String(s.numero_socio||'').replace(/^EMP[- ]?/i,''),s.plan || 'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
-        const td=document.createElement('td');td.textContent=v;tr.appendChild(td);
+      const tr=document.createElement('tr');
+      const cell=(value)=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);return td;};
+      cell(s.nombre + ' · DNI ' + (s.dni_documento || 'pendiente'));
+      cell('EMP-' + String(s.numero_socio||'').replace(/^EMP[- ]?/i,''));
+      const planCell=cell('');
+      const select=document.createElement('select');select.className='admin-select';
+      for(const pid of C.PLAN_IDS) {
+        const option=document.createElement('option');option.value=pid;option.textContent=C.PLANS[pid]?.label||pid;
+        option.selected=s.plan===pid;select.appendChild(option);
       }
+      planCell.appendChild(select);
+      const statusCell=cell('');
+      const badge=document.createElement('span');badge.className='carnet-status-pill carnet-status-'+(s.estado==='activo'?'activo':'suspendido');
+      badge.textContent=s.estado==='activo'?'ACTIVO':'SUSPENDIDO';statusCell.appendChild(badge);
+      const actions=cell('');
+      const action=(label,handler)=>{const btn=document.createElement('button');btn.type='button';btn.textContent=label;btn.className='btn-muted';btn.style.margin='3px';btn.addEventListener('click',handler);actions.appendChild(btn);return btn;};
+      async function update(changes,button) {
+        if(!onlineOrToast())return;
+        await runLoading(button,async()=>{
+          const {data,error}=await db.from('emp_padron_socios').update(changes).eq('numero_socio',s.numero_socio).select('numero_socio,plan,estado').single();
+          if(error)throw error;
+          Object.assign(s,data);
+          toast('Socio actualizado');
+          renderSocios();
+        },'Guardando…');
+      }
+      const save=action('💾 Guardar plan',()=>update({plan:select.value},save));
+      const toggle=action(s.estado==='activo'?'⛔ Suspender':'✅ Reactivar',()=>update({estado:s.estado==='activo'?'suspendido':'activo'},toggle));
+      const detail=action('📋 Ficha',()=>{toast('Socio '+s.numero_socio+' · '+s.nombre+' · Plan '+s.plan+' · '+s.estado);});
+      tr.dataset.numeroSocio=s.numero_socio;
       tbody.appendChild(tr);
     }
     return rows.length;
