@@ -186,9 +186,8 @@
     if (filterBase) profiles = profiles.filter(p => p.baseId === filterBase);
     if (count) count.textContent = String(profiles.length);
     tbody.innerHTML = '';
-    if (!profiles.length) {
-      tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', style: 'text-align:center;padding:20px;color:#64748B;', textContent: 'No hay socios que coincidan.' })]));
-      return;
+    if (!profiles.length && !padronSociosLoaded) {
+      tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', textContent: 'Cargando socios del padrón…' })]));
     }
     profiles.forEach(p => {
       const effective = Store.calcCarnetStatus(p);
@@ -260,6 +259,51 @@
         ])
       ]));
     });
+    const historicalCount = appendPadronSocios(tbody,search,filterPlan,filterBase);
+    if (count) count.textContent = String(profiles.length + historicalCount);
+    if (!tbody.children.length) tbody.appendChild(el('tr',{},[el('td',{colSpan:5,textContent:'Sin socios para los filtros seleccionados.'})]));
+  }
+
+  // Incorporar el padrón histórico a la tabla principal sin crear perfiles ficticios.
+  let padronSociosCache = [];
+  let padronSociosLoaded = false;
+  let padronSociosLoading = false;
+  async function loadPadronSocios() {
+    if (padronSociosLoading) return;
+    const db = Store._getState().supabase;
+    if (!db) return;
+    padronSociosLoading = true;
+    try {
+      const rows = [];
+      for (let page = 0; page < 100; page++) {
+        const {data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page}});
+        if (error || data?.error) throw new Error(error?.message || data?.error);
+        rows.push(...(data.socios || []));
+        if(rows.length >= (data.total || 0) || !(data.socios || []).length) break;
+      }
+      padronSociosCache = rows;
+      padronSociosLoaded = true;
+    } catch(e) {
+      console.error('EMP padrón principal:',e);
+      const note = $('#sociosPadronEstado');
+      if(note) note.textContent = 'No se pudo recuperar el padrón: ' + e.message;
+    } finally {padronSociosLoading = false;renderSocios();}
+  }
+  function appendPadronSocios(tbody, search, filterPlan, filterBase) {
+    const existing = new Set(Store.listProfiles().filter(p=>p.role==='socio').map(p=>String(p.dni||'')));
+    let rows = padronSociosCache.filter(s => !(s.dni_documento && existing.has(String(s.dni_documento))));
+    if(search) rows = rows.filter(s=>[s.nombre,s.numero_socio,s.dni_documento,s.localidad].some(v=>String(v||'').toLowerCase().includes(search)));
+    // Los planes históricos no están definidos: no atribuir un plan sin evidencia.
+    if(filterPlan) rows = [];
+    if(filterBase) rows = rows.filter(s=>String(s.base_id||'').toUpperCase()===filterBase);
+    for(const s of rows) {
+      const tr = document.createElement('tr');
+      for(const v of [s.nombre + ' · ' + (s.dni_documento || 'DNI pendiente'),s.numero_socio,'Sin asignar',s.perfil_id ? 'Con acceso' : 'Pendiente de acceso','Padrón histórico']) {
+        const td=document.createElement('td');td.textContent=v;tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    return rows.length;
   }
 
   function initSociosFilters() {
@@ -1013,6 +1057,7 @@
     initSociosFilters();
     initPadron();
     renderPadron();
+    loadPadronSocios();
     initExportSociosCSV();
     initAltaIndividual();
     initAltaMasiva();
