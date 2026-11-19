@@ -186,7 +186,8 @@
     if (filterBase) profiles = profiles.filter(p => p.baseId === filterBase);
     if (count) count.textContent = String(profiles.length);
     tbody.innerHTML = '';
-    if (!profiles.length && !padronSociosLoaded) {
+    if (padronSociosError) tbody.appendChild(el('tr',{},[el('td',{colSpan:5,textContent:'Error de padrón: '+padronSociosError})]));
+    if (!profiles.length && !padronSociosLoaded && !padronSociosError) {
       tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', textContent: 'Cargando socios del padrón…' })]));
     }
     profiles.forEach(p => {
@@ -268,6 +269,7 @@
   let padronSociosCache = [];
   let padronSociosLoaded = false;
   let padronSociosLoading = false;
+  let padronSociosError = '';
   async function loadPadronSocios() {
     if (padronSociosLoading) return;
     const db = Store._getState().supabase;
@@ -285,10 +287,10 @@
       }
       padronSociosCache=rows;
       padronSociosLoaded=true;
+      padronSociosError='';
     } catch(e) {
       console.error('EMP padrón principal:',e);
-      const tbody=$('#sociosTbody');
-      if(tbody) {const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='Error al cargar socios: '+e.message;tr.appendChild(td);tbody.appendChild(tr);}
+      padronSociosError = e.message;
     } finally {padronSociosLoading=false;renderSocios();}
   }
   function appendPadronSocios(tbody, search, filterPlan, filterBase) {
