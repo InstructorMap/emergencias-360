@@ -89,6 +89,14 @@
         </div>
       </section>
 
+      <section class="admin-card" aria-label="Padrón completo EMP">
+        <h2>Padrón EMP <span class="section-badge" id="padronTotal">Cargando…</span></h2>
+        <p>Todos los socios registrados, incluso quienes todavía no tienen usuario de acceso.</p>
+        <div class="admin-toolbar"><button type="button" class="btn-primary" id="padronReload">Actualizar padrón</button><span id="padronInfo" role="status"></span></div>
+        <div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>N° socio</th><th>Nombre</th><th>DNI</th><th>Localidad</th><th>Estado acceso</th></tr></thead><tbody id="padronRows"><tr><td colspan="5">Cargando padrón…</td></tr></tbody></table></div>
+        <div class="admin-toolbar"><button type="button" id="padronPrev">Anterior</button><span id="padronPage"></span><button type="button" id="padronNext">Siguiente</button></div>
+      </section>
+
       <!-- 2. ALTA INDIVIDUAL -->
       <section class="admin-card" aria-label="Alta individual de socio">
         <h2>2. Alta individual de socio</h2>
