@@ -179,7 +179,16 @@
     if(!window.confirm('¿Confirmar el restablecimiento de contraseña de '+nombre+'?'))return;
     await runLoading(button,async()=>{
       const db=Store._getState().supabase;
-      const {data,error}=await db.functions.invoke('emp-admin-reset-password',{body:{dni:clean,password}});
+      const endpoint=db.supabaseUrl+'/functions/v1/emp-admin-reset-password';
+      const {data:sessionData}=await db.auth.getSession();
+      const token=sessionData?.session?.access_token;
+      if(!token){toast('La sesión del administrador venció. Volvé a iniciar sesión.');return;}
+      let response;
+      try {
+        response=await fetch(endpoint,{method:'POST',headers:{'authorization':'Bearer '+token,'apikey':db.supabaseKey,'content-type':'application/json'},body:JSON.stringify({dni:clean,password})});
+      } catch(e) {toast('Error de conexión con Supabase: '+fmtErr(e));return;}
+      const data=await response.json().catch(()=>({error:'respuesta_invalida'}));
+      const error=!response.ok?new Error(data?.error||'HTTP '+response.status):null;
       if(error||data?.error){toast('No se pudo restablecer: '+(data?.error||fmtErr(error)));return;}
       toast('Contraseña restablecida para DNI '+clean);
     },'Restableciendo…');
