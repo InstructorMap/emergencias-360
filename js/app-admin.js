@@ -169,6 +169,22 @@
   // ============================================================
   // SOCIOS
   // ============================================================
+  async function resetSocioPassword(dni, nombre, button) {
+    const clean=String(dni||'').replace(/\D/g,'');
+    if(!/^[0-9]{7,8}$/.test(clean)){toast('El socio no tiene DNI válido.');return;}
+    const proposed='EMP'+clean.slice(-4);
+    const password=window.prompt('Nueva contraseña para '+nombre+' (DNI '+clean+'):',proposed);
+    if(password===null)return;
+    if(password.length<6){toast('La contraseña debe tener al menos 6 caracteres.');return;}
+    if(!window.confirm('¿Confirmar el restablecimiento de contraseña de '+nombre+'?'))return;
+    await runLoading(button,async()=>{
+      const db=Store._getState().supabase;
+      const {data,error}=await db.functions.invoke('emp-admin-reset-password',{body:{dni:clean,password}});
+      if(error||data?.error){toast('No se pudo restablecer: '+(data?.error||fmtErr(error)));return;}
+      toast('Contraseña restablecida para DNI '+clean);
+    },'Restableciendo…');
+  }
+
   function renderSocios() {
     const tbody = $('#sociosTbody');
     const count = $('#sociosCount');
@@ -259,6 +275,7 @@
             btnPlan,
             btnRenew,
             btnStatus,
+            el('button', {type:'button',className:'btn-muted',textContent:'🔑 Contraseña',onclick:(ev)=>resetSocioPassword(p.dni,p.nombre,ev.currentTarget)}),
             el('button', { type: 'button', className: 'btn-muted', textContent: '💊 Medicación', onclick: () => openMedicacionSocio(p) }),
             el('button', { type: 'button', className: 'btn-muted', textContent: '🆘 QR Pulsera', onclick: () => openPulseraQR(p) })
           ])
@@ -342,6 +359,8 @@
       const save=action('💾 Guardar plan',()=>update({plan:select.value},save));
       const toggle=action(s.estado==='activo'?'⛔ Suspender':'✅ Reactivar',()=>update({estado:s.estado==='activo'?'suspendido':'activo'},toggle));
       toggle.className=s.estado==='activo'?'btn-danger':'btn-muted';
+      const reset=action('🔑 Contraseña',()=>resetSocioPassword(s.dni_documento,s.nombre,reset));
+      if(!s.perfil_id){reset.title='Solo socios con cuenta vinculada';}
       const detail=action('📋 Ficha',()=>{toast('Socio '+s.numero_socio+' · '+s.nombre+' · Plan '+s.plan+' · '+s.estado);});
       tr.dataset.numeroSocio=s.numero_socio;
       tbody.appendChild(tr);
