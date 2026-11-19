@@ -961,12 +961,52 @@
     });
   }
 
+  // Padrón histórico: no depende de que exista una cuenta en Auth.
+  let padronPageIndex = 0;
+  let padronTotal = 0;
+  async function renderPadron() {
+    const tbody = $('#padronRows');
+    if (!tbody) return;
+    const db = Store._getState().supabase;
+    if (!db) { tbody.textContent = 'Sin conexión a Supabase'; return; }
+    tbody.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
+    try {
+      const {data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page:padronPageIndex}});
+      if (error || data?.error) throw new Error(error?.message || data?.error);
+      padronTotal = data.total || 0;
+      $('#padronTotal').textContent = String(padronTotal);
+      $('#padronInfo').textContent = 'Registros en padrón (no equivale a usuarios activos)';
+      $('#padronPage').textContent = 'Página ' + (padronPageIndex+1) + ' de ' + Math.max(1,Math.ceil(padronTotal/100));
+      $('#padronPrev').disabled = padronPageIndex === 0;
+      $('#padronNext').disabled = (padronPageIndex+1)*100 >= padronTotal;
+      tbody.innerHTML = '';
+      for(const s of data.socios || []) {
+        const tr = document.createElement('tr');
+        for(const value of [s.numero_socio,s.nombre,s.dni_documento || 'Pendiente',s.localidad || '—',s.perfil_id ? 'Con usuario' : 'Sin usuario']) {
+          const td=document.createElement('td');td.textContent=value;tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    } catch(e) {
+      tbody.innerHTML='';
+      const tr=document.createElement('tr'),td=document.createElement('td');
+      td.colSpan=5;td.textContent='No se pudo cargar el padrón: '+e.message;tr.appendChild(td);tbody.appendChild(tr);
+    }
+  }
+  function initPadron() {
+    $('#padronReload')?.addEventListener('click',()=>renderPadron());
+    $('#padronPrev')?.addEventListener('click',()=>{if(padronPageIndex>0){padronPageIndex--;renderPadron();}});
+    $('#padronNext')?.addEventListener('click',()=>{if((padronPageIndex+1)*100<padronTotal){padronPageIndex++;renderPadron();}});
+  }
+
   // ============================================================
   // BOOT
   // ============================================================
   async function bootAdmin() {
     await applyBranding();
     initSociosFilters();
+    initPadron();
+    await renderPadron();
     initExportSociosCSV();
     initAltaIndividual();
     initAltaMasiva();
