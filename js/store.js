@@ -510,6 +510,14 @@
     }
   }
 
+  // Entrega local inmediata: BroadcastChannel solo notifica otras pestañas.
+  const localSubscribers = new Set();
+  function emitStateChanged(source) {
+    const event = { type: 'STATE_CHANGED', ts: Date.now(), source: source || 'local' };
+    localSubscribers.forEach(fn => { try { fn(event); } catch (e) { console.warn('[E360Store] listener:', e); } });
+    if (channel) channel.postMessage(event);
+  }
+
   // ============ REALTIME ============
   function subscribeRealtime() {
     if (!state.connected || !state.supabase) return;
@@ -522,7 +530,7 @@
             state.myIncidents = state.incidents.filter(i => i.profileDni === state.profile.dni).slice(0, 50);
           }
           saveCache();
-          if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now(), source: 'realtime' });
+          emitStateChanged('realtime');
         }).subscribe();
 
       state.supabase.channel('e360_medications')
@@ -531,7 +539,7 @@
           const { data } = await state.supabase.from('medications').select('*').eq('profile_id', state.profile.id).eq('activo', true);
           if (data) state.medications = data.map(mapMedicationFromDB);
           saveCache();
-          if (channel) channel.postMessage({ type: 'STATE_CHANGED', ts: Date.now(), source: 'realtime' });
+          emitStateChanged('realtime');
         }).subscribe();
     } catch (_) {}
   }
@@ -1378,14 +1386,19 @@
     },
 
     subscribe(callback) {
-      if (!channel) {
+      if (typeof callback !== 'function') return () => {};
+      localSubscribers.add(callback);
+      let cleanup = () => {};
+      if (channel) {
+        const handler = (msg) => callback(msg.data);
+        channel.addEventListener('message', handler);
+        cleanup = () => channel.removeEventListener('message', handler);
+      } else {
         const handler = (e) => { if (e.key === CACHE_KEY) callback({ type: 'STATE_CHANGED', ts: Date.now() }); };
         global.addEventListener('storage', handler);
-        return () => global.removeEventListener('storage', handler);
+        cleanup = () => global.removeEventListener('storage', handler);
       }
-      const handler = (msg) => callback(msg.data);
-      channel.addEventListener('message', handler);
-      return () => channel.removeEventListener('message', handler);
+      return () => { localSubscribers.delete(callback); cleanup(); };
     },
 
     // ============ CENTRAL: TRIAGE Y ASIGNACIÓN ============
