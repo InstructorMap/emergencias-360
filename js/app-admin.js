@@ -275,19 +275,21 @@
     padronSociosLoading = true;
     try {
       const rows = [];
-      for (let page = 0; page < 100; page++) {
-        const {data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page}});
-        if (error || data?.error) throw new Error(error?.message || data?.error);
-        rows.push(...(data.socios || []));
-        if(rows.length >= (data.total || 0) || !(data.socios || []).length) break;
+      for (let page=0;page<20;page++) {
+        const {data,error} = await db.from('emp_padron_socios')
+          .select('numero_socio,nombre,dni_documento,localidad,base_id,plan,perfil_id,estado_acceso')
+          .order('numero_socio',{ascending:true}).range(page*100,page*100+99);
+        if(error) throw new Error(error.message);
+        rows.push(...(data||[]));
+        if(!data || data.length<100) break;
       }
-      padronSociosCache = rows;
-      padronSociosLoaded = true;
+      padronSociosCache=rows;
+      padronSociosLoaded=true;
     } catch(e) {
       console.error('EMP padrón principal:',e);
-      const note = $('#sociosPadronEstado');
-      if(note) note.textContent = 'No se pudo recuperar el padrón: ' + e.message;
-    } finally {padronSociosLoading = false;renderSocios();}
+      const tbody=$('#sociosTbody');
+      if(tbody) {const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='Error al cargar socios: '+e.message;tr.appendChild(td);tbody.appendChild(tr);}
+    } finally {padronSociosLoading=false;renderSocios();}
   }
   function appendPadronSocios(tbody, search, filterPlan, filterBase) {
     const existing = new Set(Store.listProfiles().filter(p=>p.role==='socio').map(p=>String(p.dni||'')));
@@ -1005,58 +1007,12 @@
     });
   }
 
-  // Padrón histórico: no depende de que exista una cuenta en Auth.
-  let padronPageIndex = 0;
-  let padronTotal = 0;
-  async function renderPadron() {
-    const tbody = $('#padronRows');
-    if (!tbody) return;
-    const db = Store._getState().supabase;
-    if (!db) { tbody.textContent = 'Sin conexión a Supabase'; return; }
-    tbody.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      let data, error;
-      try { ({data,error} = await db.functions.invoke('emp-admin-padron-list',{body:{page:padronPageIndex},signal:controller.signal})); }
-      finally { clearTimeout(timeout); }
-      if (error || data?.error) throw new Error(error?.message || data?.error);
-      padronTotal = data.total || 0;
-      $('#padronTotal').textContent = String(padronTotal);
-      $('#padronInfo').textContent = 'Registros en padrón (no equivale a usuarios activos)';
-      $('#padronPage').textContent = 'Página ' + (padronPageIndex+1) + ' de ' + Math.max(1,Math.ceil(padronTotal/100));
-      $('#padronPrev').disabled = padronPageIndex === 0;
-      $('#padronNext').disabled = (padronPageIndex+1)*100 >= padronTotal;
-      tbody.innerHTML = '';
-      for(const s of data.socios || []) {
-        const tr = document.createElement('tr');
-        for(const value of [s.numero_socio,s.nombre,s.dni_documento || 'Pendiente',s.localidad || '—',s.perfil_id ? 'Con usuario' : 'Sin usuario']) {
-          const td=document.createElement('td');td.textContent=value;tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      }
-    } catch(e) {
-      $('#padronTotal').textContent = 'Error';
-      $('#padronInfo').textContent = 'La consulta falló. Probá Actualizar padrón.';
-      tbody.innerHTML='';
-      const tr=document.createElement('tr'),td=document.createElement('td');
-      td.colSpan=5;td.textContent='No se pudo cargar el padrón: '+e.message;tr.appendChild(td);tbody.appendChild(tr);
-    }
-  }
-  function initPadron() {
-    $('#padronReload')?.addEventListener('click',()=>renderPadron());
-    $('#padronPrev')?.addEventListener('click',()=>{if(padronPageIndex>0){padronPageIndex--;renderPadron();}});
-    $('#padronNext')?.addEventListener('click',()=>{if((padronPageIndex+1)*100<padronTotal){padronPageIndex++;renderPadron();}});
-  }
-
   // ============================================================
   // BOOT
   // ============================================================
   async function bootAdmin() {
     await applyBranding();
     initSociosFilters();
-    initPadron();
-    renderPadron();
     loadPadronSocios();
     initExportSociosCSV();
     initAltaIndividual();
