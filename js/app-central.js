@@ -242,7 +242,13 @@
       const targetUserId = (authUser && authUser.id) || ui.operatorId;
       if (!sb || !targetUserId) return;
 
-      await cap.registerPushToken(sb, targetUserId);
+      const res = await cap.registerPushToken(sb, targetUserId);
+      if (!res || !res.ok) {
+        console.error('[EMP Central] Push FCM no registrado:', res && res.error);
+        toast('⚠ Notificaciones de emergencia no activadas: ' + ((res && res.error) || 'verificá permisos y Firebase'));
+      } else {
+        console.info('[EMP Central] Push FCM registrado correctamente');
+      }
     } catch (err) {
       console.warn('[app-central] initPushRegistration:', err);
     }
