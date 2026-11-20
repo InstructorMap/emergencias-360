@@ -1093,11 +1093,13 @@
         if (!onlineOrToast()) return;
         await runLoading(btn, async () => {
           try {
-            const exp = await Store.getIncidentExportUrl(inc.id);
-            if (!exp || !exp.url) {
-              alert('El ZIP no está disponible todavía. Puede demorar unos segundos después del cierre.');
-              return;
+            let exp = await Store.getIncidentExportUrl(inc.id);
+            if (!exp?.url) {
+              toast('Generando historia clínica y adjuntos…');
+              await Store.generateIncidentExport(inc.id);
+              exp = await Store.getIncidentExportUrl(inc.id);
             }
+            if (!exp?.url) throw new Error('No se pudo obtener el archivo exportado');
             window.open(exp.url, '_blank', 'noopener');
           } catch (e) { alert('Error: ' + fmtErr(e)); }
         }, 'Generando enlace…');
