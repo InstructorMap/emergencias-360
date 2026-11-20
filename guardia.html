@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/guardia-v2.css" />
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/guardia-tactical.css?v=20261120-tac-v3" />
+  <link rel="stylesheet" href="css/guardia-tactical.css?v=20261120-tac-v4" />
 </head>
 <body class="guardia-body theme-dark">
 
@@ -64,14 +64,23 @@
     </header>
 
     <main class="guardia-main" role="main">
-      <div class="tac-command"><div><span class="tac-eyebrow">EMP / CONSOLA OPERATIVA</span><h1>Guardia en servicio</h1><p id="tacSubtitle">Despacho, atención y comunicaciones en un solo lugar.</p></div><span class="tac-live"><i></i> OPERATIVO</span></div>
-      <nav class="tac-nav" aria-label="Módulos de guardia">
+      <section id="tacHome" class="tac-home" aria-label="Inicio Guardia">
+        <div class="tac-home-hero"><span class="tac-eyebrow">EMP · EMERGENCIAS MÉDICAS PRIVADAS</span><h1>GUARDIA OPERATIVA</h1><p>Seleccioná tu área de trabajo</p></div>
+        <div class="tac-home-grid">
+          <button type="button" class="tac-home-card tac-home-operation" data-tac-enter="operacion"><span class="tac-home-symbol"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 38h48M16 38V24l8-9h16l8 9v14M18 38v8m28-8v8M25 24h14m-7-9v18m-9-9h18M14 50h36M6 16l5 5m47-5-5 5M32 3v6" /></svg></span><span class="tac-home-copy"><strong>OPERACIÓN</strong><small>Incidentes · Despacho · GPS · PTT · Apoyo</small></span><span class="tac-home-arrow">›</span></button>
+          <button type="button" class="tac-home-card tac-home-clinical" data-tac-enter="clinica"><span class="tac-home-symbol"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="13" y="10" width="38" height="46" rx="5"/><path d="M25 10V6h14v4M32 22v21m-10-11h20M21 49h22"/></svg></span><span class="tac-home-copy"><strong>HISTORIA CLÍNICA</strong><small>Evaluación · Lesiones · Firmas · Registro</small></span><span class="tac-home-arrow">›</span></button>
+          <button type="button" class="tac-home-card tac-home-shift" data-tac-enter="turno"><span class="tac-home-symbol"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="14" width="44" height="40" rx="5"/><path d="M20 8v12m24-12v12M10 26h44M20 36h8m8 0h8M20 44h8"/></svg></span><span class="tac-home-copy"><strong>MI TURNO</strong><small>Dotación · Móvil · Función · Guardia</small></span><span class="tac-home-arrow">›</span></button>
+          <button type="button" class="tac-home-card tac-home-history" data-tac-enter="historial"><span class="tac-home-symbol"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M14 12h32v42H14zM22 23h17M22 32h17M22 41h12M46 18h6v30h-6"/></svg></span><span class="tac-home-copy"><strong>HISTORIAL</strong><small>Atenciones · Reportes · Trazabilidad</small></span><span class="tac-home-arrow">›</span></button>
+        </div>
+      </section>
+      <div class="tac-command" id="tacWorkHeader" hidden><div><span class="tac-eyebrow">EMP / CONSOLA OPERATIVA</span><h1>Guardia en servicio</h1><p id="tacSubtitle">Despacho, atención y comunicaciones en un solo lugar.</p></div><span class="tac-live"><i></i> OPERATIVO</span></div>
+      <nav class="tac-nav" aria-label="Módulos de guardia" hidden>
         <button type="button" class="tac-tab is-active" data-tac-tab="operacion" aria-current="page"><span>🚑</span> Operación</button>
         <button type="button" class="tac-tab" data-tac-tab="clinica"><span>🩺</span> Historia clínica</button>
         <button type="button" class="tac-tab" data-tac-tab="turno"><span>👥</span> Mi turno</button>
         <button type="button" class="tac-tab" data-tac-tab="historial"><span>📋</span> Historial</button>
       </nav>
-      <div class="tac-view is-active" data-tac-view="operacion">
+      <div class="tac-view" data-tac-view="operacion" hidden>
         <div class="tac-section-heading"><div><span class="tac-eyebrow">01 / DESPACHO</span><h2>Atención activa</h2></div><button type="button" class="tac-quick" data-tac-jump="clinica">Abrir ficha clínica ↗</button></div>
         <div class="guardia-unit-status" id="unitStatus" aria-live="polite">
         <span class="unit-status-text">Seleccioná móvil y esperá asignación.</span>
@@ -105,7 +114,7 @@
       </section>
 
       </div>
-      <nav class="tac-bottom" aria-label="Accesos rápidos">
+      <nav class="tac-bottom" aria-label="Accesos rápidos" hidden>
         <button type="button" data-tac-jump="operacion">🚑<small>Operación</small></button>
         <button type="button" data-tac-jump="clinica">🩺<small>Clínica</small></button>
         <button type="button" data-tac-jump="turno">👥<small>Turno</small></button>
@@ -154,6 +163,6 @@
     })();
   </script>
 <script src="js/emp-clinical-form.js?v=20261120-tac-v2"></script>
-<script src="js/guardia-tactical.js?v=20261120-tac-v3"></script>
+<script src="js/guardia-tactical.js?v=20261120-tac-v4"></script>
 </body>
 </html>
