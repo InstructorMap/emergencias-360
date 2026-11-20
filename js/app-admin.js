@@ -1199,23 +1199,37 @@
       const action=document.createElement('td'),btn=document.createElement('button');
       btn.type='button';btn.className='btn-secondary';btn.textContent='Editar';btn.addEventListener('click',()=>editEMPStaff(p));
       action.appendChild(btn);
-      if(!p.user_id && p.active){
-        const invite=document.createElement('button');
-        invite.type='button';invite.className='btn-primary';invite.textContent='Invitar acceso';
-        invite.style.marginLeft='8px';
-        invite.addEventListener('click',async()=>{
+      const staffAction=(label,operation,askPassword=false,confirmText='')=>{
+        const control=document.createElement('button');
+        control.type='button';control.className='btn-secondary';control.textContent=label;
+        control.style.margin='4px';
+        control.addEventListener('click',async()=>{
           if(!onlineOrToast())return;
-          if(!confirm('¿Enviar invitación de acceso a '+p.email+'?'))return;
-          await runLoading(invite,async()=>{
-            try{
-              await Store.inviteEMPStaff(p.id);
-              toast('Invitación enviada a '+p.email);
-              await renderEMPStaff();
-            }catch(err){toast('No se pudo invitar: '+fmtErr(err));}
-          },'Invitando…');
+          let password;
+          if(askPassword){
+            password=prompt('Definí una clave temporal de al menos 12 caracteres para '+p.email);
+            if(password===null)return;
+            if(password.length<12){toast('La clave debe tener al menos 12 caracteres');return;}
+          }
+          if(confirmText&&!confirm(confirmText))return;
+          await runLoading(control,async()=>{
+            try{await Store.manageEMPStaff(p.id,operation,password);toast('Acción completada: '+label);await renderEMPStaff();}
+            catch(err){toast('Error: '+fmtErr(err));}
+          },'Procesando…');
         });
-        action.appendChild(invite);
+        action.appendChild(control);
+      };
+      if(!p.user_id && p.active){
+        staffAction('Crear acceso','create',true);
+        staffAction('Invitar por correo','invite',false,'¿Enviar invitación a '+p.email+'?');
       }
+      if(p.user_id){
+        staffAction('Cambiar clave','password',true);
+        staffAction('Sincronizar datos','sync',false,'¿Aplicar los datos y el rol actual al usuario?');
+        if(p.active)staffAction('Suspender','suspend',false,'¿Suspender el acceso de '+p.nombre+'?');
+        else staffAction('Reactivar','activate',false,'¿Reactivar el acceso de '+p.nombre+'?');
+      }
+      staffAction('Dar de baja','delete',false,'¿Dar de baja el legajo de '+p.nombre+'? Se conservará el historial y se bloqueará su acceso.');
       tr.appendChild(action);tbody.appendChild(tr);
     });
   }
