@@ -1107,6 +1107,85 @@
   }
 
   // ============================================================
+  // BLOQUE 2 — LEGAJOS PERSONAL EMP
+  // ============================================================
+  let empStaffCache = [];
+  function clearEMPStaff() {
+    const form = $('#empStaffForm');
+    if(form) form.reset();
+    $('#empStaffId').value = '';
+    $('#empStaffSave').textContent = 'Guardar legajo';
+    $('#empStaffMessage').textContent = '';
+  }
+  function editEMPStaff(person) {
+    $('#empStaffId').value=person.id;
+    $('#empStaffNombre').value=person.nombre;
+    $('#empStaffDni').value=person.dni;
+    $('#empStaffEmail').value=person.email;
+    $('#empStaffTelefono').value=person.telefono||'';
+    $('#empStaffBase').value=person.base_id;
+    $('#empStaffEspecialidad').value=person.especialidad;
+    $('#empStaffRol').value=person.access_role;
+    $('#empStaffActivo').value=String(person.active);
+    $('#empStaffSave').textContent='Guardar cambios';
+    $('#adminPersonal').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function renderEMPStaff() {
+    const tbody=$('#empStaffTbody');
+    if(!tbody)return;
+    try { empStaffCache=await Store.listEMPStaff(); }
+    catch(err){ tbody.textContent='Error al cargar personal: '+fmtErr(err);return; }
+    $('#empStaffCount').textContent=String(empStaffCache.length);
+    $('#empStaffTotal').textContent=String(empStaffCache.length);
+    $('#empStaffActive').textContent=String(empStaffCache.filter(p=>p.active).length);
+    $('#empStaffDolores').textContent=String(empStaffCache.filter(p=>p.base_id==='DOLORES').length);
+    $('#empStaffCosta').textContent=String(empStaffCache.filter(p=>p.base_id==='LA_COSTA').length);
+    tbody.innerHTML='';
+    if(!empStaffCache.length){
+      const tr=document.createElement('tr'),td=document.createElement('td');
+      td.colSpan=6;td.textContent='No hay personal cargado. Registrá el primer legajo.';
+      tr.appendChild(td);tbody.appendChild(tr);return;
+    }
+    empStaffCache.forEach(p=>{
+      const tr=document.createElement('tr');
+      const cells=[p.nombre+' · DNI '+p.dni,p.especialidad,p.base_id==='DOLORES'?'Dolores':'Santa Teresita'];
+      cells.forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});
+      const status=document.createElement('td'),badge=document.createElement('span');
+      badge.className='emp-staff-badge'+(p.active?'':' inactive');badge.textContent=p.active?'Activo':'Inactivo';
+      status.appendChild(badge);tr.appendChild(status);
+      const access=document.createElement('td');access.textContent=p.user_id?'Vinculada':'Pendiente';tr.appendChild(access);
+      const action=document.createElement('td'),btn=document.createElement('button');
+      btn.type='button';btn.className='btn-secondary';btn.textContent='Editar';btn.addEventListener('click',()=>editEMPStaff(p));
+      action.appendChild(btn);tr.appendChild(action);tbody.appendChild(tr);
+    });
+  }
+  function initEMPStaff() {
+    const form=$('#empStaffForm');
+    if(!form)return;
+    $('#empStaffClear').addEventListener('click',clearEMPStaff);
+    $('#empStaffRefresh').addEventListener('click',renderEMPStaff);
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();
+      if(!onlineOrToast())return;
+      const btn=$('#empStaffSave');
+      await runLoading(btn,async()=>{
+        try {
+          await Store.saveEMPStaff({
+            id:$('#empStaffId').value||undefined,nombre:$('#empStaffNombre').value,
+            dni:$('#empStaffDni').value,email:$('#empStaffEmail').value,
+            telefono:$('#empStaffTelefono').value,base_id:$('#empStaffBase').value,
+            especialidad:$('#empStaffEspecialidad').value,access_role:$('#empStaffRol').value,
+            active:$('#empStaffActivo').value==='true'
+          });
+          clearEMPStaff();await renderEMPStaff();
+          $('#empStaffMessage').textContent='Legajo guardado en Supabase. Acceso pendiente de habilitar.';
+        }catch(err){$('#empStaffMessage').textContent='Error: '+fmtErr(err);}
+      },'Guardando…');
+    });
+    renderEMPStaff();
+  }
+
+  // ============================================================
   // FLOTA EMP — BLOQUE 1
   // ============================================================
   function clearAmbulanceForm() {
@@ -1225,6 +1304,7 @@
     initExtServices();
     initAudit();
     initAmbulances();
+    initEMPStaff();
     initActiveCrew();
     initSubscription();
     renderSocios();
