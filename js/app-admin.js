@@ -1175,7 +1175,7 @@
             id:$('#ambId').value || undefined, unit:$('#ambUnit').value, baseId:$('#ambBase').value,
             plate:$('#ambPlate').value, model:$('#ambModel').value,
             tipoUnidad:$('#ambType').value, status:$('#ambStatus').value,
-            equipment:$('#ambEquipment').value, active:true
+            equipment:$('#ambEquipment').value, active:($('#ambId').value ? (Store.getFleet('ALL',true).find(u => u.id === $('#ambId').value) || {}).active !== false : true)
           });
           clearAmbulanceForm();
           renderAmbulances();
