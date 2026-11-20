@@ -90,6 +90,102 @@
     pttConnected: false
   };
 
+  // Alarmas de Central: distinguir nuevos ingresos de cambios de estado o GPS.
+  const emergencyAlert = { initialized: false, known: new Set(), active: new Map(), audio: null, enabled: false, timer: null };
+  function pendingAlerts() {
+    return Store.getIncidents('ALL').filter(i => i.status === 'RECIBIDA_SERVIDOR');
+  }
+  function alertLabel(inc) {
+    return [inc.priority || 'SIN TRIAGE', inc.baseId || 'BASE SIN DEFINIR', inc.manualAddress || 'Ubicación en incidente'].join(' · ');
+  }
+  function stopEmergencyTone() {
+    if (emergencyAlert.timer) { clearInterval(emergencyAlert.timer); emergencyAlert.timer = null; }
+  }
+  function playEmergencyTone() {
+    if (!emergencyAlert.enabled || !emergencyAlert.audio) return;
+    try {
+      const ctx = emergencyAlert.audio;
+      if (ctx.state !== 'running') return;
+      const now = ctx.currentTime;
+      [0, .27, .54].forEach(offset => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(880, now + offset);
+        osc.frequency.setValueAtTime(660, now + offset + .12);
+        gain.gain.setValueAtTime(.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(.16, now + offset + .02);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + offset + .23);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(now + offset); osc.stop(now + offset + .24);
+      });
+    } catch (e) { console.warn('[Central] Alarma de audio:', e); }
+  }
+  function renderEmergencyOverlay() {
+    let overlay = document.getElementById('empEmergencyOverlay');
+    if (!overlay) {
+      overlay = document.createElement('section');
+      overlay.id = 'empEmergencyOverlay';
+      overlay.className = 'emp-emergency-overlay';
+      overlay.setAttribute('role','alertdialog');
+      overlay.setAttribute('aria-label','Emergencia entrante');
+      document.body.appendChild(overlay);
+    }
+    const items = Array.from(emergencyAlert.active.values());
+    overlay.hidden = items.length === 0;
+    if (!items.length) { stopEmergencyTone(); return; }
+    overlay.replaceChildren();
+    const title = el('h2', {textContent: '🚨 NUEVA ALERTA DE EMERGENCIA'});
+    overlay.appendChild(title);
+    overlay.appendChild(el('p',{textContent:items.length === 1 ? 'Requiere atención de Central' : items.length + ' alertas requieren atención'}));
+    const inc = items[0];
+    overlay.appendChild(el('div',{className:'emp-emergency-description',textContent:alertLabel(inc)}));
+    overlay.appendChild(el('div',{className:'emp-emergency-id',textContent:'Incidente: '+inc.id}));
+    const actions=el('div',{className:'emp-emergency-actions'});
+    const view=el('button',{type:'button',textContent:'VER INCIDENTE',onclick:()=>{
+      ui.baseFilter='ALL';const sel=document.getElementById('centralBaseSelector');if(sel)sel.value='ALL';
+      ui.incidentFilter='active';document.querySelectorAll('.btn-incident-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter==='active'));
+      ui.selectedIncidentId=inc.id;emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();renderAll();
+      document.querySelector('.central-col-2')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }});
+    const dismiss=el('button',{type:'button',textContent:'SILENCIAR / CERRAR AVISO',onclick:()=>{
+      emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();
+    }});
+    actions.append(view,dismiss);overlay.appendChild(actions);
+    if(emergencyAlert.enabled&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,5000);}
+  }
+  function checkNewEmergencyAlerts() {
+    const pending=pendingAlerts(), ids=new Set(pending.map(i=>String(i.id)));
+    if (!emergencyAlert.initialized) {
+      pending.forEach(i=>emergencyAlert.known.add(String(i.id)));
+      emergencyAlert.initialized=true;
+      return;
+    }
+    pending.forEach(inc=>{
+      const id=String(inc.id);
+      if(!emergencyAlert.known.has(id)){
+        emergencyAlert.known.add(id);
+        emergencyAlert.active.set(id,inc);
+      }
+    });
+    for(const id of emergencyAlert.active.keys())if(!ids.has(id))emergencyAlert.active.delete(id);
+    renderEmergencyOverlay();
+  }
+  function initEmergencyAudio() {
+    const controls=document.querySelector('.header-controls');
+    if(!controls||document.getElementById('btnEmergencySound'))return;
+    const btn=el('button',{type:'button',id:'btnEmergencySound',className:'btn-emergency-sound',textContent:'🔔 Activar alarma',onclick:async()=>{
+      try{
+        const AudioContext=window.AudioContext||window.webkitAudioContext;
+        if(!AudioContext)throw new Error('Audio no compatible');
+        if(!emergencyAlert.audio)emergencyAlert.audio=new AudioContext();
+        await emergencyAlert.audio.resume();
+        emergencyAlert.enabled=emergencyAlert.audio.state==='running';
+        btn.textContent=emergencyAlert.enabled?'🔊 Alarma activa':'🔔 Activar alarma';
+        if(emergencyAlert.enabled)playEmergencyTone();
+      }catch(err){toast('No se pudo activar el sonido: '+(err.message||err));}
+    }});
+    controls.prepend(btn);
+  }
+
   // ============ MAPA LEAFLET ============
   function initMap() {
     const container = document.getElementById('mapContainer');
@@ -1306,6 +1402,7 @@
       if (msg.type === 'BRANDING_CHANGED') applyBranding();
       if (msg.type !== 'STATE_CHANGED') return;
       renderAll();
+      checkNewEmergencyAlerts();
     });
   }
 
@@ -1315,6 +1412,7 @@
     initIncidentFilters();
     initNewIncidentButton();
     initPTTDiagButton();
+    initEmergencyAudio();
     checkDeepLinkIncident();
     initMap();
     await renderSpeedLimitControl();
@@ -1322,6 +1420,7 @@
     // F3-mejora: ya NO se usa initAudioUnlockListener() global.
     // El botón "Activar audio" vive en el PTT flotante (contextual).
     renderAll();
+    checkNewEmergencyAlerts();
     await refreshActiveCrew();
     setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); renderMapMarkers(); }, 15000);
   }
