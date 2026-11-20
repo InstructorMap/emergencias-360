@@ -186,3 +186,41 @@
 .gv-ptt-talk{touch-action:none}
 .gv-ptt-floating[data-ptt-state="transmitiendo"]{border-color:#ff6677!important}
 @media(max-width:480px){.gv-ptt-floating{width:118px!important;min-width:0!important;max-width:118px!important}}
+
+/* Guardia V3: pantalla de atención tipo aplicación, sin scroll interminable */
+.guardia-body .tac-command{padding:10px 13px!important;margin-bottom:8px!important;border-radius:12px!important}
+.guardia-body .tac-command h1{font-size:17px!important;margin:0!important}
+.guardia-body .tac-command p{display:none!important}
+.guardia-body .tac-command .tac-eyebrow{font-size:9px;letter-spacing:1px}
+.guardia-body .tac-section-heading{margin:6px 0 9px!important}
+.guardia-body .tac-section-heading h2{font-size:17px!important}
+.guardia-body .gv-app-panes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;position:sticky;top:0;z-index:40;padding:6px 0;background:#081526}
+.guardia-body .gv-app-pane-btn{min-height:48px;padding:7px 2px;border-radius:10px;border:1px solid #34526e;background:#12243a;color:#b9d3e9;font-size:11px;font-weight:800;cursor:pointer}
+.guardia-body .gv-app-pane-btn.is-active{background:#1263a1;color:#fff;border-color:#62c5ff}
+.guardia-body .gv-app-pane[hidden]{display:none!important}
+.guardia-body .gv-app-pane>.gv-card{margin:8px 0!important}
+.guardia-body .gv-app-pane .gv-card-header{padding:12px 14px!important}
+.guardia-body .gv-app-pane .gv-card-header h3{font-size:16px!important}
+.guardia-body .gv-app-pane .gv-card-body{padding:12px 14px!important}
+.guardia-body .gv-app-pane .gv-kv{padding:8px 0!important}
+.guardia-body .gv-clinical-shortcut{display:block;width:100%;min-height:48px;margin:10px 0;font-weight:800}
+.guardia-body .gv-ptt-floating{position:fixed!important}
+.guardia-body .gv-ptt-minimize{position:absolute;top:4px;right:5px;width:28px;height:27px;border-radius:8px;border:1px solid #548db8;background:#244d70;color:#fff;font-size:18px;line-height:1;z-index:2;cursor:pointer}
+.guardia-body .gv-ptt-floating.is-minimized{width:82px!important;max-width:82px!important;padding:5px!important;gap:2px!important;opacity:.95}
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-status,
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-connect,
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-talk{display:none!important}
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-image{width:57px;height:57px}
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-drag{height:22px}
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-drag span{display:none}
+.guardia-body .gv-ptt-floating.is-minimized .gv-ptt-drag img{width:19px;height:19px}
+@media(max-width:760px){
+ .guardia-body .guardia-main{padding:9px 10px 90px!important}
+ .guardia-body .tac-nav{display:none!important}
+ .guardia-body .tac-bottom{position:fixed!important;bottom:0;left:0;right:0;z-index:9500;background:#0c1b30!important;padding:5px 5px max(5px,env(safe-area-inset-bottom))!important;box-shadow:0 -4px 20px #0008}
+ .guardia-body .tac-bottom button{min-height:52px!important}
+ .guardia-body .emp-header-banner{padding:8px 10px!important}
+ .guardia-body .asari-footer{display:none!important}
+ .guardia-body .gv-app-panes{top:0}
+ .guardia-body .gv-app-pane-btn{font-size:10px}
+}
