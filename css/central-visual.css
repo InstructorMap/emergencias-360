@@ -92,3 +92,14 @@
 .emp-map-unit-camino .emp-ambulance-vector{border-color:#43b7ff}
 .emp-map-unit-atencion .emp-ambulance-vector{border-color:#ff6678}
 @media(max-width:800px){.central-body #mapContainer{height:min(65vh,460px)!important;min-height:320px!important}}
+
+/* Destino real del incidente, diferenciado del móvil */
+.emp-map-incident{background:transparent!important;border:0!important}
+.emp-destination-pin{position:relative;width:94px;height:50px;border-radius:13px;background:linear-gradient(135deg,#bd152f,#760d23);border:2px solid #ffd5dc;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 5px 20px #000a,0 0 0 4px #f43f5e38}
+.emp-destination-pin:after{content:"";position:absolute;bottom:-12px;left:39px;border-left:9px solid transparent;border-right:9px solid transparent;border-top:12px solid #bd152f}
+.emp-destination-cross{font-size:22px;line-height:1;font-weight:900}
+.emp-destination-caption{font-size:10px;letter-spacing:.7px;font-weight:900}
+.emp-destination-urgent{animation:empDestinationPulse 1.9s infinite}
+@keyframes empDestinationPulse{50%{box-shadow:0 5px 20px #000a,0 0 0 9px #f43f5e1a}}
+.emp-map-location-note{background:#5b2431;border:1px solid #ff9cae;border-radius:10px;color:#fff;padding:10px 12px;font-size:13px;font-weight:700;margin:-1px 0 12px}
+.emp-map-location-note[hidden]{display:none!important}
