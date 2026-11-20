@@ -1,0 +1,47 @@
+/* EMP | Guardia táctica: interfaz de uso en campo */
+.guardia-body{background:#081526!important}
+.guardia-main{max-width:1280px;margin:auto;padding:18px 18px 110px!important}
+.tac-command{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:19px 22px;background:linear-gradient(115deg,#153659,#0c2039);border:1px solid #31506b;border-radius:18px;margin-bottom:14px;color:#fff}
+.tac-command h1{font-size:clamp(22px,3vw,32px);margin:5px 0 2px;font-weight:800}
+.tac-command p{margin:0;color:#bbd0e6;font-size:13px}
+.tac-eyebrow{font-size:10px;font-weight:800;letter-spacing:2px;color:#6ed2f3}
+.tac-live{font-size:11px;font-weight:800;letter-spacing:1px;white-space:nowrap;background:#0a382f;color:#6af4b4;border:1px solid #206e56;border-radius:30px;padding:9px 12px}
+.tac-live i{display:inline-block;width:7px;height:7px;background:#43eaa0;border-radius:50%;margin-right:6px}
+.tac-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 18px}
+.tac-tab{min-height:64px;border:1px solid #304961;background:#142b44;color:#c3d7eb;border-radius:12px;font-weight:750;font-size:14px;cursor:pointer}
+.tac-tab span{margin-right:6px}.tac-tab.is-active{background:#1764a5;border-color:#67b7ed;color:#fff;box-shadow:0 0 0 1px #67b7ed inset}
+.tac-view{display:none!important}.tac-view.is-active{display:block!important}
+.tac-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;color:#fff}
+.tac-section-heading h2{margin:4px 0;font-size:20px}
+.tac-quick{padding:12px 14px;border:1px solid #5e9fd1;border-radius:10px;background:#193e61;color:#fff;font-weight:750;cursor:pointer}
+.tac-empty{padding:28px;border:1px dashed #4c7392;border-radius:12px;background:#122a42;color:#cbddec}
+.tac-bottom{display:none}
+#empClinicalPanel{margin:0!important;background:#0f253d!important;border:1px solid #2e536e!important;padding:0!important;overflow:hidden}
+#empClinicalPanel h2{font-size:21px;margin:0;padding:18px 18px 0}
+#empClinicalPanel>p{margin:8px 18px;color:#b6cfe5;font-size:13px}
+#empClinicalPanel fieldset{background:#162f4a;border-color:#375874!important;margin:12px!important;padding:14px!important}
+#empClinicalPanel legend{font-size:15px;color:#fff;padding:0 6px}
+#empClinicalPanel input,#empClinicalPanel textarea{font-size:16px!important;min-height:44px}
+#empClinicalPanel canvas{max-width:100%;border:1px solid #bdcddd}
+#empClinicalPanel button{min-height:44px;margin:6px 10px 8px 0}
+#empClinicalPanel #empClinicalSave{background:#0879c5;color:white;font-weight:800;padding:13px 20px;margin:14px}
+#empClinicalPanel #empClinicalStatus{padding:10px 16px}
+.hc-stepbar{display:flex;overflow-x:auto;gap:7px;padding:14px;background:#102c47;position:sticky;top:0;z-index:5}
+.hc-step{flex:1 0 auto;padding:11px 12px;min-height:44px;background:#1d405f;border:1px solid #426987;border-radius:9px;color:#d8e7f5;font-size:12px;font-weight:800;cursor:pointer}
+.hc-step.is-active{background:#1678bb;border-color:#6fc4f7;color:#fff}
+.hc-stage{display:none}.hc-stage.is-active{display:block}
+.hc-controls{display:flex;gap:10px;padding:10px 14px;justify-content:space-between}
+.hc-controls button{flex:1;max-width:240px;background:#285578;color:white;border:1px solid #558bb2;border-radius:9px}
+@media(max-width:720px){
+ .guardia-main{padding:10px 10px 110px!important}
+ .tac-command{padding:12px}.tac-command p{display:none}.tac-live{font-size:9px;padding:8px}
+ .tac-nav{display:none}
+ .tac-bottom{display:grid;position:fixed;bottom:0;left:0;right:0;z-index:1000;grid-template-columns:repeat(4,1fr);background:#0a1c30;border-top:1px solid #3d6582;padding:7px 5px max(8px,env(safe-area-inset-bottom));gap:5px}
+ .tac-bottom button{min-height:60px;background:#17324c;border:1px solid #2d4b65;border-radius:11px;color:#c4dbed;font-size:22px;cursor:pointer}
+ .tac-bottom button small{display:block;font-size:10px;font-weight:750;margin-top:2px}
+ .tac-bottom button.is-active{background:#1164a6;border-color:#65b6f2;color:#fff}
+ .tac-section-heading h2{font-size:17px}.tac-quick{font-size:12px}
+ #empClinicalPanel fieldset{margin:8px!important;padding:10px!important}
+ #empClinicalPanel h2{font-size:18px}
+ .hc-stepbar{gap:5px;padding:8px}.hc-step{font-size:11px;padding:9px}
+}
