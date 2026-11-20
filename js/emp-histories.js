@@ -7,10 +7,10 @@ const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefi
 async function download(record,button){
  if(busy)return;busy=true;button.disabled=true;button.textContent='Preparando ZIP…';
  try{
-   let result=await Store.getIncidentExportUrl(record.id);
+   let result=await window.E360Store.getIncidentExportUrl(record.id);
    if(!result?.url){
-     await Store.generateIncidentExport(record.id);
-     result=await Store.getIncidentExportUrl(record.id);
+     await window.E360Store.generateIncidentExport(record.id);
+     result=await window.E360Store.getIncidentExportUrl(record.id);
    }
    if(!result?.url)throw new Error('La exportación no devolvió un archivo. Revisá la función export-incident.');
    const a=document.createElement('a');a.href=result.url;a.target='_blank';a.rel='noopener';a.download=(record.clinical_record_number||'historia')+'.zip';document.body.appendChild(a);a.click();a.remove();
@@ -38,7 +38,7 @@ function init(){
     const btn=make('button','⬇ Descargar ZIP','btn-primary');btn.type='button';btn.addEventListener('click',()=>download(r,btn));row.append(info,btn);list.append(row);
   }
  }
- async function load(){status.textContent='Consultando historias…';try{records=await Store.listClinicalHistories(200);render();}catch(e){status.textContent='Error: '+(e.message||e);}}
+ async function load(){status.textContent='Consultando historias…';try{records=await window.E360Store.listClinicalHistories(200);render();}catch(e){status.textContent='Error: '+(e.message||e);}}
  open.addEventListener('click',()=>{panel.hidden=!panel.hidden;if(!panel.hidden)load();});
  refresh.addEventListener('click',load);search.addEventListener('input',render);
 }
