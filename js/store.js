@@ -1020,6 +1020,35 @@
       return true;
     },
 
+    // ============ PERSONAL EMP ============
+    async listEMPStaff() {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const { data, error } = await state.supabase.from('emp_staff').select('*').order('nombre');
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    async saveEMPStaff(input) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const record = {
+        nombre:String(input.nombre||'').trim(), dni:String(input.dni||'').trim(),
+        email:String(input.email||'').trim().toLowerCase(), telefono:String(input.telefono||'').trim(),
+        base_id:input.base_id, especialidad:input.especialidad,
+        access_role:input.access_role||'operador', active:input.active!==false,
+        updated_at:nowISO()
+      };
+      if (!record.nombre || !/^\\d{6,12}$/.test(record.dni) || !/^\\S+@\\S+\\.\\S+$/.test(record.email) ||
+          !['DOLORES','LA_COSTA'].includes(record.base_id) ||
+          !['MEDICO','ENFERMERO','TEM','CONDUCTOR','OTRO'].includes(record.especialidad) ||
+          !['operador','admin'].includes(record.access_role)) throw new Error('Datos de personal inválidos');
+      const query = input.id
+        ? state.supabase.from('emp_staff').update(record).eq('id',input.id)
+        : state.supabase.from('emp_staff').insert(record);
+      const {data,error}=await query.select().single();
+      if(error) throw new Error(error.message);
+      return data;
+    },
     // ============ FLOTA PERSISTENTE ============
     getFleet(baseId, includeInactive) {
       const all = state.fleet.length ? state.fleet : (state.connected ? [] : LEGACY_FLEET);
