@@ -1609,6 +1609,26 @@
       return data.map(m => ({ ...m, signedUrl: urlMap[m.storage_path] || null }));
     },
 
+    async listClinicalHistories(limit=100) {
+      if(!state.supabase)throw new Error('Supabase no configurado');
+      const {data,error}=await state.supabase.from('incidents')
+        .select('id,clinical_record_number,created_at,base_id,profile_dni,assigned_unit_id,export_zip_path,status')
+        .eq('status','CERRADA').not('clinical_record_number','is',null)
+        .order('created_at',{ascending:false}).limit(limit);
+      if(error)throw new Error(error.message);
+      return data||[];
+    },
+    async generateIncidentExport(incidentId) {
+      if(!state.supabase)throw new Error('Supabase no configurado');
+      const {data,error}=await state.supabase.functions.invoke('export-incident',{body:{incident_id:incidentId}});
+      if(error){
+        let message=error.message||'No se pudo generar el ZIP';
+        try{const body=await error.context?.json();if(body?.error)message=body.error;}catch(_){}
+        throw new Error(message);
+      }
+      if(!data?.ok)throw new Error(data?.error||'La exportación no se completó');
+      return data;
+    },
     async getIncidentExportUrl(incidentId) {
       if (!state.supabase) throw new Error('Supabase no configurado.');
       const { data } = await state.supabase.from('incidents')
