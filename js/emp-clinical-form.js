@@ -35,7 +35,7 @@ function loadImage(canvas,data){if(!data)return;const img=new Image();img.onload
 async function open(incident){
  const store=window.E360Store,db=store?._getState()?.supabase;
  if(!db){alert('Iniciá sesión para completar la historia.');return;}
- activeId=incident.id;const panel=$('#empClinicalPanel');panel.hidden=false;panel.scrollIntoView({behavior:'smooth'});
+ activeId=incident.id;const panel=$('#empClinicalPanel');panel.hidden=false;window.EMPGuardiaTactical?.activate('clinica');$('#tacClinicalEmpty')?.setAttribute('hidden','');showStep(0);panel.scrollIntoView({behavior:'smooth'});
  $('#empClinicalIncident').textContent='Incidente '+incident.id;
  const {data,error}=await db.from('emp_clinical_forms').select('*').eq('incident_id',incident.id).maybeSingle();
  if(error){alert('No se pudo cargar la ficha: '+error.message);return;}
@@ -65,13 +65,17 @@ async function save(){
  }catch(e){alert('No se pudo guardar la historia: '+(e.message||e));}
  finally{btn.disabled=false;}
 }
+let currentStep=0;
+function showStep(index){const stages=[...document.querySelectorAll('#empClinicalPanel .hc-stage')];currentStep=Math.max(0,Math.min(index,stages.length-1));stages.forEach((n,i)=>n.classList.toggle('is-active',i===currentStep));document.querySelectorAll('#empClinicalPanel .hc-step').forEach((n,i)=>{n.classList.toggle('is-active',i===currentStep);n.setAttribute('aria-selected',i===currentStep?'true':'false');});const prev=$('#hcPrev'),next=$('#hcNext');if(prev)prev.disabled=currentStep===0;if(next)next.textContent=currentStep===stages.length-1?'Volver al inicio':'Siguiente →';}
 function init(){
- const main=$('main');if(!main||$('#empClinicalPanel'))return;
+ const main=$('#tacClinicalMount')||$('main');if(!main||$('#empClinicalPanel'))return;
  const panel=el('section','admin-card');panel.id='empClinicalPanel';panel.hidden=true;panel.style.cssText='padding:18px;margin:20px 0;background:#102a47;color:#fff;border:1px solid #476787;border-radius:14px';
  const h=el('h2',null,'Historia clínica prehospitalaria de emergencia · EMP 107');
  const sub=el('p');sub.id='empClinicalIncident';
  const note=el('p',null,'Formulario asistencial asociado al incidente. Las firmas son trazos manuscritos electrónicos; no son firmas digitales certificadas.');
  panel.append(h,sub,note);
+ const stepbar=el('div','hc-stepbar');stepbar.setAttribute('role','tablist');panel.append(stepbar);
+ const stages=[];
  for(const [heading,items] of fields){
   const section=el('fieldset');section.style.cssText='border:1px solid #476787;border-radius:9px;padding:12px;margin:14px 0';
   const legend=el('legend',null,heading);legend.style.fontWeight='700';section.append(legend);
@@ -80,21 +84,25 @@ function init(){
    const input=['observations','lesions','refusal','consent','supplies'].includes(key)?el('textarea'):el('input');
    input.dataset.hc=key;input.style.cssText='width:100%;box-sizing:border-box;padding:10px;background:#fff;color:#172338;border-radius:7px;border:1px solid #b6c5d4';if(input.tagName==='TEXTAREA')input.rows=3;
    input.addEventListener('input',()=>dirty=true);wrap.append(input);grid.append(wrap);}
-  section.append(grid);panel.append(section);
+  section.append(grid);const stage=el('div','hc-stage');stage.append(section);stages.push(stage);
+  const step=el('button','hc-step',heading);step.type='button';step.setAttribute('role','tab');step.addEventListener('click',()=>showStep(stages.indexOf(stage)));stepbar.append(step);
  }
  const drawing=el('fieldset');drawing.style.cssText='border:1px solid #476787;padding:12px;border-radius:9px';
  drawing.append(el('legend',null,'Mapa corporal · Marcar lesiones con el dedo o lápiz'));
  const body=el('canvas');body.id='empPadBody';body.dataset.pad='body';body.style.cssText='width:100%;max-width:700px;background:white;touch-action:none;border-radius:8px;display:block';
- drawing.append(body);const clearBody=el('button',null,'Limpiar dibujo');clearBody.type='button';clearBody.onclick=()=>{body._clear();dirty=true;};drawing.append(clearBody);panel.append(drawing);
+ drawing.append(body);const clearBody=el('button',null,'Limpiar dibujo');clearBody.type='button';clearBody.onclick=()=>{body._clear();dirty=true;};drawing.append(clearBody);const lesionStage=el('div','hc-stage');lesionStage.append(drawing);stages.push(lesionStage);const lesionTab=el('button','hc-step','Mapa corporal');lesionTab.type='button';lesionTab.onclick=()=>showStep(stages.indexOf(lesionStage));stepbar.append(lesionTab);
  const signatures=el('fieldset');signatures.style.cssText='border:1px solid #476787;padding:12px;margin-top:14px;border-radius:9px';
  signatures.append(el('legend',null,'Firmas manuscritas en pantalla'));
  for(const [key,label] of signNames){const wrap=el('div');wrap.style.cssText='margin:14px 0';wrap.append(el('p',null,label));const c=el('canvas');c.dataset.pad=key;c.style.cssText='width:100%;max-width:550px;height:145px;background:white;touch-action:none;display:block;border-radius:8px';wrap.append(c);const b=el('button',null,'Borrar firma');b.type='button';b.onclick=()=>{c._clear();dirty=true;};wrap.append(b);signatures.append(wrap);}
- panel.append(signatures);
+ const signStage=el('div','hc-stage');signStage.append(signatures);stages.push(signStage);const signTab=el('button','hc-step','Firmas');signTab.type='button';signTab.onclick=()=>showStep(stages.indexOf(signStage));stepbar.append(signTab);
+ stages.forEach(stage=>panel.append(stage));
+ const controls=el('div','hc-controls');const prev=el('button',null,'← Anterior');prev.id='hcPrev';prev.type='button';prev.onclick=()=>showStep(currentStep-1);const next=el('button',null,'Siguiente →');next.id='hcNext';next.type='button';next.onclick=()=>showStep(currentStep===stages.length-1?0:currentStep+1);controls.append(prev,next);panel.append(controls);
  const status=el('p');status.id='empClinicalStatus';status.setAttribute('role','status');
  const saveBtn=el('button','btn-primary','Guardar historia y firmas');saveBtn.id='empClinicalSave';saveBtn.type='button';saveBtn.onclick=save;
- const closeBtn=el('button','btn-secondary','Cerrar formulario');closeBtn.type='button';closeBtn.onclick=()=>{if(dirty&&!confirm('Hay cambios sin guardar. ¿Cerrar?'))return;panel.hidden=true;};
+ const closeBtn=el('button','btn-secondary','Cerrar formulario');closeBtn.type='button';closeBtn.onclick=()=>{if(dirty&&!confirm('Hay cambios sin guardar. ¿Cerrar?'))return;panel.hidden=true;$('#tacClinicalEmpty')?.removeAttribute('hidden');};
  panel.append(status,saveBtn,closeBtn);main.append(panel);
  for(const canvas of panel.querySelectorAll('canvas[data-pad]'))canvas._clear=canvasPad(canvas,canvas.dataset.pad==='body');
+ showStep(0);
 }
 window.EMPClinicalForm={open};
 document.addEventListener('DOMContentLoaded',init);
