@@ -1032,6 +1032,57 @@
     ]);
   }
 
+  function guardiaPttImage(state){return 'assets/ptt/ptt_'+state+'.png';}
+  function guardiaPttVisual(wrapper,state){
+    const img=wrapper.querySelector('.gv-ptt-image');
+    if(img){img.src=guardiaPttImage(state);img.alt='PTT '+state.replaceAll('_',' ');}
+    wrapper.dataset.pttState=state;
+  }
+  function guardiaPttDrag(wrapper,handle){
+    let drag=null;
+    handle.style.touchAction='none';
+    handle.addEventListener('pointerdown',e=>{
+      if(e.button!==0)return;
+      const rect=wrapper.getBoundingClientRect();
+      drag={id:e.pointerId,dx:e.clientX-rect.left,dy:e.clientY-rect.top};
+      handle.setPointerCapture(e.pointerId);e.preventDefault();
+    });
+    handle.addEventListener('pointermove',e=>{
+      if(!drag||drag.id!==e.pointerId)return;
+      const x=Math.max(0,Math.min(innerWidth-wrapper.offsetWidth,e.clientX-drag.dx));
+      const y=Math.max(0,Math.min(innerHeight-wrapper.offsetHeight,e.clientY-drag.dy));
+      wrapper.style.left=x+'px';wrapper.style.top=y+'px';wrapper.style.right='auto';wrapper.style.bottom='auto';
+    });
+    const finish=e=>{
+      if(!drag||drag.id!==e.pointerId)return;
+      drag=null;
+      try{localStorage.setItem('emp-guardia-ptt-position',JSON.stringify({x:wrapper.offsetLeft,y:wrapper.offsetTop}));}catch(_){}
+    };
+    handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);
+    try{
+      const pos=JSON.parse(localStorage.getItem('emp-guardia-ptt-position')||'null');
+      if(pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.y)){
+        wrapper.style.left=Math.max(0,Math.min(innerWidth-wrapper.offsetWidth,pos.x))+'px';
+        wrapper.style.top=Math.max(0,Math.min(innerHeight-wrapper.offsetHeight,pos.y))+'px';
+        wrapper.style.right='auto';wrapper.style.bottom='auto';
+      }
+    }catch(_){}
+  }
+  async function guardiaPttCue(){
+    try{
+      const ctx=new (window.AudioContext||window.webkitAudioContext)();
+      await ctx.resume();
+      for(const [i,hz] of [740,1050].entries()){
+        const osc=ctx.createOscillator(),gain=ctx.createGain(),at=ctx.currentTime+i*.11;
+        osc.type='sine';osc.frequency.value=hz;
+        gain.gain.setValueAtTime(.0001,at);gain.gain.linearRampToValueAtTime(.09,at+.015);
+        gain.gain.exponentialRampToValueAtTime(.0001,at+.095);
+        osc.connect(gain);gain.connect(ctx.destination);osc.start(at);osc.stop(at+.1);
+      }
+      setTimeout(()=>ctx.close().catch(()=>{}),600);
+    }catch(_){}
+  }
+
   // ============ PTT FLOTANTE FIJO ============
   function renderPTTFloating(incident) {
     let existing = document.getElementById('gvPttFloating');
@@ -1054,6 +1105,7 @@
         }
         const talkBtn = existing.querySelector('.gv-ptt-talk');
         if (talkBtn) talkBtn.disabled = !isConnected;
+        if(existing.dataset.pttState!=='transmitiendo')guardiaPttVisual(existing,isConnected?'canal_abierto':'inactivo');
         return;
       }
       existing.remove();
@@ -1062,6 +1114,11 @@
 
     const wrapper = el('div', { className: 'gv-ptt-floating', id: 'gvPttFloating' });
     wrapper.dataset.connected = isConnected ? '1' : '0';
+    const dragHandle=el('div',{className:'gv-ptt-drag',title:'Mover PTT'});
+    dragHandle.appendChild(el('img',{src:guardiaPttImage('mover'),alt:'Mover'}));
+    dragHandle.appendChild(el('span',{textContent:'MOVER PTT'}));
+    wrapper.appendChild(dragHandle);
+    wrapper.appendChild(el('img',{className:'gv-ptt-image',src:guardiaPttImage(isConnected?'canal_abierto':'inactivo'),alt:'Estado PTT'}));
 
     const statusEl = el('div', { className: 'gv-ptt-status', textContent: isConnected ? 'PTT conectado — presioná para hablar' : 'Conectá PTT para hablar con Central' });
     wrapper.appendChild(statusEl);
@@ -1079,6 +1136,7 @@
         } else {
           if (!onlineOrToast()) return;
           try {
+            guardiaPttVisual(wrapper,'abriendo_canal');
             const sb = Store._getState().supabase;
             const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
             if (ok) {
@@ -1109,13 +1167,17 @@
         if (!onlineOrToast()) return;
         try {
           const sb = Store._getState().supabase;
+          guardiaPttVisual(wrapper,'abriendo_canal');
           await window.E360PTT.startTalking(sb);
+          await guardiaPttCue();
+          guardiaPttVisual(wrapper,'transmitiendo');
           talkBtn.textContent = '🔴 TRANSMITIENDO…';
           talkBtn.classList.add('is-transmitting');
           statusEl.textContent = '🔴 Transmitiendo a Central';
           if (navigator.vibrate) { try { navigator.vibrate(50); } catch (_) {} }
         } catch (err) {
           talkBtn.classList.remove('is-transmitting');
+          guardiaPttVisual(wrapper,'canal_abierto');
           talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
           statusEl.textContent = '❌ Error de conexión PTT';
           toast('❌ PTT error: ' + (err.message || 'desconocido'));
@@ -1127,6 +1189,7 @@
           const sb = Store._getState().supabase;
           const path = await window.E360PTT.stopTalking(sb);
           talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          guardiaPttVisual(wrapper,'canal_abierto');
           talkBtn.classList.remove('is-transmitting');
           statusEl.textContent = path ? '✅ Clip guardado en el incidente' : 'PTT detenido';
           if (path) { toast('Clip de audio guardado'); setTimeout(() => { ui.lastRenderHash = null; renderActiveIncident(); }, 1500); }
@@ -1148,6 +1211,7 @@
     wrapper.appendChild(connectBtn);
     wrapper.appendChild(talkBtn);
     document.body.appendChild(wrapper);
+    guardiaPttDrag(wrapper,dragHandle);
   }
 
   async function renderHistory() {
