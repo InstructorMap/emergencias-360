@@ -1,0 +1,39 @@
+/* EMP · Stitch Clinical High-Availability — adaptación a admin existente.
+   Tokens extraídos de clinical_high_availability_design_system/DESIGN.md.
+   No se reemplazan IDs, eventos ni componentes de lógica. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
+body.admin-body {
+ --emp-surface:#0b1326; --emp-panel:#171f33; --emp-panel-high:#222a3d;
+ --emp-ink:#dae2fd; --emp-primary:#ff544c; --emp-blue:#a5c8ff; --emp-amber:#ffb865;
+ background:var(--emp-surface); color:var(--emp-ink);font-family:Inter,system-ui,sans-serif;
+}
+.admin-body .admin-header{background:#060e20;color:#dae2fd;border-bottom:1px solid #2d3449;box-shadow:0 4px 20px #0005}
+.admin-body .admin-main{max-width:1440px;margin-inline:auto}
+.admin-body .admin-card{background:var(--emp-panel);border:1px solid #2d3449;border-radius:14px;box-shadow:0 12px 30px #0002;color:var(--emp-ink)}
+.admin-body .admin-card h2{color:var(--emp-ink);letter-spacing:-.02em}
+.admin-body .admin-card p,.admin-body .admin-card label{color:#c4d0e9}
+.admin-body .admin-card input,.admin-body .admin-card select,.admin-body .admin-card textarea{background:#0b1326;color:#dae2fd;border:1px solid #46516a;border-radius:9px;min-height:44px}
+.admin-body .admin-card input:focus-visible,.admin-body .admin-card select:focus-visible,.admin-body .admin-card textarea:focus-visible{outline:2px solid #a5c8ff;outline-offset:2px}
+.admin-body .admin-card input::placeholder{color:#91a0bd}
+.admin-body .admin-table th{background:#131b2e;color:#a5c8ff;font:700 12px 'JetBrains Mono',monospace;letter-spacing:.03em}
+.admin-body .admin-table td{color:#dae2fd;border-color:#2d3449}
+.admin-body .admin-table tbody tr:hover{background:#222a3d}
+.admin-body .admin-card .btn-primary{background:#ff544c;color:#200608;border:0;border-radius:9px;font-weight:800;min-height:44px}
+.admin-body .admin-card .btn-secondary{background:#222a3d;color:#dae2fd;border:1px solid #46516a;border-radius:9px;min-height:40px}
+.admin-body .admin-card .btn-primary:hover{background:#ff827a}
+.admin-body .admin-card .btn-secondary:hover{background:#31394d}
+.emp-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.emp-section-heading h2{margin:6px 0 8px}
+.emp-section-heading p{margin:0}
+.emp-eyebrow{font:700 12px 'JetBrains Mono',monospace;color:#ffb865;letter-spacing:.08em}
+.emp-staff-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 24px}
+.emp-staff-summary>div{display:flex;flex-direction:column;gap:8px;background:#131b2e;border:1px solid #2d3449;border-radius:12px;padding:20px}
+.emp-staff-summary strong{font:800 clamp(24px,3vw,36px) Inter,sans-serif;color:#dae2fd}
+.emp-staff-summary span{font-size:13px;color:#a5c8ff}
+.emp-staff-actions{display:flex;gap:12px;flex-wrap:wrap}
+.emp-staff-note{background:#131b2e;border-left:3px solid #ffb865;padding:12px;border-radius:5px;font-size:13px}
+.emp-staff-table-wrap{overflow-x:auto;margin-top:20px}
+.emp-staff-card .emp-staff-badge{display:inline-block;padding:5px 9px;border-radius:20px;background:#193c39;color:#98e5c7;font-size:12px;font-weight:700}
+.emp-staff-card .emp-staff-badge.inactive{background:#42302d;color:#ffb4ac}
+@media(max-width:750px){.emp-staff-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.emp-section-heading{display:block}.emp-section-heading>button{margin-top:12px}}
+@media(max-width:440px){.emp-staff-summary>div{padding:12px}.emp-staff-actions>*{width:100%}}
