@@ -1060,6 +1060,52 @@
     });
   }
 
+  // Tripulaciones declaradas en Guardia, sin alterar el estado de despacho.
+  async function renderActiveCrew() {
+    const tbody = $('#adminCrewTbody');
+    if (!tbody) return;
+    try {
+      const st = Store._getState();
+      const sb = st && st.supabase;
+      if (!sb) throw new Error('Sin conexión a la base');
+      const { data, error } = await sb.from('profiles')
+        .select('nombre,base_id,guardia_unit_id,guardia_role,guardia_started_at')
+        .eq('on_duty', true).not('guardia_unit_id','is',null)
+        .order('base_id', { ascending: true });
+      if (error) throw error;
+      const filter = $('#crewBaseFilter') ? $('#crewBaseFilter').value : '';
+      const rows = (data || []).filter(p => !filter || p.base_id === filter);
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.appendChild(el('tr', {}, [el('td', { colspan:'5', textContent:'Sin personal de guardia registrado para esta sede.' })]));
+      }
+      rows.forEach(p => {
+        const unit = (Store.getFleet(p.base_id) || []).find(u => String(u.id) === String(p.guardia_unit_id));
+        tbody.appendChild(el('tr', {}, [
+          el('td', { textContent:p.base_id || '—' }),
+          el('td', { textContent:unit ? unit.unit : (p.guardia_unit_id || '—') }),
+          el('td', { textContent:p.nombre || '—' }),
+          el('td', { textContent:p.guardia_role || '—' }),
+          el('td', { textContent:fmtDateTime(p.guardia_started_at) })
+        ]));
+      });
+      const msg = $('#adminCrewMsg');
+      if (msg) msg.textContent = rows.length + ' integrante(s) en guardia';
+    } catch (err) {
+      console.warn('[Admin] Tripulaciones:',err);
+      const msg = $('#adminCrewMsg');
+      if (msg) msg.textContent = 'No se pudo actualizar: ' + fmtErr(err);
+    }
+  }
+  function initActiveCrew() {
+    const filter = $('#crewBaseFilter');
+    const refresh = $('#btnRefreshCrew');
+    if (filter) filter.addEventListener('change', renderActiveCrew);
+    if (refresh) refresh.addEventListener('click', renderActiveCrew);
+    renderActiveCrew();
+    setInterval(renderActiveCrew, 15000);
+  }
+
   // ============================================================
   // SUSCRIPCIÓN
   // ============================================================
@@ -1090,6 +1136,7 @@
     initMercadoPago();
     initExtServices();
     initAudit();
+    initActiveCrew();
     initSubscription();
     renderSocios();
     renderSocioRequests();
