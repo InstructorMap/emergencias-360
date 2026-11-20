@@ -290,7 +290,7 @@
       await runLoading(btn, async () => {
         try {
           const profile = await Store.loginWithEmail(email, password);
-          if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+          if (!profile || !(await Store.hasEMPRole(['operador','admin']))) {
             await Store.logout();
             throw new Error('Tu cuenta no tiene permisos de operador.');
           }
@@ -1315,7 +1315,7 @@
     await applyBranding();
     initLogin();
     const session = await Store.initSession();
-    if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
+    if (session.loggedIn && session.profile && await Store.hasEMPRole(['operador','admin'])) {
       ui.operatorName = session.profile.nombre || session.profile.dni;
       ui.operatorId = session.profile.id;
       hideLogin();
