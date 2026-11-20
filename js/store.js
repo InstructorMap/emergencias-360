@@ -1038,7 +1038,7 @@
         access_role:input.access_role||'operador', active:input.active!==false,
         updated_at:nowISO()
       };
-      if (!record.nombre || !/^\\d{6,12}$/.test(record.dni) || !/^\\S+@\\S+\\.\\S+$/.test(record.email) ||
+      if (!record.nombre || !/^\d{6,12}$/.test(record.dni) || !/^\S+@\S+\.\S+$/.test(record.email) ||
           !['DOLORES','LA_COSTA'].includes(record.base_id) ||
           !['MEDICO','ENFERMERO','TEM','CONDUCTOR','OTRO'].includes(record.especialidad) ||
           !['operador','admin'].includes(record.access_role)) throw new Error('Datos de personal inválidos');
@@ -1047,6 +1047,14 @@
         : state.supabase.from('emp_staff').insert(record);
       const {data,error}=await query.select().single();
       if(error) throw new Error(error.message);
+      return data;
+    },
+    async inviteEMPStaff(staffId) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const {data,error}=await state.supabase.functions.invoke('invite-emp-staff',{body:{action:'create',staff_id:staffId}});
+      if(error) throw new Error(error.message||'No se pudo enviar la invitación');
+      if(!data?.ok) throw new Error(data?.error||'No se pudo enviar la invitación');
       return data;
     },
     // ============ FLOTA PERSISTENTE ============
