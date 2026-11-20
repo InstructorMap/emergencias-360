@@ -19,7 +19,6 @@ const corsHeaders = {
 // ============ HELPERS ===========
 const cleanPdf = (value: unknown) => String(value ?? '').replace(/[—–]/g,'-').replace(/…/g,'...').replace(/[•·]/g,'-').replace(/[^\x20-\x7e\xA0-\xFF]/g,' ');
 function drawText(page: any, value: unknown, opts: any) { page.drawText(cleanPdf(value),opts); }
-=
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   try {
