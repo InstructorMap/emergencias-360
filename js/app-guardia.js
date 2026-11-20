@@ -470,10 +470,11 @@
     if (!navigator.geolocation) { updateGpsStatus('GPS no disponible.', 'red'); return; }
     const inc = Store.getActiveIncidentForUnit(ui.unitId);
     if (!inc) { alert('Sin incidente activo.'); return; }
-    if (ui.watchId) return;
+    if (ui.watchId !== null && ui.watchId !== undefined) return;
     ui.lastPositionAt = 0;
     ui.watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        if (ui.watchId === null || ui.watchId === undefined) return;
         const now = Date.now();
         checkSpeedAlert(pos.coords.speed);
         if (now - ui.lastPositionAt < THROTTLE_MS) return;
@@ -497,7 +498,7 @@
   }
 
   function stopWatch() {
-    if (ui.watchId) { try { navigator.geolocation.clearWatch(ui.watchId); } catch (_) {} ui.watchId = null; }
+    if (ui.watchId !== null && ui.watchId !== undefined) { try { navigator.geolocation.clearWatch(ui.watchId); } catch (_) {} ui.watchId = null; }
     updateGpsStatus('GPS inactivo.', 'amber');
   }
 
@@ -783,9 +784,9 @@
     const toggleBtn = el('button', {
       type: 'button',
       className: 'gv-btn ' + (ui.watchId ? 'gv-btn-danger' : 'gv-btn-success'),
-      textContent: ui.watchId ? '⏹ Detener GPS' : '▶ Activar GPS',
+      textContent: ui.watchId !== null && ui.watchId !== undefined ? '⏹ Detener GPS' : '▶ Activar GPS',
       onclick: () => {
-        if (ui.watchId) stopWatch(); else startWatch();
+        if (ui.watchId !== null && ui.watchId !== undefined) stopWatch(); else startWatch();
         renderActiveIncident();
       }
     });
