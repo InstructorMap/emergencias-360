@@ -103,3 +103,8 @@
 @keyframes empDestinationPulse{50%{box-shadow:0 5px 20px #000a,0 0 0 9px #f43f5e1a}}
 .emp-map-location-note{background:#5b2431;border:1px solid #ff9cae;border-radius:10px;color:#fff;padding:10px 12px;font-size:13px;font-weight:700;margin:-1px 0 12px}
 .emp-map-location-note[hidden]{display:none!important}
+
+.emp-map-location-note p{margin:7px 0 10px;font-size:12px;font-weight:500;line-height:1.5}
+.emp-missing-destination-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 0;border-top:1px solid #ffffff3b;font-size:12px}
+.emp-missing-destination-row span{overflow-wrap:anywhere}
+.emp-missing-destination-row a{color:#fff;background:#143b61;padding:8px 10px;border:1px solid #89c7ff;border-radius:8px;text-decoration:none;font-weight:800}
