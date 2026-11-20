@@ -250,7 +250,7 @@
       await runLoading(btn, async () => {
         try {
           const profile = await Store.loginWithEmail(email, password);
-          if (!profile || (profile.role !== 'admin' && profile.role !== 'operador')) {
+          if (!profile || !(await Store.hasEMPRole(['personal','operador','admin']))) {
             await Store.logout();
             throw new Error('Tu cuenta no tiene permisos de guardia.');
           }
@@ -1185,7 +1185,7 @@
     initLogin();
 
     const session = await Store.initSession();
-    if (session.loggedIn && session.profile && (session.profile.role === 'admin' || session.profile.role === 'operador')) {
+    if (session.loggedIn && session.profile && await Store.hasEMPRole(['personal','operador','admin'])) {
       ui.crewName = session.profile.nombre || session.profile.dni;
       ui.crewId = session.profile.id;
       hideLogin();
