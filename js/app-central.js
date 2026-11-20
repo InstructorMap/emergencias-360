@@ -1227,6 +1227,27 @@
     document.body.appendChild(overlay);
   }
 
+  // Tripulaciones declaradas por cada empleado al iniciar Guardia.
+  let crewByUnit = {};
+  async function refreshActiveCrew() {
+    try {
+      const st = Store._getState();
+      const sb = st && st.supabase;
+      if (!sb) return;
+      const { data, error } = await sb.from('profiles')
+        .select('nombre,base_id,guardia_unit_id,guardia_role,guardia_started_at')
+        .eq('on_duty', true).not('guardia_unit_id','is',null);
+      if (error) throw error;
+      const next = {};
+      (data || []).forEach(p => {
+        const key = String(p.guardia_unit_id);
+        (next[key] ||= []).push(p);
+      });
+      crewByUnit = next;
+      renderFleet();
+    } catch (err) { console.warn('[Central] Tripulación no disponible:', err); }
+  }
+
   // ============ FLOTA ============
   function renderFleet() {
     const container = $('#fleetContainer');
@@ -1246,7 +1267,8 @@
             el('span', { className: 'unit-name', textContent: u.unit }),
             el('span', { className: 'unit-pill unit-status-' + u.status, textContent: u.status.toUpperCase() })
           ]),
-          el('div', { style: 'font-size:0.72rem;color:#94A3B8;', textContent: 'Tipo: ' + u.tipoUnidad })
+          el('div', { style: 'font-size:0.72rem;color:#94A3B8;', textContent: 'Tipo: ' + u.tipoUnidad }),
+          el('div', { style: 'font-size:0.76rem;margin-top:5px;', textContent: (crewByUnit[String(u.id)] || []).length ? '👥 ' + crewByUnit[String(u.id)].map(p => (p.nombre || 'Personal') + ' (' + (p.guardia_role || 'Sin función') + ')').join(' · ') : 'Sin tripulación declarada' })
         ]));
       });
       container.appendChild(list);
@@ -1285,6 +1307,8 @@
     // F3-mejora: ya NO se usa initAudioUnlockListener() global.
     // El botón "Activar audio" vive en el PTT flotante (contextual).
     renderAll();
+    await refreshActiveCrew();
+    setInterval(refreshActiveCrew, 15000);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
