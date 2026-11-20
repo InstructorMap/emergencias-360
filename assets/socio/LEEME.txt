@@ -1,0 +1,8 @@
+EMP SOCIO — Paquete gráfico V1
+
+Subir los archivos .webp a GitHub: InstructorMap/emergencias-360/assets/socio/
+No subir el ZIP directamente.
+
+Este paquete contiene recursos gráficos recortados de una lámina conceptual. Algunos textos y bordes pueden necesitar ajuste antes de utilizarlos como botones finales.
+No sustituir directamente el botón SOS funcional ni alterar su confirmación de 1,5 segundos.
+La credencial actual se conserva. Se quitó su botón de descarga PDF en socio.html.
