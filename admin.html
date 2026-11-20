@@ -243,6 +243,25 @@
         </div>
       </section>
 
+      <!-- FLOTA EMP -->
+      <section class="admin-card" aria-label="Gestión de ambulancias" id="adminFlota">
+        <h2>🚑 Flota EMP — Administración de ambulancias</h2>
+        <p class="aviso-comercial">Las unidades se guardan en Supabase y se comparten con Central y Guardia. Desactivar una unidad la retira de los selectores sin borrar su historial.</p>
+        <form id="formAmbulance" class="admin-form" novalidate>
+          <input type="hidden" id="ambId" />
+          <label>Identificador / móvil <input id="ambUnit" maxlength="30" required placeholder="AMB-03" /></label>
+          <label>Sede <select id="ambBase"><option value="DOLORES">Dolores</option><option value="LA_COSTA">Santa Teresita / La Costa</option></select></label>
+          <label>Dominio / patente <input id="ambPlate" maxlength="20" placeholder="AB123CD" /></label>
+          <label>Marca y modelo <input id="ambModel" maxlength="100" placeholder="Ej. Mercedes-Benz Sprinter" /></label>
+          <label>Tipo de unidad <select id="ambType"><option value="UTIM">UTIM</option><option value="COMUN">Común</option><option value="PEDIATRICA_CON_INCUBADORA">Pediátrica con incubadora</option><option value="TRASLADO_PROGRAMADO">Traslado programado</option></select></label>
+          <label>Estado operativo <select id="ambStatus"><option value="disponible">Disponible</option><option value="asignado">Asignado</option><option value="en_salida">En salida</option><option value="mantenimiento">Mantenimiento</option></select></label>
+          <label class="full">Equipamiento y observaciones <textarea id="ambEquipment" rows="2" maxlength="1000"></textarea></label>
+          <div class="full" style="display:flex;gap:8px;flex-wrap:wrap"><button type="submit" class="btn-primary" id="btnSaveAmbulance">Guardar ambulancia</button><button type="button" class="btn-secondary" id="btnClearAmbulance">Nueva / limpiar</button><button type="button" class="btn-secondary" id="btnReloadFleet">Actualizar flota</button></div>
+          <p id="ambFormMsg" class="form-msg full" role="status"></p>
+        </form>
+        <div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Móvil</th><th>Sede</th><th>Tipo</th><th>Patente / Modelo</th><th>Estado</th><th>Gestión</th></tr></thead><tbody id="ambFleetTbody"><tr><td colspan="6">Cargando flota…</td></tr></tbody></table></div>
+      </section>
+
       <!-- PERSONAL DE GUARDIA ACTIVO -->
       <section class="admin-card" aria-label="Tripulaciones activas">
         <h2>👥 Tripulaciones activas por ambulancia</h2>
