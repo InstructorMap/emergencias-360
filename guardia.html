@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/guardia-v2.css" />
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/guardia-tactical.css?v=20261120-tac-v1" />
+  <link rel="stylesheet" href="css/guardia-tactical.css?v=20261120-tac-v3" />
 </head>
 <body class="guardia-body theme-dark">
 
@@ -87,17 +87,17 @@
 
 
       </div>
-      <div class="tac-view" data-tac-view="clinica">
+      <div class="tac-view" data-tac-view="clinica" hidden>
         <div class="tac-section-heading"><div><span class="tac-eyebrow">02 / REGISTRO ASISTENCIAL</span><h2>Historia clínica</h2></div><button type="button" class="tac-quick" data-tac-jump="operacion">Volver al despacho</button></div>
         <div id="tacClinicalEmpty" class="tac-empty">Seleccioná una atención activa y tocá «Completar historia clínica» para comenzar. Podés continuar la ficha sin salir de esta sección.</div>
         <div id="tacClinicalMount"></div>
       </div>
-      <div class="tac-view" data-tac-view="turno">
-        <div class="tac-section-heading"><div><span class="tac-eyebrow">03 / DOTACIÓN</span><h2>Mi turno y móvil</h2></div></div>
+      <div class="tac-view" data-tac-view="turno" hidden>
+        <div class="tac-section-heading"><div><span class="tac-eyebrow">03 / DOTACIÓN</span><h2>Mi turno y móvil</h2></div>
               <section class="admin-card" aria-label="Asignación de guardia" style="margin:0 0 14px;padding:16px;background:#102a47;border:1px solid #315779;border-radius:14px;color:#fff"><h2 style="margin:0 0 8px;font-size:1.1rem">👥 Mi guardia y mi función</h2><p id="guardiaAssignmentStatus" role="status">Confirmá tu móvil y función para iniciar la guardia.</p><label for="guardiaRoleSelector">Mi función</label><select id="guardiaRoleSelector" style="display:block;width:100%;padding:12px;margin:8px 0 12px;background:#fff;color:#102a47;border-radius:8px"><option value="">Seleccionar función</option><option value="MEDICO">Médico/a</option><option value="ENFERMERO">Enfermero/a</option><option value="TEM">TEM / Paramédico</option><option value="CONDUCTOR">Conductor/a</option><option value="OTRO">Otro integrante</option></select><button type="button" id="btnConfirmGuardia" class="btn-primary">Confirmar inicio / actualizar guardia</button><button type="button" id="btnEndGuardia" class="btn-secondary" style="margin-left:8px">Finalizar guardia</button></section>
       </div>
-      <div class="tac-view" data-tac-view="historial">
-        <div class="tac-section-heading"><div><span class="tac-eyebrow">04 / TRAZABILIDAD</span><h2>Historial operativo</h2></div></div>
+      <div class="tac-view" data-tac-view="historial" hidden>
+        <div class="tac-section-heading"><div><span class="tac-eyebrow">04 / TRAZABILIDAD</span><h2>Historial operativo</h2></div>
         <section class="admin-card" aria-label="Historial de guardias" style="margin:0 0 14px;padding:16px"><h2 style="font-size:1.05rem;margin:0 0 10px">Historial de mis guardias</h2><ol id="guardiaHistoryList" style="padding-left:20px;line-height:1.9"><li>Cargando movimientos…</li></ol></section>      <section class="guardia-history-section" aria-label="Historial reciente">
         <h2>Historial reciente de esta unidad</h2>
         <ul class="guardia-history-list" id="historyList"></ul>
@@ -154,6 +154,6 @@
     })();
   </script>
 <script src="js/emp-clinical-form.js?v=20261120-tac-v2"></script>
-<script src="js/guardia-tactical.js?v=20261120-tac-v1"></script>
+<script src="js/guardia-tactical.js?v=20261120-tac-v3"></script>
 </body>
 </html>
