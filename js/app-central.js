@@ -1308,7 +1308,7 @@
     // El botón "Activar audio" vive en el PTT flotante (contextual).
     renderAll();
     await refreshActiveCrew();
-    setInterval(refreshActiveCrew, 15000);
+    setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); }, 15000);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
