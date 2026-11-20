@@ -37,3 +37,13 @@ body.admin-body {
 .emp-staff-card .emp-staff-badge.inactive{background:#42302d;color:#ffb4ac}
 @media(max-width:750px){.emp-staff-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.emp-section-heading{display:block}.emp-section-heading>button{margin-top:12px}}
 @media(max-width:440px){.emp-staff-summary>div{padding:12px}.emp-staff-actions>*{width:100%}}
+
+/* Navegación por áreas: conserva todos los módulos, muestra solo el seleccionado. */
+.admin-body [data-admin-section][hidden]{display:none!important}
+.emp-admin-nav{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 24px;padding:12px;background:#171f33;border:1px solid #2d3449;border-radius:14px;position:sticky;top:0;z-index:20;box-shadow:0 12px 25px #0004}
+.emp-nav-btn{font:700 13px Inter,sans-serif;min-height:44px;border:1px solid #46516a;background:#222a3d;color:#dae2fd;border-radius:9px;padding:10px 16px;cursor:pointer}
+.emp-nav-btn:hover,.emp-nav-btn:focus-visible{border-color:#a5c8ff;color:#fff}
+.emp-nav-btn.is-active{background:#a5c8ff;color:#0b1326;border-color:#a5c8ff}
+.emp-socios-pager{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:20px;color:#dae2fd;font:600 13px Inter,sans-serif}
+.emp-socios-pager button:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:640px){.emp-admin-nav{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.emp-nav-btn{padding:10px 8px}.emp-nav-btn:last-child{grid-column:span 2}}
