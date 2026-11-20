@@ -269,7 +269,7 @@
           <label>Rol de acceso previsto<select id="empStaffRol"><option value="personal">Personal general</option><option value="operador">Operador de central</option><option value="admin">Administrador</option></select></label>
           <label>Estado<select id="empStaffActivo"><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
           <div class="full emp-staff-actions"><button type="submit" class="btn-primary" id="empStaffSave">Guardar legajo</button><button type="button" class="btn-secondary" id="empStaffClear">Nuevo legajo</button></div>
-          <p class="full emp-staff-note">Guardá el legajo. Si el empleado ya tiene cuenta como socio, usá «Vincular cuenta existente»: conservará su acceso y contraseña. Para nuevos usuarios podés crear una clave de 8 caracteres o enviar una invitación por correo.</p>
+          <p class="full emp-staff-note">Guardá el legajo. Los cambios de rol y estado se aplican automáticamente al personal vinculado, sin afectar su cuenta de socio. Para empleados nuevos podés vincular una cuenta existente, crear una clave de al menos 8 caracteres o enviar una invitación.</p>
           <p class="full" id="empStaffMessage" role="status"></p>
         </form>
         <div class="emp-staff-table-wrap"><table class="admin-table"><thead><tr><th>Personal</th><th>Especialidad</th><th>Sede</th><th>Estado</th><th>Cuenta</th><th>Acción</th></tr></thead><tbody id="empStaffTbody"><tr><td colspan="6">Cargando legajos…</td></tr></tbody></table></div>
@@ -342,7 +342,7 @@
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js?v=20261120-staff-access-v3"></script>
-  <script src="js/app-admin.js?v=20261120-staff-access-v3"></script>
+  <script src="js/app-admin.js?v=20261120-staff-access-v4"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
