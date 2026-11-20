@@ -91,33 +91,43 @@
   };
 
   // Alarmas de Central: distinguir nuevos ingresos de cambios de estado o GPS.
-  const emergencyAlert = { initialized: false, known: new Set(), active: new Map(), audio: null, enabled: false, timer: null };
-  function pendingAlerts() {
-    return Store.getIncidents('ALL').filter(i => i.status === 'RECIBIDA_SERVIDOR');
-  }
-  function alertLabel(inc) {
-    return [inc.priority || 'SIN TRIAGE', inc.baseId || 'BASE SIN DEFINIR', inc.manualAddress || 'Ubicación en incidente'].join(' · ');
-  }
-  function stopEmergencyTone() {
-    if (emergencyAlert.timer) { clearInterval(emergencyAlert.timer); emergencyAlert.timer = null; }
+  const emergencyAlert = { initialized: false, known: new Set(), active: new Map(), audio: null, output: null, enabled: false, timer: null };
+  function pendingAlerts() { return Store.getIncidents('ALL').filter(i => i.status === 'RECIBIDA_SERVIDOR'); }
+  function alertLabel(inc) { return [inc.priority || 'SIN TRIAGE', inc.baseId || 'BASE SIN DEFINIR', inc.manualAddress || 'Ubicación en incidente'].join(' · '); }
+  function stopEmergencyTone() { if (emergencyAlert.timer) { clearInterval(emergencyAlert.timer); emergencyAlert.timer = null; } }
+  function updateEmergencySoundButton() {
+    const btn=document.getElementById('btnEmergencySound');
+    if(!btn)return;
+    btn.textContent=emergencyAlert.enabled?'🔊 Desactivar alarma':'🔔 Activar alarma';
+    btn.setAttribute('aria-pressed',String(emergencyAlert.enabled));
+    btn.title=emergencyAlert.enabled?'Desactivar la sirena de Central':'Activar la sirena de Central';
   }
   function playEmergencyTone() {
-    if (!emergencyAlert.enabled || !emergencyAlert.audio) return;
+    if (!emergencyAlert.enabled || !emergencyAlert.audio || !emergencyAlert.output) return;
     try {
-      const ctx = emergencyAlert.audio;
-      if (ctx.state !== 'running') return;
-      const now = ctx.currentTime;
-      [0, .27, .54].forEach(offset => {
-        const osc = ctx.createOscillator(), gain = ctx.createGain();
-        osc.type = 'sine'; osc.frequency.setValueAtTime(880, now + offset);
-        osc.frequency.setValueAtTime(660, now + offset + .12);
-        gain.gain.setValueAtTime(.0001, now + offset);
-        gain.gain.exponentialRampToValueAtTime(.16, now + offset + .02);
-        gain.gain.exponentialRampToValueAtTime(.0001, now + offset + .23);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(now + offset); osc.stop(now + offset + .24);
+      const ctx=emergencyAlert.audio;
+      if(ctx.state!=='running')return;
+      const now=ctx.currentTime;
+      [0,.42,.84,1.26].forEach((offset,index)=>{
+        const osc=ctx.createOscillator(),gain=ctx.createGain(),start=now+offset;
+        osc.type='sawtooth';
+        osc.frequency.setValueAtTime(index%2===0?720:960,start);
+        osc.frequency.linearRampToValueAtTime(index%2===0?960:720,start+.37);
+        gain.gain.setValueAtTime(.0001,start);
+        gain.gain.linearRampToValueAtTime(.055,start+.045);
+        gain.gain.setValueAtTime(.055,start+.32);
+        gain.gain.linearRampToValueAtTime(.0001,start+.4);
+        osc.connect(gain);gain.connect(emergencyAlert.output);
+        osc.start(start);osc.stop(start+.41);
       });
-    } catch (e) { console.warn('[Central] Alarma de audio:', e); }
+    }catch(e){console.warn('[Central] Sirena:',e);}
+  }
+  function setEmergencySoundEnabled(enabled) {
+    emergencyAlert.enabled=!!enabled;
+    if(emergencyAlert.output&&emergencyAlert.audio) emergencyAlert.output.gain.setValueAtTime(emergencyAlert.enabled?1:0,emergencyAlert.audio.currentTime);
+    if(!emergencyAlert.enabled)stopEmergencyTone();
+    else if(emergencyAlert.active.size&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,4500);}
+    updateEmergencySoundButton();
   }
   function renderEmergencyOverlay() {
     let overlay = document.getElementById('empEmergencyOverlay');
@@ -150,7 +160,7 @@
       emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();
     }});
     actions.append(view,dismiss);overlay.appendChild(actions);
-    if(emergencyAlert.enabled&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,5000);}
+    if(emergencyAlert.enabled&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,4500);}
   }
   function checkNewEmergencyAlerts() {
     const pending=pendingAlerts(), ids=new Set(pending.map(i=>String(i.id)));
@@ -173,17 +183,25 @@
     const controls=document.querySelector('.header-controls');
     if(!controls||document.getElementById('btnEmergencySound'))return;
     const btn=el('button',{type:'button',id:'btnEmergencySound',className:'btn-emergency-sound',textContent:'🔔 Activar alarma',onclick:async()=>{
+      if(emergencyAlert.enabled){setEmergencySoundEnabled(false);toast('Sirena de Central desactivada');return;}
       try{
         const AudioContext=window.AudioContext||window.webkitAudioContext;
         if(!AudioContext)throw new Error('Audio no compatible');
         if(!emergencyAlert.audio)emergencyAlert.audio=new AudioContext();
+        if(!emergencyAlert.output){
+          emergencyAlert.output=emergencyAlert.audio.createGain();
+          emergencyAlert.output.gain.value=0;
+          emergencyAlert.output.connect(emergencyAlert.audio.destination);
+        }
         await emergencyAlert.audio.resume();
-        emergencyAlert.enabled=emergencyAlert.audio.state==='running';
-        btn.textContent=emergencyAlert.enabled?'🔊 Alarma activa':'🔔 Activar alarma';
-        if(emergencyAlert.enabled)playEmergencyTone();
-      }catch(err){toast('No se pudo activar el sonido: '+(err.message||err));}
+        if(emergencyAlert.audio.state!=='running')throw new Error('El navegador bloqueó el audio');
+        setEmergencySoundEnabled(true);
+        if(!emergencyAlert.active.size)playEmergencyTone();
+        toast('Sirena de emergencia activada');
+      }catch(err){setEmergencySoundEnabled(false);toast('No se pudo activar la sirena: '+(err.message||err));}
     }});
     controls.prepend(btn);
+    updateEmergencySoundButton();
   }
 
   // ============ MAPA LEAFLET ============
