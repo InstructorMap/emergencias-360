@@ -88,7 +88,7 @@
     unitId: null,
     crewId: null,
     crewName: '',
-    onDuty: true,
+    onDuty: false,
     pushRegistered: false,
     watchId: null,
     lastPositionAt: 0,
@@ -178,7 +178,6 @@
 
   async function initPushRegistration() {
     try {
-      await setOnDutyStatus(true);
       const cap = window.E360Capacitor;
       if (!cap || typeof cap.registerPushToken !== 'function') return;
       const rawState = typeof Store._getState === 'function' ? Store._getState() : null;
@@ -312,6 +311,66 @@
       sel.appendChild(opt);
     });
     if (!units.some(u => u.id === ui.unitId)) { ui.unitId = units[0].id; sel.value = ui.unitId; }
+  }
+
+  async function loadGuardiaAssignment() {
+    try {
+      const st = Store._getState();
+      const sb = st && st.supabase;
+      if (!sb || !ui.crewId) return;
+      const { data, error } = await sb.from('profiles').select('base_id,guardia_unit_id,guardia_role,on_duty').eq('id', ui.crewId).single();
+      if (error) throw error;
+      ui.onDuty = !!data.on_duty;
+      if (data.base_id) ui.baseId = data.base_id;
+      if (data.guardia_unit_id) ui.unitId = data.guardia_unit_id;
+      const role = $('#guardiaRoleSelector');
+      if (role) role.value = data.guardia_role || '';
+      const base = $('#guardiaBaseSelector');
+      if (base) base.value = ui.baseId;
+      populateUnitSelector();
+      updateAssignmentStatus();
+      renderUnitStatus();
+    } catch (err) { console.warn('[Guardia] No se pudo leer la asignación:', err); toast('No se pudo cargar la asignación de guardia'); }
+  }
+
+  function updateAssignmentStatus() {
+    const status = $('#guardiaAssignmentStatus');
+    if (!status) return;
+    const role = $('#guardiaRoleSelector');
+    status.textContent = ui.onDuty
+      ? '🟢 En guardia · ' + (ui.crewName || 'Personal') + ' · ' + (role && role.value || 'Sin función') + ' · ' + (ui.unitId || 'Sin móvil')
+      : '🔴 Fuera de guardia. Seleccioná móvil y función y confirmá el inicio.';
+  }
+
+  async function saveGuardiaAssignment(end) {
+    const btn = $(end ? '#btnEndGuardia' : '#btnConfirmGuardia');
+    const role = $('#guardiaRoleSelector');
+    if (!end && (!ui.unitId || !role || !role.value)) { toast('Seleccioná móvil y función'); return; }
+    const st = Store._getState();
+    const sb = st && st.supabase;
+    if (!sb || !ui.crewId) { toast('Sesión no disponible'); return; }
+    if (btn) btn.disabled = true;
+    try {
+      const payload = end
+        ? { on_duty: false, guardia_unit_id: null, guardia_role: null, guardia_started_at: null }
+        : { on_duty: true, base_id: ui.baseId, guardia_unit_id: ui.unitId, guardia_role: role.value, guardia_started_at: new Date().toISOString() };
+      const { data, error } = await sb.from('profiles').update(payload).eq('id', ui.crewId).select('id,on_duty').single();
+      if (error) throw error;
+      if (!data) throw new Error('No se pudo guardar la asignación');
+      ui.onDuty = !end;
+      updateAssignmentStatus();
+      renderUnitStatus();
+      toast(end ? 'Guardia finalizada' : 'Guardia registrada correctamente');
+    } catch (err) { console.error('[Guardia] Error al guardar asignación:', err); toast('Error al guardar guardia: ' + (err.message || err)); }
+    finally { if (btn) btn.disabled = false; }
+  }
+
+  function initGuardiaAssignment() {
+    const start = $('#btnConfirmGuardia');
+    const end = $('#btnEndGuardia');
+    if (start) start.addEventListener('click', () => saveGuardiaAssignment(false));
+    if (end) end.addEventListener('click', () => saveGuardiaAssignment(true));
+    updateAssignmentStatus();
   }
 
   function initSelectors() {
@@ -1108,6 +1167,8 @@
   async function bootGuardia() {
     await applyBranding();
     initSelectors();
+    initGuardiaAssignment();
+    await loadGuardiaAssignment();
     initTheme();
     initPTTDiagButton();
     render();
