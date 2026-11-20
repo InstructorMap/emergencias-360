@@ -7,6 +7,7 @@
   <meta name="description" content="Panel Administrativo EMP — Gestión de socios, alta masiva, branding, Mercado Pago, auditoría." />
   <title>Panel Admin — EMP Emergencias Médicas Privadas</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/stitch-admin.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 </head>
 <body class="admin-body">
@@ -243,6 +244,26 @@
         </div>
       </section>
 
+      <!-- PERSONAL EMP -->
+      <section class="admin-card emp-staff-card" id="adminPersonal" aria-label="Personal EMP">
+        <div class="emp-section-heading"><div><span class="emp-eyebrow">RECURSOS HUMANOS · EMP</span><h2>Personal y habilitaciones <span class="section-badge" id="empStaffCount">0</span></h2><p>Legajos centralizados por sede, especialidad y estado.</p></div><button type="button" class="btn-secondary" id="empStaffRefresh">↻ Actualizar</button></div>
+        <div class="emp-staff-summary"><div><strong id="empStaffTotal">—</strong><span>Registrados</span></div><div><strong id="empStaffActive">—</strong><span>Activos</span></div><div><strong id="empStaffDolores">—</strong><span>Dolores</span></div><div><strong id="empStaffCosta">—</strong><span>Santa Teresita</span></div></div>
+        <form class="admin-form" id="empStaffForm" novalidate>
+          <input type="hidden" id="empStaffId" />
+          <label>Nombre completo<input type="text" id="empStaffNombre" required maxlength="100" autocomplete="name"/></label>
+          <label>DNI<input type="text" id="empStaffDni" required inputmode="numeric" maxlength="12"/></label>
+          <label>Correo electrónico<input type="email" id="empStaffEmail" required autocomplete="off"/></label>
+          <label>Teléfono<input type="tel" id="empStaffTelefono" maxlength="35"/></label>
+          <label>Sede<select id="empStaffBase"><option value="DOLORES">Dolores</option><option value="LA_COSTA">Santa Teresita / La Costa</option></select></label>
+          <label>Especialidad<select id="empStaffEspecialidad"><option value="MEDICO">Médico/a</option><option value="ENFERMERO">Enfermero/a</option><option value="TEM">TEM / Paramédico</option><option value="CONDUCTOR">Conductor/a</option><option value="OTRO">Otra función</option></select></label>
+          <label>Rol de acceso previsto<select id="empStaffRol"><option value="operador">Operador / personal</option><option value="admin">Administrador</option></select></label>
+          <label>Estado<select id="empStaffActivo"><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
+          <div class="full emp-staff-actions"><button type="submit" class="btn-primary" id="empStaffSave">Guardar legajo</button><button type="button" class="btn-secondary" id="empStaffClear">Nuevo legajo</button></div>
+          <p class="full emp-staff-note">El legajo se registra en Supabase. La creación de credenciales de acceso está pendiente de integrar y no se realiza desde este formulario.</p>
+          <p class="full" id="empStaffMessage" role="status"></p>
+        </form>
+        <div class="emp-staff-table-wrap"><table class="admin-table"><thead><tr><th>Personal</th><th>Especialidad</th><th>Sede</th><th>Estado</th><th>Cuenta</th><th>Acción</th></tr></thead><tbody id="empStaffTbody"><tr><td colspan="6">Cargando legajos…</td></tr></tbody></table></div>
+      </section>
       <!-- FLOTA EMP -->
       <section class="admin-card" aria-label="Gestión de ambulancias" id="adminFlota">
         <h2>🚑 Flota EMP — Administración de ambulancias</h2>
@@ -310,8 +331,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
-  <script src="js/store.js?v=20261119-login-compat"></script>
-  <script src="js/app-admin.js?v=20261119-reset-password"></script>
+  <script src="js/store.js?v=20261120-personal-stitch"></script>
+  <script src="js/app-admin.js?v=20261120-personal-stitch"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
