@@ -27,3 +27,25 @@ body.emp-themed .bottom-nav #nav-sos .nav-icon,body.emp-themed .bottom-nav #nav-
 body.emp-themed.modo-mayor .acceso-rapido{min-height:118px!important}
 body.emp-themed.modo-mayor .bottom-nav .nav-btn{min-height:72px!important}
 body.emp-themed.modo-mayor .bottom-nav .nav-text{font-size:13px!important}
+
+/* Socio V2: recursos gráficos originales ya cargados por EMP */
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido{min-height:142px!important;justify-content:flex-end!important;background-size:cover!important;background-position:center!important;border:1px solid #3a9fdb!important;box-shadow:0 8px 20px #001a3550!important;isolation:isolate;position:relative;overflow:hidden;padding:12px 7px!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 28%,#00182d75 55%,#001428ed 100%)}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido:nth-child(1){background-image:url('../assets/socio/mi_credencial.webp')!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido:nth-child(2){background-image:url('../assets/socio/beneficios_plan.webp')!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido:nth-child(3){background-image:url('../assets/socio/mi_medicacion.webp')!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido:nth-child(4){background-image:url('../assets/socio/mis_datos_medicos.webp')!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido .ar-icon{display:none!important}
+body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido .ar-label{color:#fff!important;text-shadow:0 2px 5px #000!important;font-size:14px!important;line-height:1.25!important}
+body.emp-themed #tab-inicio .card-sos-destacada{background:linear-gradient(90deg,#2d0716db,#300a18b5),url('../assets/socio/sos_pedir_emergencia.webp') center/cover!important;border:2px solid #ff6673!important;color:#fff!important}
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-title,
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-sub,
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-hint,
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-estado{color:#fff!important;text-shadow:0 1px 4px #000!important}
+body.emp-themed #tab-inicio .card-sos-destacada .btn-sos-mini{box-shadow:0 0 0 4px #fff4,0 6px 22px #0009!important}
+body.emp-themed #tab-inicio .servicios-lista{border-radius:16px;overflow:hidden}
+body.emp-themed #tab-inicio .servicios-lista .servicio-item{min-height:57px!important}
+body.emp-themed #tab-sos .sos-zone{background:linear-gradient(140deg,#0c2142,#370c21),url('../assets/socio/sos_pedir_emergencia.webp') center/cover;border-radius:20px;padding:20px 10px}
+body.emp-themed #tab-sos .btn-sos{box-shadow:0 0 0 5px #ffffff38,0 12px 32px #0008!important}
+@media(max-width:480px){body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido{min-height:125px!important}body.emp-themed #tab-inicio .grid-accesos-rapidos .acceso-rapido .ar-label{font-size:13px!important}}
+@media(prefers-reduced-motion:reduce){body.emp-themed .acceso-rapido{transition:none!important}}
