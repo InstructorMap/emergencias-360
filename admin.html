@@ -243,6 +243,17 @@
         </div>
       </section>
 
+      <!-- PERSONAL DE GUARDIA ACTIVO -->
+      <section class="admin-card" aria-label="Tripulaciones activas">
+        <h2>👥 Tripulaciones activas por ambulancia</h2>
+        <p class="aviso-comercial">Personal que confirmó inicio de guardia desde su dispositivo. Actualización cada 15 segundos.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <select id="crewBaseFilter" class="admin-select"><option value="">Todas las sedes</option><option value="DOLORES">Dolores</option><option value="LA_COSTA">La Costa / Santa Teresita</option></select>
+          <button id="btnRefreshCrew" type="button" class="btn-secondary">Actualizar tripulaciones</button>
+        </div>
+        <div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Sede</th><th>Ambulancia</th><th>Personal</th><th>Función</th><th>Inicio</th></tr></thead><tbody id="adminCrewTbody"><tr><td colspan="5">Cargando…</td></tr></tbody></table></div>
+        <p id="adminCrewMsg" class="form-msg" role="status"></p>
+      </section>
       <!-- 10. AUDITORÍA -->
       <section class="admin-card" aria-label="Auditoría">
         <h2>10. Auditoría</h2>
