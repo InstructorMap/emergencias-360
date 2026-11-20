@@ -1024,7 +1024,7 @@
     async listEMPStaff() {
       requireAdmin();
       if (!state.supabase) throw new Error('Supabase no configurado');
-      const { data, error } = await state.supabase.from('emp_staff').select('*').order('nombre');
+      const { data, error } = await state.supabase.from('emp_staff').select('*').is('deleted_at',null).order('nombre');
       if (error) throw new Error(error.message);
       return data || [];
     },
@@ -1041,7 +1041,7 @@
       if (!record.nombre || !/^\d{6,12}$/.test(record.dni) || !/^\S+@\S+\.\S+$/.test(record.email) ||
           !['DOLORES','LA_COSTA'].includes(record.base_id) ||
           !['MEDICO','ENFERMERO','TEM','CONDUCTOR','OTRO'].includes(record.especialidad) ||
-          !['operador','admin'].includes(record.access_role)) throw new Error('Datos de personal inválidos');
+          !['operador','personal','admin'].includes(record.access_role)) throw new Error('Datos de personal inválidos');
       const query = input.id
         ? state.supabase.from('emp_staff').update(record).eq('id',input.id)
         : state.supabase.from('emp_staff').insert(record);
@@ -1049,14 +1049,19 @@
       if(error) throw new Error(error.message);
       return data;
     },
-    async inviteEMPStaff(staffId) {
+    async manageEMPStaff(staffId, action, password) {
       requireAdmin();
-      if (!state.supabase) throw new Error('Supabase no configurado');
-      const {data,error}=await state.supabase.functions.invoke('invite-emp-staff',{body:{action:'create',staff_id:staffId}});
-      if(error) throw new Error(error.message||'No se pudo enviar la invitación');
-      if(!data?.ok) throw new Error(data?.error||'No se pudo enviar la invitación');
+      if(!state.supabase)throw new Error('Supabase no configurado');
+      const {data,error}=await state.supabase.functions.invoke('invite-emp-staff',{body:{staff_id:staffId,action,password:password||undefined}});
+      if(error){
+        let detail=error.message||'Error de conexión';
+        try{if(error.context){const payload=await error.context.json();detail=payload.error||detail;}}catch(_){}
+        throw new Error(detail);
+      }
+      if(!data?.ok)throw new Error(data?.error||'Operación no completada');
       return data;
     },
+    async inviteEMPStaff(staffId){return this.manageEMPStaff(staffId,'invite');},
     // ============ FLOTA PERSISTENTE ============
     getFleet(baseId, includeInactive) {
       const all = state.fleet.length ? state.fleet : (state.connected ? [] : LEGACY_FLEET);
