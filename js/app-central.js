@@ -248,23 +248,11 @@
   }
 
   function incidentIcon(status) {
-    const colors = {
-      RECIBIDA_SERVIDOR: '#DC2626',
-      ACEPTADA_POR_CENTRAL: '#F59E0B',
-      CLASIFICADA: '#F59E0B',
-      MOVIL_ASIGNADO: '#3B82F6',
-      EN_CAMINO: '#3B82F6',
-      EN_ESCENA: '#10B981',
-      EN_TRASLADO: '#8B5CF6',
-      CERRADA: '#64748B',
-      CANCELADA: '#64748B'
-    };
-    const color = colors[status] || '#64748B';
+    const urgent=status==='RECIBIDA_SERVIDOR';
     return L.divIcon({
-      className: 'emp-map-incident',
-      html: '<div style="width:18px;height:18px;border-radius:50%;background:' + color + ';border:2px solid #fff;box-shadow:0 0 0 3px ' + color + '44;"></div>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9]
+      className:'emp-map-incident',
+      html:'<div class="emp-destination-pin '+(urgent?'emp-destination-urgent':'')+'"><span class="emp-destination-cross">✚</span><span class="emp-destination-caption">INCIDENTE</span></div>',
+      iconSize:[98,60],iconAnchor:[49,56],popupAnchor:[0,-50]
     });
   }
 
@@ -294,14 +282,18 @@
     const active = incidents.filter(i => ['CERRADA', 'CANCELADA'].indexOf(i.status) === -1);
     const seenKeys = new Set();
     const bounds = [];
+    let missingDestination=0;
 
     active.forEach(inc => {
-      if (inc.location && typeof inc.location.lat === 'number') {
+      const loc=inc.location;
+      const destLat=Number(loc?.lat ?? loc?.latitude);
+      const destLng=Number(loc?.lng ?? loc?.lon ?? loc?.longitude);
+      if (loc && Number.isFinite(destLat) && Number.isFinite(destLng) && Math.abs(destLat)<=90 && Math.abs(destLng)<=180) {
         const key = 'inc_' + inc.id;
         seenKeys.add(key);
-        const latlng = [inc.location.lat, inc.location.lng];
+        const latlng = [destLat, destLng];
         bounds.push(latlng);
-        const popupHtml = '<strong>' + inc.id + '</strong><br>' +
+        const popupHtml = '<strong>🚨 DESTINO DEL INCIDENTE</strong><br>' + inc.id + '<br>' +
           'Estado: ' + inc.status + '<br>' +
           (inc.manualAddress ? ('Dir: ' + inc.manualAddress + '<br>') : '') +
           (inc.profileDni ? ('DNI: ' + inc.profileDni + '<br>') : '');
@@ -313,7 +305,7 @@
             .addTo(ui.map)
             .bindPopup(popupHtml);
         }
-      }
+      } else { missingDestination++; }
 
       if (inc.assignedUnitId && inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
         const key = 'unit_' + inc.id;
@@ -346,14 +338,26 @@
       }
     });
 
-    // Priorizar la ambulancia del incidente seleccionado. Evitar reencuadrar
+    // Mostrar explícitamente los incidentes sin GPS, sin inventar una ubicación.
+    const mapEl=document.getElementById('mapContainer');
+    if(mapEl){
+      let note=document.getElementById('empMissingDestinations');
+      if(!note){note=document.createElement('div');note.id='empMissingDestinations';note.className='emp-map-location-note';mapEl.parentNode.insertBefore(note,mapEl.nextSibling);}
+      note.hidden=missingDestination===0;
+      if(missingDestination)note.textContent='⚠ '+missingDestination+' incidente(s) sin coordenadas GPS del destino. Revisá el permiso de ubicación en Socio o cargá una dirección.';
+    }
+
+    // Priorizar el destino del incidente seleccionado. Evitar reencuadrar
     // continuamente el mapa cuando el operador está explorando manualmente.
     const selected=active.find(i=>i.id===ui.selectedIncidentId);
-    const focus=selected?.unitLocation || selected?.location;
+    const focus=selected?.location || selected?.unitLocation;
     if(focus&&typeof focus.lat==='number'){
       const key=selected.id+':'+focus.lat.toFixed(5)+':'+focus.lng.toFixed(5);
       if(ui.lastMapFocus!==key){
-        ui.map.setView([focus.lat,focus.lng],Math.max(ui.map.getZoom(),15),{animate:true});
+        const target=[focus.lat,focus.lng];
+        if(selected?.location && selected?.unitLocation && typeof selected.unitLocation.lat==='number'){
+          ui.map.fitBounds([target,[selected.unitLocation.lat,selected.unitLocation.lng]],{padding:[55,55],maxZoom:16,animate:true});
+        }else ui.map.setView(target,Math.max(ui.map.getZoom(),15),{animate:true});
         ui.lastMapFocus=key;
       }
     }else if(!ui.lastMapFocus&&bounds.length){
