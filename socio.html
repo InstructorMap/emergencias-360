@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/socio-app.css?v=20261120-fix-v3" />
+  <link rel="stylesheet" href="css/socio-app.css?v=20261120-mobile-v4" />
 </head>
 <body class="emp-themed">
 
@@ -376,9 +376,24 @@
   <script src="js/store.js?v=20261119-login-compat"></script>
   <script src="js/qr.js"></script>
   <script src="js/capacitor-bridge.js"></script>
-  <script src="js/app-socio.js"></script>
-  <script src="js/healthcheck.js?v=20261120-no-pdf"></script>
+  <script src="js/app-socio.js?v=20261120-socio-v4></script>
+  <script src="js/healthcheck.js?v=20261120-socio-v4"></script>
 
+  <!-- Ubicar el cambio de tema dentro de Cuenta, nunca sobre la barra de navegación. -->
+  <script>
+    (function(){
+      function relocateTheme(){
+        var btn=document.getElementById('empGlobalTheme');
+        var pane=document.getElementById('tab-ficha');
+        if(!btn||!pane)return;
+        var setting=document.getElementById('socioThemeSetting');
+        if(!setting){setting=document.createElement('div');setting.id='socioThemeSetting';setting.className='socio-theme-setting';setting.setAttribute('aria-label','Apariencia');pane.insertBefore(setting,pane.firstChild);}
+        setting.appendChild(btn);
+      }
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',relocateTheme);
+      else relocateTheme();
+    })();
+  </script>
   <!-- C2: inicializar banner offline -->
   <script>
     (function () {
