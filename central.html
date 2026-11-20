@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
+  <link rel="stylesheet" href="css/central-visual.css?v=20261120-central-v1" />
 </head>
 <body class="central-body theme-dark">
 
@@ -40,7 +41,7 @@
   <!-- APP -->
   <div id="centralApp" hidden>
 
-    <header class="central-header" role="banner">
+    <header class="central-header emp-central-banner" role="banner">
       <a class="emp-brand" href="central.html" aria-label="EMP - Consola Operativa" id="centralHeaderBrand">
         <svg viewBox="0 0 120 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
           <text x="0" y="34" font-family="Montserrat, sans-serif" font-size="34" font-weight="900" fill="#93C5FD" letter-spacing="1">EMP</text>
@@ -67,6 +68,12 @@
       </div>
     </header>
 
+    <nav class="emp-central-shortcuts" aria-label="Accesos rápidos de Central">
+      <button type="button" class="emp-central-shortcut shortcut-incidents" data-central-target=".central-col-1"><strong>INCIDENTES</strong><small>Alertas y bandeja</small></button>
+      <button type="button" class="emp-central-shortcut shortcut-dispatch" data-central-target=".central-col-2"><strong>DESPACHO</strong><small>Gestión y comunicaciones</small></button>
+      <button type="button" class="emp-central-shortcut shortcut-fleet" data-central-target=".central-col-3"><strong>MAPA Y FLOTA</strong><small>Unidades y seguimiento</small></button>
+      <button type="button" class="emp-central-shortcut shortcut-clinical" id="centralClinicalShortcut"><strong>HISTORIAS</strong><small>Archivo clínico</small></button>
+    </nav>
     <div class="central-grid">
       <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
         <h2>Bandeja de Incidentes</h2>
@@ -145,5 +152,6 @@
     })();
   </script>
 <script src="js/emp-histories.js?v=20261120-archive-v2"></script>
+<script src="js/central-visual.js?v=20261120-central-v1"></script>
 </body>
 </html>
