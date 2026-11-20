@@ -1062,6 +1062,14 @@
       return data;
     },
     async inviteEMPStaff(staffId){return this.manageEMPStaff(staffId,'invite');},
+    async hasEMPRole(roles) {
+      if(!state.supabase||!state.profile)return false;
+      if(state.profile.role==='admin')return true;
+      if(state.profile.role==='operador'&&roles.includes('operador'))return true;
+      const {data,error}=await state.supabase.from('emp_staff').select('access_role').eq('user_id',state.profile.user_id).eq('active',true).is('deleted_at',null).maybeSingle();
+      if(error)return false;
+      return !!(data&&roles.includes(data.access_role));
+    },
     // ============ FLOTA PERSISTENTE ============
     getFleet(baseId, includeInactive) {
       const all = state.fleet.length ? state.fleet : (state.connected ? [] : LEGACY_FLEET);
