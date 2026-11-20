@@ -61,7 +61,7 @@
     </header>
 
     <main class="guardia-main" role="main">
-      <div class="guardia-unit-status" id="unitStatus" aria-live="polite">
+      <section class="admin-card" aria-label="Asignación de guardia" style="margin:0 0 14px;padding:16px;background:#102a47;border:1px solid #315779;border-radius:14px;color:#fff"><h2 style="margin:0 0 8px;font-size:1.1rem">👥 Mi guardia y mi función</h2><p id="guardiaAssignmentStatus" role="status">Confirmá tu móvil y función para iniciar la guardia.</p><label for="guardiaRoleSelector">Mi función</label><select id="guardiaRoleSelector" style="display:block;width:100%;padding:12px;margin:8px 0 12px;background:#fff;color:#102a47;border-radius:8px"><option value="">Seleccionar función</option><option value="MEDICO">Médico/a</option><option value="ENFERMERO">Enfermero/a</option><option value="TEM">TEM / Paramédico</option><option value="CONDUCTOR">Conductor/a</option><option value="OTRO">Otro integrante</option></select><button type="button" id="btnConfirmGuardia" class="btn-primary">Confirmar inicio / actualizar guardia</button><button type="button" id="btnEndGuardia" class="btn-secondary" style="margin-left:8px">Finalizar guardia</button></section><div class="guardia-unit-status" id="unitStatus" aria-live="polite">
         <span class="unit-status-text">Seleccioná móvil y esperá asignación.</span>
       </div>
 
