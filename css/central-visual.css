@@ -76,3 +76,19 @@
 .btn-emergency-sound{min-height:44px;background:#153b5c;color:#fff;border:1px solid #76bde5;border-radius:9px;padding:8px 12px;font-weight:800;cursor:pointer}
 @keyframes empAlertEnter{from{opacity:0;transform:translate(-50%,-15px)}to{opacity:1;transform:translate(-50%,0)}}
 @media(max-width:700px){.emp-emergency-overlay{top:8vh;padding:17px 13px}.emp-emergency-actions button{width:100%}}
+
+/* Central mapa v4: cartografía nocturna y marcador vectorial, sin emoji */
+.central-body #mapContainer{height:clamp(330px,42vw,530px)!important;border:1px solid #2d789f!important;border-radius:16px!important;box-shadow:inset 0 0 0 1px #fff2,0 12px 25px #0005;isolation:isolate}
+.central-body #mapContainer .leaflet-control-layers{border:1px solid #6da5c5;background:#10243b;color:#fff;border-radius:10px;box-shadow:0 5px 20px #0008}
+.central-body #mapContainer .leaflet-control-layers-expanded{padding:10px 12px}
+.central-body #mapContainer .leaflet-control-layers label{color:#fff}
+.central-body #mapContainer .leaflet-bar a{background:#102a47;color:#fff;border-color:#456b89}
+.central-body #mapContainer .leaflet-bar a:hover{background:#21527d;color:#fff}
+.central-body #mapContainer .leaflet-control-attribution{background:#071b30c9;color:#d9eafa;font-size:10px}
+.central-body #mapContainer .leaflet-control-attribution a{color:#83d5ff}
+.emp-ambulance-vector{width:70px;height:49px;border-radius:12px;display:grid;place-items:center;border:2px solid #31e7a7;background:linear-gradient(155deg,#0b2a48,#16466a);box-shadow:0 5px 18px #000b,0 0 0 4px #19ddaa28}
+.emp-ambulance-vector:after{bottom:-10px;left:27px}
+.emp-ambulance-vector .emp-ambulance-led{width:10px;height:10px;right:5px;top:5px}
+.emp-map-unit-camino .emp-ambulance-vector{border-color:#43b7ff}
+.emp-map-unit-atencion .emp-ambulance-vector{border-color:#ff6678}
+@media(max-width:800px){.central-body #mapContainer{height:min(65vh,460px)!important;min-height:320px!important}}
