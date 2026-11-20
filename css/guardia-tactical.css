@@ -133,3 +133,44 @@
  .guardia-body .emp-header-banner .header-controls button{padding:7px!important;font-size:12px}
 }
 @media(max-width:390px){.guardia-body .emp-header-banner .header-controls{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 40px auto;gap:4px}}
+
+/* v8: cabecera móvil de verdad: marca independiente y controles con anchura útil */
+.guardia-body .emp-header-banner{overflow:hidden}
+.guardia-body .emp-header-banner .emp-brand{gap:12px!important;align-items:center!important}
+.guardia-body .emp-header-banner .emp-brand svg,
+.guardia-body .emp-header-banner .emp-brand img{
+ display:block!important;flex:none!important;box-sizing:border-box!important;
+ width:105px!important;height:65px!important;min-width:0!important;max-width:105px!important;
+ object-fit:contain!important;padding:8px!important;
+ background:rgba(255,255,255,.96)!important;border-radius:12px!important;
+ box-shadow:0 3px 15px rgba(0,0,0,.18)!important
+}
+.guardia-body .emp-header-banner .emp-brand-name{color:#fff!important;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+.guardia-body .emp-header-banner .header-controls{min-width:0}
+.guardia-body .emp-header-banner .header-controls select{box-sizing:border-box}
+@media(max-width:760px){
+ .guardia-body .emp-header-banner{padding:12px 12px 14px!important;gap:12px!important}
+ .guardia-body .emp-header-banner .emp-brand{display:grid!important;grid-template-columns:90px minmax(0,1fr);gap:12px!important;width:100%;min-width:0}
+ .guardia-body .emp-header-banner .emp-brand svg,
+ .guardia-body .emp-header-banner .emp-brand img{width:90px!important;height:61px!important;max-width:90px!important;padding:6px!important;border-radius:10px!important}
+ .guardia-body .emp-header-banner .emp-brand-text{min-width:0!important}
+ .guardia-body .emp-header-banner .emp-brand-name{font-size:clamp(17px,4.3vw,22px)!important;line-height:1.15!important;overflow-wrap:normal}
+ .guardia-body .emp-header-banner .emp-brand-claim{font-size:11px!important;line-height:1.25}
+ .guardia-body .emp-header-banner .header-controls{
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 46px 75px!important;
+  grid-template-areas:"base mobile theme exit" "search search search search";
+  align-items:end!important;gap:8px!important;width:100%!important;justify-content:stretch!important;
+ }
+ .guardia-body .emp-header-banner .header-controls label:has(#guardiaBaseSelector){grid-area:base;min-width:0}
+ .guardia-body .emp-header-banner .header-controls label:has(#guardiaUnitSelector){grid-area:mobile;min-width:0}
+ .guardia-body .emp-header-banner #btnThemeToggle{grid-area:theme;width:46px!important;min-width:46px!important;max-width:46px!important}
+ .guardia-body .emp-header-banner #guardiaLogout{grid-area:exit;width:75px!important;min-width:0!important;background:#ffdee1!important;color:#9d2030!important;border:1px solid #e9a4ae!important}
+ .guardia-body .emp-header-banner .header-controls>button:not(#btnThemeToggle):not(#guardiaLogout){grid-area:search;justify-self:start;width:auto!important;min-width:44px!important;max-width:100%!important}
+ .guardia-body .emp-header-banner .header-controls select{width:100%!important;max-width:100%!important;min-width:0!important;height:46px!important;min-height:46px!important;font-size:14px!important;overflow:hidden;text-overflow:ellipsis}
+ .guardia-body .emp-header-banner .header-controls button{height:46px!important;min-height:46px!important;margin:0!important}
+}
+@media(max-width:440px){
+ .guardia-body .emp-header-banner .header-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px 66px!important;gap:6px!important}
+ .guardia-body .emp-header-banner #btnThemeToggle{width:44px!important;min-width:44px!important;max-width:44px!important}
+ .guardia-body .emp-header-banner #guardiaLogout{width:66px!important}
+}
