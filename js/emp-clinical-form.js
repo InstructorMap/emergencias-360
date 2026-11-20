@@ -29,7 +29,7 @@ function canvasPad(canvas,body=false){
  canvas.addEventListener('pointermove',e=>{if(!drawing)return;const next=pos(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(next.x,next.y);ctx.stroke();last=next;dirty=true;});
  canvas.addEventListener('pointerup',()=>drawing=false);
  canvas.addEventListener('pointercancel',()=>drawing=false);
- return ()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);};
+ return ()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);if(body){ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;for(let i=0;i<4;i++){const x=85+i*170,y=24;ctx.beginPath();ctx.ellipse(x,y+32,19,28,0,0,Math.PI*2);ctx.moveTo(x-24,y+65);ctx.lineTo(x-37,y+160);ctx.lineTo(x-24,y+192);ctx.moveTo(x+24,y+65);ctx.lineTo(x+37,y+160);ctx.lineTo(x+24,y+192);ctx.moveTo(x-24,y+65);ctx.quadraticCurveTo(x,y+55,x+24,y+65);ctx.lineTo(x+18,y+202);ctx.lineTo(x+12,y+355);ctx.moveTo(x-18,y+202);ctx.lineTo(x+18,y+202);ctx.stroke();ctx.fillStyle='#475569';ctx.font='14px sans-serif';ctx.fillText(['Frente','Posterior','Lateral D','Lateral I'][i],x-35,425);}}ctx.strokeStyle='#b91c1c';ctx.lineWidth=3;};
 }
 function loadImage(canvas,data){if(!data)return;const img=new Image();img.onload=()=>{const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);c.drawImage(img,0,0,canvas.width,canvas.height);};img.src=data;}
 async function open(incident){
