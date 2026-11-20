@@ -1066,7 +1066,7 @@
       if(!state.supabase||!state.profile)return false;
       if(state.profile.role==='admin')return true;
       if(state.profile.role==='operador'&&roles.includes('operador'))return true;
-      const {data,error}=await state.supabase.from('emp_staff').select('access_role').eq('user_id',state.profile.user_id).eq('active',true).is('deleted_at',null).maybeSingle();
+      const {data,error}=await state.supabase.from('emp_staff').select('access_role').eq('user_id',state.profile.userId).eq('active',true).is('deleted_at',null).maybeSingle();
       if(error)return false;
       return !!(data&&roles.includes(data.access_role));
     },
