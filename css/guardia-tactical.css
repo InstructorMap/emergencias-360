@@ -63,3 +63,30 @@
 .tac-home-arrow{font-size:40px;color:var(--tac-accent);margin-left:auto}
 .tac-back-home{background:#143e63;color:white;border:1px solid #6298c0;border-radius:10px;padding:11px 13px;font-weight:800;cursor:pointer;align-self:center}
 @media(max-width:720px){.tac-home{min-height:calc(100dvh - 180px);padding:8px 0 18px;gap:12px}.tac-home-hero{padding:10px 0}.tac-home-hero h1{font-size:26px}.tac-home-grid{grid-template-columns:1fr;gap:10px}.tac-home-card{min-height:104px;padding:14px;gap:14px;border-radius:13px}.tac-home-symbol{width:64px;height:64px;border-radius:14px}.tac-home-symbol svg{width:43px;height:43px}.tac-home-copy{gap:4px}.tac-home-copy strong{font-size:18px}.tac-home-copy small{font-size:12px}.tac-home-arrow{font-size:29px}.tac-command{flex-wrap:wrap}.tac-back-home{order:3;width:100%}}
+
+/* EMP Guardia - arte comercial WebP: assets/guardia/ */
+.tac-home{position:relative;isolation:isolate;border-radius:22px;overflow:hidden;padding:28px;min-height:calc(100dvh - 170px)}
+.tac-home::before{content:"";position:absolute;inset:0;z-index:-2;background:linear-gradient(90deg,rgba(5,14,30,.80),rgba(5,14,30,.58)),url('../assets/guardia/fondo.webp') center/cover no-repeat;background-color:#071a32}
+.tac-home::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border:1px solid rgba(107,180,245,.23);border-radius:22px}
+.tac-home-hero{padding:12px 10px 2px}
+.tac-home-card{min-height:225px;align-items:flex-end;padding:22px;isolation:isolate;box-shadow:0 15px 30px rgba(0,0,0,.32);background-color:#0c2542;background-size:cover;background-position:center;transition:transform .16s ease,box-shadow .16s ease}
+.tac-home-card::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(2,10,24,.97) 0%,rgba(3,12,29,.67) 43%,rgba(4,14,32,.04) 100%)}
+.tac-home-card:focus-visible{outline:3px solid white;outline-offset:3px}
+.tac-home-operation{background-image:url('../assets/guardia/operacion.webp')}
+.tac-home-clinical{background-image:url('../assets/guardia/clinica.webp')}
+.tac-home-shift{background-image:url('../assets/guardia/turno.webp')}
+.tac-home-history{background-image:url('../assets/guardia/historial.webp')}
+.tac-home-symbol{display:none}
+.tac-home-copy{position:relative;z-index:2;gap:4px}
+.tac-home-copy strong{font-size:clamp(21px,2.5vw,30px);text-shadow:0 2px 12px #000}
+.tac-home-copy small{font-size:13px;color:#e4efff;text-shadow:0 2px 8px #000}
+.tac-home-arrow{position:relative;z-index:2;font-size:32px}
+@media(max-width:720px){
+.tac-home{padding:12px;min-height:calc(100dvh - 165px);border-radius:14px}
+.tac-home-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tac-home-card{min-height:205px;padding:12px;border-radius:12px;align-items:flex-end}
+.tac-home-copy strong{font-size:16px}
+.tac-home-copy small{font-size:10px;line-height:1.25}
+.tac-home-arrow{font-size:24px}
+}
+@media(max-width:380px){.tac-home-grid{grid-template-columns:1fr}.tac-home-card{min-height:130px;background-position:center 35%}}
