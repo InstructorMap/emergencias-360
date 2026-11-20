@@ -1107,6 +1107,93 @@
   }
 
   // ============================================================
+  // FLOTA EMP — BLOQUE 1
+  // ============================================================
+  function clearAmbulanceForm() {
+    const form = $('#formAmbulance');
+    if (form) form.reset();
+    if ($('#ambId')) $('#ambId').value = '';
+    if ($('#ambFormMsg')) $('#ambFormMsg').textContent = '';
+    if ($('#btnSaveAmbulance')) $('#btnSaveAmbulance').textContent = 'Guardar ambulancia';
+  }
+  function editAmbulance(u) {
+    $('#ambId').value = u.id;
+    $('#ambUnit').value = u.unit;
+    $('#ambBase').value = u.baseId;
+    $('#ambPlate').value = u.plate || '';
+    $('#ambModel').value = u.model || '';
+    $('#ambType').value = u.tipoUnidad;
+    $('#ambStatus').value = u.status;
+    $('#ambEquipment').value = u.equipment || '';
+    $('#btnSaveAmbulance').textContent = 'Guardar cambios';
+    $('#adminFlota').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  function renderAmbulances() {
+    const tbody = $('#ambFleetTbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const units = Store.getFleet('ALL', true);
+    if (!units.length) {
+      tbody.appendChild(el('tr', {}, [el('td', { colspan:'6', textContent:'No hay ambulancias registradas.' })]));
+      return;
+    }
+    units.forEach(u => {
+      const btnEdit = el('button', { type:'button', className:'btn-secondary', textContent:'Editar', onclick:() => editAmbulance(u) });
+      const btnActive = el('button', { type:'button', className:'btn-secondary',
+        textContent:u.active === false ? 'Activar' : 'Desactivar',
+        onclick:async () => {
+          if (!onlineOrToast()) return;
+          if (u.active !== false && !confirm('¿Desactivar ' + u.unit + '? No estará disponible en Guardia ni Central.')) return;
+          btnActive.disabled = true;
+          try {
+            await Store.setAmbulanceActive(u.id, u.active === false);
+            renderAmbulances();
+            toast('Flota actualizada');
+          } catch (err) { toast('Error: ' + fmtErr(err)); }
+          finally { btnActive.disabled = false; }
+        } });
+      tbody.appendChild(el('tr', {}, [
+        el('td', { textContent:u.unit + (u.active === false ? ' (inactiva)' : '') }),
+        el('td', { textContent:u.baseId === 'LA_COSTA' ? 'Santa Teresita' : 'Dolores' }),
+        el('td', { textContent:u.tipoUnidad }),
+        el('td', { textContent:[u.plate,u.model].filter(Boolean).join(' · ') || '—' }),
+        el('td', { textContent:u.status }),
+        el('td', {}, [btnEdit, document.createTextNode(' '), btnActive])
+      ]));
+    });
+  }
+  function initAmbulances() {
+    const form = $('#formAmbulance');
+    if (!form) return;
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (!onlineOrToast()) return;
+      const btn = $('#btnSaveAmbulance');
+      await runLoading(btn, async () => {
+        try {
+          await Store.saveAmbulance({
+            id:$('#ambId').value || undefined, unit:$('#ambUnit').value, baseId:$('#ambBase').value,
+            plate:$('#ambPlate').value, model:$('#ambModel').value,
+            tipoUnidad:$('#ambType').value, status:$('#ambStatus').value,
+            equipment:$('#ambEquipment').value, active:true
+          });
+          clearAmbulanceForm();
+          renderAmbulances();
+          toast('Ambulancia guardada en Supabase');
+        } catch (err) {
+          $('#ambFormMsg').textContent = 'Error: ' + fmtErr(err);
+        }
+      }, 'Guardando…');
+    });
+    $('#btnClearAmbulance').addEventListener('click', clearAmbulanceForm);
+    $('#btnReloadFleet').addEventListener('click', async () => {
+      try { await Store.refreshFleet(); renderAmbulances(); toast('Flota sincronizada'); }
+      catch (err) { toast('Error: ' + fmtErr(err)); }
+    });
+    renderAmbulances();
+  }
+
+  // ============================================================
   // SUSCRIPCIÓN
   // ============================================================
   function initSubscription() {
@@ -1119,6 +1206,7 @@
       renderSocioRequests();
       renderBenefitsTable();
       renderB2BTable();
+      renderAmbulances();
     });
   }
 
@@ -1136,6 +1224,7 @@
     initMercadoPago();
     initExtServices();
     initAudit();
+    initAmbulances();
     initActiveCrew();
     initSubscription();
     renderSocios();
