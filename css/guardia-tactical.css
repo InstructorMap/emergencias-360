@@ -224,3 +224,19 @@
  .guardia-body .gv-app-panes{top:0}
  .guardia-body .gv-app-pane-btn{font-size:10px}
 }
+
+/* Guardia V3.1: reutilizar arte ya publicado en botones de navegación */
+.guardia-body .gv-app-pane-btn{position:relative;overflow:hidden;isolation:isolate;min-height:62px!important;padding:7px 4px 6px!important;display:flex;align-items:flex-end;justify-content:center;text-align:center;color:#fff!important;text-shadow:0 1px 4px #000,0 2px 7px #000!important;background-color:#12304c!important;background-position:center!important;background-size:cover!important;border:1px solid #4c7696!important;box-shadow:inset 0 -32px 22px #06172bd6}
+.guardia-body .gv-app-pane-btn:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0514264d 0%,#051426a8 55%,#051426f2 100%)}
+.guardia-body .gv-app-pane-btn[data-pane="despacho"]{background-image:url('../assets/guardia/operacion.webp')}
+.guardia-body .gv-app-pane-btn[data-pane="paciente"]{background-image:url('../assets/guardia/clinica.webp')}
+.guardia-body .gv-app-pane-btn[data-pane="herramientas"]{background-image:url('../assets/guardia/turno.webp')}
+.guardia-body .gv-app-pane-btn[data-pane="registro"]{background-image:url('../assets/guardia/historial.webp')}
+.guardia-body .gv-app-pane-btn.is-active{border:2px solid #55d5ff!important;box-shadow:inset 0 -32px 22px #06172bd6,0 0 0 1px #55d5ff70!important}
+.guardia-body .tac-bottom button{background-position:center;background-size:cover;position:relative;isolation:isolate;text-shadow:0 1px 4px #000,0 2px 6px #000;color:#fff!important}
+.guardia-body .tac-bottom button:before{content:"";position:absolute;inset:0;z-index:-1;background:#06182ac9}
+.guardia-body .tac-bottom button[data-tac-jump="operacion"]{background-image:url('../assets/guardia/operacion.webp')}
+.guardia-body .tac-bottom button[data-tac-jump="clinica"]{background-image:url('../assets/guardia/clinica.webp')}
+.guardia-body .tac-bottom button[data-tac-jump="turno"]{background-image:url('../assets/guardia/turno.webp')}
+.guardia-body .tac-bottom button[data-tac-jump="historial"]{background-image:url('../assets/guardia/historial.webp')}
+@media(max-width:760px){.guardia-body .gv-app-pane-btn{min-height:58px!important;font-size:10px!important}.guardia-body .tac-bottom button{min-height:58px!important}}
