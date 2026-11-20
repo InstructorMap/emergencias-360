@@ -11,7 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/socio-app.css?v=20261120-mobile-v4" />
+  <link rel="stylesheet" href="css/socio-app.css?v=20261120-socio-v5" />
 </head>
 <body class="emp-themed">
 
@@ -376,9 +376,37 @@
   <script src="js/store.js?v=20261119-login-compat"></script>
   <script src="js/qr.js"></script>
   <script src="js/capacitor-bridge.js"></script>
-  <script src="js/app-socio.js?v=20261120-socio-v4></script>
-  <script src="js/healthcheck.js?v=20261120-socio-v4"></script>
+  <script src="js/app-socio.js?v=20261120-socio-v5"js/healthcheck.js?v=20261120-socio-v4"></script>
 
+  <!-- Respaldo de navegación: la vista cambia incluso si falla una rutina de render. -->
+  <script>
+    (function(){
+      function activateTab(target){
+        if(!target)return;
+        var panel=document.getElementById('tab-'+target);
+        if(!panel)return;
+        document.querySelectorAll('#appNormal .tab-panel').forEach(function(p){
+          p.hidden=p!==panel;
+          p.style.display=p===panel?'':'none';
+        });
+        document.querySelectorAll('#appNormal .bottom-nav .nav-btn').forEach(function(b){
+          var selected=b.getAttribute('data-target')===target;
+          b.classList.toggle('active',selected);
+          b.setAttribute('aria-selected',String(selected));
+          b.tabIndex=selected?0:-1;
+        });
+        window.scrollTo({top:0,behavior:'instant'});
+      }
+      document.addEventListener('click',function(ev){
+        var btn=ev.target.closest&&ev.target.closest('#appNormal .bottom-nav .nav-btn');
+        if(btn)activateTab(btn.getAttribute('data-target'));
+      },true);
+      document.addEventListener('DOMContentLoaded',function(){
+        document.querySelectorAll('#appNormal .bottom-nav .nav-btn').forEach(function(b){b.type='button';});
+        activateTab('inicio');
+      });
+    })();
+  </script>
   <!-- Ubicar el cambio de tema dentro de Cuenta, nunca sobre la barra de navegación. -->
   <script>
     (function(){
