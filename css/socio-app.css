@@ -1,0 +1,29 @@
+/* Socio EMP: experiencia móvil compacta y accesible. Solo presentación. */
+body.emp-themed #appNormal{min-height:100dvh}
+body.emp-themed .app-main{padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
+body.emp-themed .tab-panel[hidden]{display:none!important}
+body.emp-themed .grid-accesos-rapidos{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;margin:14px 0!important}
+body.emp-themed .acceso-rapido{min-width:0!important;min-height:100px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:9px!important;border-radius:17px!important;border:1px solid #b7d2e9!important;background:linear-gradient(145deg,#fff,#eaf4ff)!important;box-shadow:0 5px 16px #113c6814!important;padding:12px 8px!important}
+body.emp-themed .acceso-rapido .ar-icon{font-size:28px!important;width:45px!important;height:45px!important;display:grid!important;place-items:center!important;border-radius:13px!important}
+body.emp-themed .acceso-rapido .ar-label{font-size:14px!important;font-weight:800!important;text-align:center!important;color:#12375d!important;line-height:1.2!important}
+body.emp-themed .card-sos-destacada{border-radius:20px!important;box-shadow:0 10px 24px #a1122530!important}
+body.emp-themed .bottom-nav{position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:1000!important;padding-bottom:env(safe-area-inset-bottom)!important;box-shadow:0 -5px 24px #061b3b22!important}
+body.emp-themed .bottom-nav .nav-btn{min-width:0!important;min-height:60px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important}
+body.emp-themed .bottom-nav .nav-icon{font-size:23px!important;line-height:1!important}
+body.emp-themed .bottom-nav .nav-text{font-size:10px!important;font-weight:800!important;white-space:nowrap!important}
+body.emp-themed .bottom-nav #nav-sos{border-radius:14px 14px 0 0!important;background:#b71930!important;color:#fff!important}
+body.emp-themed .bottom-nav #nav-sos .nav-icon,body.emp-themed .bottom-nav #nav-sos .nav-text{color:#fff!important}
+@media(max-width:650px){
+ body.emp-themed .app-header{padding:8px 12px!important}
+ body.emp-themed .header-top{gap:8px!important}
+ body.emp-themed .emp-brand svg{max-width:85px!important}
+ body.emp-themed .header-right{gap:5px!important}
+ body.emp-themed .btn-volver-sitio,body.emp-themed .btn-apk-header{display:none!important}
+ body.emp-themed .panel-title{font-size:20px!important;margin:10px 0 13px!important}
+ body.emp-themed .card-linea-directa{margin:10px 0!important}
+ body.emp-themed .servicios-lista{margin:10px 0!important}
+ body.emp-themed .asari-footer{display:none!important}
+}
+body.emp-themed.modo-mayor .acceso-rapido{min-height:118px!important}
+body.emp-themed.modo-mayor .bottom-nav .nav-btn{min-height:72px!important}
+body.emp-themed.modo-mayor .bottom-nav .nav-text{font-size:13px!important}
