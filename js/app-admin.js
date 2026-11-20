@@ -1195,7 +1195,7 @@
       const status=document.createElement('td'),badge=document.createElement('span');
       badge.className='emp-staff-badge'+(p.active?'':' inactive');badge.textContent=p.active?'Activo':'Inactivo';
       status.appendChild(badge);tr.appendChild(status);
-      const access=document.createElement('td');access.textContent=p.user_id?'Vinculada':'Pendiente';tr.appendChild(access);
+      const access=document.createElement('td');access.textContent=p.user_id?(p.active?'Vinculada · acceso laboral activo':'Vinculada · acceso laboral suspendido'):'Pendiente';tr.appendChild(access);
       const action=document.createElement('td'),btn=document.createElement('button');
       btn.type='button';btn.className='btn-secondary';btn.textContent='Editar';btn.addEventListener('click',()=>editEMPStaff(p));
       action.appendChild(btn);
@@ -1226,7 +1226,7 @@
       }
       if(p.user_id){
         staffAction('Cambiar clave','password',true);
-        staffAction('Sincronizar datos','sync',false,'¿Aplicar los datos y el rol actual al usuario?');
+        staffAction('Verificar permisos','sync',false);
         if(p.active)staffAction('Suspender','suspend',false,'¿Suspender el acceso de '+p.nombre+'?');
         else staffAction('Reactivar','activate',false,'¿Reactivar el acceso de '+p.nombre+'?');
       }
@@ -1245,15 +1245,16 @@
       const btn=$('#empStaffSave');
       await runLoading(btn,async()=>{
         try {
-          await Store.saveEMPStaff({
+          const savedStaff=await Store.saveEMPStaff({
             id:$('#empStaffId').value||undefined,nombre:$('#empStaffNombre').value,
             dni:$('#empStaffDni').value,email:$('#empStaffEmail').value,
             telefono:$('#empStaffTelefono').value,base_id:$('#empStaffBase').value,
             especialidad:$('#empStaffEspecialidad').value,access_role:$('#empStaffRol').value,
             active:$('#empStaffActivo').value==='true'
           });
+          if(savedStaff.user_id){await Store.manageEMPStaff(savedStaff.id,'sync');}
           clearEMPStaff();await renderEMPStaff();
-          $('#empStaffMessage').textContent='Legajo guardado en Supabase. Acceso pendiente de habilitar.';
+          $('#empStaffMessage').textContent=savedStaff.user_id?'Legajo y permisos laborales actualizados. La cuenta de socio se conserva.':'Legajo guardado. Vinculá una cuenta existente o creá un acceso.';
         }catch(err){$('#empStaffMessage').textContent='Error: '+fmtErr(err);}
       },'Guardando…');
     });
