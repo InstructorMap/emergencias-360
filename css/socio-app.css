@@ -75,3 +75,28 @@ body.emp-themed .app-main{padding-bottom:calc(85px + env(safe-area-inset-bottom)
  body.emp-themed #tab-ficha .socio-theme-setting{margin:12px 0!important}
  body.emp-themed #tab-inicio .servicios-lista{margin-bottom:16px!important}
 }
+
+/* V5: reparación visual específica tras auditoría de capturas */
+body.emp-themed .app-header .emp-brand{display:flex!important;align-items:center!important;gap:10px!important;width:max-content;max-width:100%!important;background:#fff!important;border-radius:12px!important;padding:7px 11px!important;box-shadow:0 2px 10px #0002!important;text-decoration:none!important}
+body.emp-themed .app-header .emp-brand svg,body.emp-themed .app-header .emp-brand img{display:block!important;max-width:112px!important;width:auto!important;height:auto!important;max-height:43px!important;object-fit:contain!important;background:#fff!important}
+body.emp-themed .app-header .emp-brand-name{color:#0b3c78!important}
+body.emp-themed .app-header .emp-brand-claim{color:#7a1c32!important}
+body.emp-themed .app-header .btn-toggle-banner{color:#dceeff!important;border-color:#8aaac9!important;background:#15375b!important}
+body.emp-themed #tab-inicio .card-sos-destacada{background:linear-gradient(145deg,#380b1c,#7f142b)!important;border:1px solid #d9566c!important;padding:16px 14px!important;box-shadow:0 7px 24px #0003!important}
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-title{font-size:17px!important;line-height:1.3!important}
+body.emp-themed #tab-inicio .card-sos-destacada .btn-sos-mini{width:136px!important;height:136px!important;min-width:136px!important;min-height:136px!important;max-width:136px!important;max-height:136px!important;border:5px solid #ffd0d5!important;background:radial-gradient(circle at 35% 25%,#ff6468,#d82031 70%,#a40c22)!important;color:#fff!important;font-size:28px!important;box-shadow:0 0 0 6px #ffffff1f,0 7px 18px #0006!important}
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-hint{font-size:13px!important;line-height:1.4!important}
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-estado{font-size:13px!important}
+body.emp-themed #tab-inicio .servicios-lista{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;padding:0!important;list-style:none!important}
+body.emp-themed #tab-inicio .servicios-lista .servicio-item{display:flex!important;flex-direction:column!important;justify-content:flex-end!important;align-items:flex-start!important;position:relative!important;overflow:hidden!important;min-width:0!important;min-height:130px!important;padding:12px!important;border-radius:16px!important;border:1px solid #408bc0!important;background-color:#0c2845!important;background-size:cover!important;background-position:center!important;box-shadow:0 5px 16px #001a3540!important;cursor:pointer!important;isolation:isolate}
+body.emp-themed #tab-inicio .servicios-lista .servicio-item:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#04182b00 15%,#04182b55 40%,#04182bf5 85%)}
+body.emp-themed #tab-inicio #servicioFarmacia{background-image:url('../assets/socio/mi_medicacion.webp')!important}
+body.emp-themed #tab-inicio #servicioTeleconsulta{background-image:url('../assets/socio/consultas_asistencia.webp')!important}
+body.emp-themed #tab-inicio #servicioPulsera{background-image:url('../assets/socio/sos_pedir_emergencia.webp')!important}
+body.emp-themed #tab-inicio #servicioCursos{background-image:url('../assets/socio/mis_datos_medicos.webp')!important}
+body.emp-themed #tab-inicio .servicios-lista .si-icon{display:none!important}
+body.emp-themed #tab-inicio .servicios-lista .si-label{font-size:13px!important;font-weight:800!important;line-height:1.25!important;color:#fff!important;text-shadow:0 1px 3px #000!important;position:relative!important;z-index:1!important;overflow-wrap:anywhere!important}
+body.emp-themed #tab-inicio .servicios-lista .si-chevron{position:absolute!important;top:8px!important;right:10px!important;color:#fff!important;font-size:22px!important}
+body.emp-themed .bottom-nav{z-index:1200!important;pointer-events:auto!important}
+body.emp-themed .bottom-nav .nav-btn{pointer-events:auto!important;touch-action:manipulation!important;cursor:pointer!important}
+@media(max-width:450px){body.emp-themed .app-header .emp-brand{padding:5px 8px!important}body.emp-themed .app-header .emp-brand svg,body.emp-themed .app-header .emp-brand img{max-width:85px!important;max-height:36px!important}body.emp-themed #tab-inicio .servicios-lista .servicio-item{min-height:120px!important}body.emp-themed #tab-inicio .card-sos-destacada{padding:14px 10px!important}}
