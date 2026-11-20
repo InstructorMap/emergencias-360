@@ -33,7 +33,7 @@
       'getActiveIncidentForUnit', 'getIncidentEta', 'createSOSIncident',
       'transitionIncidentStatus', 'acknowledgeIncident', 'dispatchIncidentUnit',
       'markIncidentOnScene', 'markIncidentInTransit', 'closeIncident', 'cancelIncident',
-      'updateCrewPosition', 'getFleet', 'refreshFleet', 'saveAmbulance', 'setAmbulanceActive', 'getBases', 'listEMPStaff', 'saveEMPStaff',
+      'updateCrewPosition', 'getFleet', 'refreshFleet', 'saveAmbulance', 'setAmbulanceActive', 'getBases', 'listEMPStaff', 'saveEMPStaff', 'inviteEMPStaff',
       'getMedications', 'getMedicationsForProfile', 'saveMedication', 'deleteMedication',
       'logDose', 'scheduleDosesForMedication', 'getDosesForDay',
       'submitSocioRequest', 'submitRecategorizacion', 'getSocioRequests',
