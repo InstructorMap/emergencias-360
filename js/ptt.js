@@ -71,11 +71,11 @@
 
     signalChannel
       .on('broadcast', { event: 'ptt_offer' }, async ({ payload }) => {
-        if (role !== 'central') return;
+        if (payload.from === currentRole) return;
         await handleOffer(supabase, payload.sdp);
       })
       .on('broadcast', { event: 'ptt_answer' }, async ({ payload }) => {
-        if (role !== 'guardia') return;
+        if (payload.from === currentRole) return;
         if (pc && pc.signalingState === 'have-local-offer') {
           try {
             await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -86,7 +86,7 @@
         }
       })
       .on('broadcast', { event: 'ptt_ice' }, async ({ payload }) => {
-        if (pc && payload.candidate) {
+        if (pc && payload.candidate && payload.from !== currentRole) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
           } catch (e) {
@@ -118,7 +118,7 @@
       if (event.candidate && signalChannel) {
         signalChannel.send({
           type: 'broadcast', event: 'ptt_ice',
-          payload: { candidate: event.candidate.toJSON() }
+          payload: { candidate: event.candidate.toJSON(), from: currentRole }
         });
       }
     };
@@ -166,7 +166,7 @@
     const sendResult = await signalChannel.send({
       type: 'broadcast',
       event: 'ptt_offer',
-      payload: { sdp: pc.localDescription.toJSON() }
+      payload: { sdp: pc.localDescription.toJSON(), from: currentRole }
     });
 
     if (sendResult && sendResult.ok === false) {
@@ -269,9 +269,7 @@
       if (!isInitialized || isPressing) return;
       isPressing = true;
       try {
-        if (currentRole === 'guardia') {
-          await startAsCaller(supabase);
-        }
+        await startAsCaller(supabase);
         await startRecording();
         if (signalChannel) {
           signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
