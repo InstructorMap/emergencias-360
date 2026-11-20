@@ -681,21 +681,35 @@
     }
     ui.lastRenderHash = hash;
 
-    container.innerHTML = '';
-    container.appendChild(buildIncidentCard(incident));
-    container.appendChild(buildPatientCard(incident));
-    const clinicalButton=document.createElement('button');
-    clinicalButton.type='button';
-    clinicalButton.className='btn-primary';
-    clinicalButton.textContent='🩺 Completar historia clínica y firmas';
-    clinicalButton.style.cssText='display:block;width:100%;padding:14px;margin:12px 0;font-weight:700';
-    clinicalButton.addEventListener('click',()=>window.EMPClinicalForm?.open(incident));
-    container.appendChild(clinicalButton);
-    container.appendChild(buildLocationCard(incident));
-    container.appendChild(buildGpsCard(incident));
-    container.appendChild(buildActionsCard(incident));
-    container.appendChild(buildMediaCard(incident));
-    container.appendChild(buildBitacoraCard(incident));
+    container.innerHTML='';
+    const sections=[
+      {key:'despacho',title:'🚑 Despacho',nodes:[buildIncidentCard(incident),buildLocationCard(incident),buildActionsCard(incident)]},
+      {key:'paciente',title:'👤 Paciente',nodes:[buildPatientCard(incident)]},
+      {key:'herramientas',title:'📡 Recursos',nodes:[buildGpsCard(incident),buildMediaCard(incident)]},
+      {key:'registro',title:'📋 Bitácora',nodes:[buildBitacoraCard(incident)]}
+    ];
+    const current=window.empGuardiaActivePane||'despacho';
+    const paneNav=el('nav',{className:'gv-app-panes',role:'tablist','aria-label':'Secciones de la atención'});
+    sections.forEach(sec=>{
+      const btn=el('button',{type:'button',className:'gv-app-pane-btn'+(current===sec.key?' is-active':''),textContent:sec.title,role:'tab','aria-selected':String(current===sec.key),onclick:()=>{
+        window.empGuardiaActivePane=sec.key;
+        container.querySelectorAll('.gv-app-pane').forEach(p=>p.hidden=p.dataset.pane!==sec.key);
+        paneNav.querySelectorAll('button').forEach(b=>{const active=b.dataset.pane===sec.key;b.classList.toggle('is-active',active);b.setAttribute('aria-selected',String(active));});
+        container.scrollIntoView({block:'start',behavior:'smooth'});
+      }});
+      btn.dataset.pane=sec.key;paneNav.appendChild(btn);
+    });
+    container.appendChild(paneNav);
+    sections.forEach(sec=>{
+      const pane=el('section',{className:'gv-app-pane',role:'tabpanel'});
+      pane.dataset.pane=sec.key;pane.hidden=sec.key!==current;
+      sec.nodes.forEach(node=>pane.appendChild(node));
+      if(sec.key==='paciente'){
+        const clinicalButton=el('button',{type:'button',className:'btn-primary gv-clinical-shortcut',textContent:'🩺 Completar historia clínica y firmas',onclick:()=>window.EMPClinicalForm?.open(incident)});
+        pane.appendChild(clinicalButton);
+      }
+      container.appendChild(pane);
+    });
 
     renderPTTFloating(incident);
   }
@@ -1118,6 +1132,8 @@
     dragHandle.appendChild(el('img',{src:guardiaPttImage('mover'),alt:'Mover'}));
     dragHandle.appendChild(el('span',{textContent:'MOVER PTT'}));
     wrapper.appendChild(dragHandle);
+    const minimizeBtn=el('button',{type:'button',className:'gv-ptt-minimize',textContent:'−',title:'Minimizar o expandir PTT',onclick:()=>{wrapper.classList.toggle('is-minimized');minimizeBtn.textContent=wrapper.classList.contains('is-minimized')?'+':'−';}});
+    wrapper.appendChild(minimizeBtn);
     wrapper.appendChild(el('img',{className:'gv-ptt-image',src:guardiaPttImage(isConnected?'canal_abierto':'inactivo'),alt:'Estado PTT'}));
 
     const statusEl = el('div', { className: 'gv-ptt-status', textContent: isConnected ? 'PTT conectado — presioná para hablar' : 'Conectá PTT para hablar con Central' });
@@ -1212,6 +1228,8 @@
     wrapper.appendChild(talkBtn);
     document.body.appendChild(wrapper);
     guardiaPttDrag(wrapper,dragHandle);
+    wrapper.classList.add('is-minimized');
+    minimizeBtn.textContent='+';
   }
 
   async function renderHistory() {
