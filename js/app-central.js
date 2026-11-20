@@ -199,10 +199,20 @@
       }
     });
 
-    if (bounds.length === 1) {
-      ui.map.setView(bounds[0], 14);
-    } else if (bounds.length > 1) {
-      ui.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+    // Priorizar la ambulancia del incidente seleccionado. Evitar reencuadrar
+    // continuamente el mapa cuando el operador está explorando manualmente.
+    const selected=active.find(i=>i.id===ui.selectedIncidentId);
+    const focus=selected?.unitLocation || selected?.location;
+    if(focus&&typeof focus.lat==='number'){
+      const key=selected.id+':'+focus.lat.toFixed(5)+':'+focus.lng.toFixed(5);
+      if(ui.lastMapFocus!==key){
+        ui.map.setView([focus.lat,focus.lng],Math.max(ui.map.getZoom(),15),{animate:true});
+        ui.lastMapFocus=key;
+      }
+    }else if(!ui.lastMapFocus&&bounds.length){
+      if(bounds.length===1)ui.map.setView(bounds[0],14);
+      else ui.map.fitBounds(bounds,{padding:[30,30],maxZoom:15});
+      ui.lastMapFocus='initial';
     }
   }
 
@@ -1308,7 +1318,7 @@
     // El botón "Activar audio" vive en el PTT flotante (contextual).
     renderAll();
     await refreshActiveCrew();
-    setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); }, 15000);
+    setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); renderMapMarkers(); }, 15000);
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
