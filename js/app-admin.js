@@ -1207,19 +1207,20 @@
           if(!onlineOrToast())return;
           let password;
           if(askPassword){
-            password=prompt('Definí una clave temporal de al menos 12 caracteres para '+p.email);
+            password=prompt('Definí una clave temporal de al menos 8 caracteres para '+p.email);
             if(password===null)return;
-            if(password.length<12){toast('La clave debe tener al menos 12 caracteres');return;}
+            if(password.length<8){toast('La clave debe tener al menos 8 caracteres');return;}
           }
           if(confirmText&&!confirm(confirmText))return;
           await runLoading(control,async()=>{
-            try{await Store.manageEMPStaff(p.id,operation,password);toast('Acción completada: '+label);await renderEMPStaff();}
+            try{const result=await Store.manageEMPStaff(p.id,operation,password);toast(result.message||'Acción completada: '+label);await renderEMPStaff();}
             catch(err){toast('Error: '+fmtErr(err));}
           },'Procesando…');
         });
         action.appendChild(control);
       };
       if(!p.user_id && p.active){
+        staffAction('Vincular cuenta existente','link',false); 
         staffAction('Crear acceso','create',true);
         staffAction('Invitar por correo','invite',false,'¿Enviar invitación a '+p.email+'?');
       }
