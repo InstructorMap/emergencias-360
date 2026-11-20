@@ -432,6 +432,17 @@
     return true;
   }
 
+  function mapAmbulanceFromDB(u) {
+    return { id:u.id, baseId:u.base_id, unit:u.unit, plate:u.plate || '', model:u.model || '',
+      tipoUnidad:u.tipo_unidad, equipment:u.equipment || '', status:u.status, active:u.active !== false };
+  }
+  const LEGACY_FLEET = [
+    { id:'mov_dol_01',baseId:'DOLORES',unit:'AMB-01',tipoUnidad:'UTIM',status:'disponible',active:true },
+    { id:'mov_dol_02',baseId:'DOLORES',unit:'AMB-02',tipoUnidad:'COMUN',status:'disponible',active:true },
+    { id:'mov_cos_01',baseId:'LA_COSTA',unit:'AMB-11',tipoUnidad:'UTIM',status:'disponible',active:true },
+    { id:'mov_cos_02',baseId:'LA_COSTA',unit:'AMB-12',tipoUnidad:'PEDIATRICA_CON_INCUBADORA',status:'disponible',active:true }
+  ];
+
   // ============ CARGA ============
   async function loadAllData() {
     if (!state.connected || !state.supabase) return;
@@ -449,6 +460,9 @@
       }
 
       state.bases = Object.keys(C.BASES).map(k => ({ ...C.BASES[k], isActive: true }));
+      const { data: fleetData, error: fleetError } = await sb.from('emp_ambulances').select('*').order('base_id').order('unit');
+      if (!fleetError && fleetData) state.fleet = fleetData.map(mapAmbulanceFromDB);
+      else console.warn('[EMP] Flota Supabase no disponible:', fleetError && fleetError.message);
 
       const { data: inc } = await sb.from('incidents').select('*').order('created_at', { ascending: false }).limit(200);
       if (inc) state.incidents = inc.map(mapIncidentFromDB);
@@ -1006,18 +1020,45 @@
       return true;
     },
 
-    // ============ FLOTA ============
-    getFleet(baseId) {
-      const all = [
-        { id: 'mov_dol_01', baseId: 'DOLORES', unit: 'AMB-01', tipoUnidad: 'UTIM', status: UNIT_STATUS.DISPONIBLE },
-        { id: 'mov_dol_02', baseId: 'DOLORES', unit: 'AMB-02', tipoUnidad: 'COMUN', status: UNIT_STATUS.DISPONIBLE },
-        { id: 'mov_cos_01', baseId: 'LA_COSTA', unit: 'AMB-11', tipoUnidad: 'UTIM', status: UNIT_STATUS.DISPONIBLE },
-        { id: 'mov_cos_02', baseId: 'LA_COSTA', unit: 'AMB-12', tipoUnidad: 'PEDIATRICA_CON_INCUBADORA', status: UNIT_STATUS.DISPONIBLE }
-      ];
-      if (baseId && baseId !== 'ALL') return all.filter(m => m.baseId === baseId);
-      return all;
+    // ============ FLOTA PERSISTENTE ============
+    getFleet(baseId, includeInactive) {
+      const all = state.fleet.length ? state.fleet : (state.connected ? [] : LEGACY_FLEET);
+      return all.filter(m => (includeInactive || m.active !== false) && (!baseId || baseId === 'ALL' || m.baseId === baseId)).map(m => ({ ...m }));
     },
-    getBases() { return Object.keys(C.BASES).map(k => ({ ...C.BASES[k], isActive: true })); },
+    async refreshFleet() {
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const { data, error } = await state.supabase.from('emp_ambulances').select('*').order('base_id').order('unit');
+      if (error) throw new Error(error.message);
+      state.fleet = (data || []).map(mapAmbulanceFromDB);
+      saveCache();
+      emitStateChanged('fleet');
+      return this.getFleet('ALL', true);
+    },
+    async saveAmbulance(input) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const id = input.id || uid('mov');
+      const record = { id, base_id:input.baseId, unit:String(input.unit || '').trim().toUpperCase(),
+        plate:String(input.plate || '').trim().toUpperCase() || null, model:String(input.model || '').trim() || null,
+        tipo_unidad:input.tipoUnidad, equipment:String(input.equipment || '').trim() || null,
+        status:input.status, active:input.active !== false, updated_at:nowISO() };
+      if (!record.unit || !C.BASES[record.base_id] || !C.UNIT_TYPES.includes(record.tipo_unidad) ||
+          !Object.values(UNIT_STATUS).includes(record.status)) throw new Error('Datos de ambulancia inválidos');
+      const { data, error } = await state.supabase.from('emp_ambulances').upsert(record, { onConflict:'id' }).select().single();
+      if (error) throw new Error(error.message);
+      await this.refreshFleet();
+      return mapAmbulanceFromDB(data);
+    },
+    async setAmbulanceActive(id, active) {
+      requireAdmin();
+      if (!state.supabase) throw new Error('Supabase no configurado');
+      const { data, error } = await state.supabase.from('emp_ambulances')
+        .update({ active:!!active, updated_at:nowISO() }).eq('id',id).select().single();
+      if (error) throw new Error(error.message);
+      await this.refreshFleet();
+      return mapAmbulanceFromDB(data);
+    },
+    getBases() { return Object.keys(C.BASES).map(k => ({ ...C.BASES[k], isActive:true })); },
 
     // ============ MEDICACIÓN ============
     getMedications() { return state.medications.map(m => ({ ...m })); },
