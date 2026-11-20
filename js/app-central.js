@@ -133,12 +133,14 @@
     });
   }
 
-  function unitIcon() {
+  function unitIcon(status) {
+    const phase = status === 'EN_ESCENA' ? 'atencion' : status === 'EN_CAMINO' || status === 'EN_TRASLADO' ? 'camino' : 'disponible';
     return L.divIcon({
-      className: 'emp-map-unit',
-      html: '<div style="width:26px;height:26px;border-radius:6px;background:#0B3C78;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);">🚑</div>',
-      iconSize: [26, 26],
-      iconAnchor: [13, 13]
+      className: 'emp-map-unit emp-map-unit-' + phase,
+      html: '<div class="emp-ambulance-marker" aria-label="Ambulancia EMP"><span class="emp-ambulance-symbol">🚑</span><span class="emp-ambulance-led"></span></div>',
+      iconSize: [52, 48],
+      iconAnchor: [26, 43],
+      popupAnchor: [0, -35]
     });
   }
 
@@ -184,8 +186,9 @@
         if (ui.mapMarkers[key]) {
           ui.mapMarkers[key].setLatLng(latlng);
           ui.mapMarkers[key].setPopupContent(popupHtml);
+          ui.mapMarkers[key].setIcon(unitIcon(inc.status));
         } else {
-          ui.mapMarkers[key] = L.marker(latlng, { icon: unitIcon() })
+          ui.mapMarkers[key] = L.marker(latlng, { icon: unitIcon(inc.status) })
             .addTo(ui.map)
             .bindPopup(popupHtml);
         }
