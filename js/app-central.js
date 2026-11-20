@@ -282,7 +282,7 @@
     const active = incidents.filter(i => ['CERRADA', 'CANCELADA'].indexOf(i.status) === -1);
     const seenKeys = new Set();
     const bounds = [];
-    let missingDestination=0;
+    const missingDestinations=[];
 
     active.forEach(inc => {
       const loc=inc.location;
@@ -305,7 +305,7 @@
             .addTo(ui.map)
             .bindPopup(popupHtml);
         }
-      } else { missingDestination++; }
+      } else { missingDestinations.push(inc); }
 
       if (inc.assignedUnitId && inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
         const key = 'unit_' + inc.id;
@@ -338,13 +338,27 @@
       }
     });
 
-    // Mostrar explícitamente los incidentes sin GPS, sin inventar una ubicación.
+    // No confundir la posición del móvil con la ubicación de la emergencia.
+    // Mostrar el detalle de cada incidente sin coordenadas y su dirección textual.
     const mapEl=document.getElementById('mapContainer');
     if(mapEl){
       let note=document.getElementById('empMissingDestinations');
       if(!note){note=document.createElement('div');note.id='empMissingDestinations';note.className='emp-map-location-note';mapEl.parentNode.insertBefore(note,mapEl.nextSibling);}
-      note.hidden=missingDestination===0;
-      if(missingDestination)note.textContent='⚠ '+missingDestination+' incidente(s) sin coordenadas GPS del destino. Revisá el permiso de ubicación en Socio o cargá una dirección.';
+      note.replaceChildren();
+      note.hidden=missingDestinations.length===0;
+      if(missingDestinations.length){
+        note.appendChild(el('strong',{textContent:'⚠ '+missingDestinations.length+' destino(s) sin punto GPS'}));
+        note.appendChild(el('p',{textContent:'La dirección escrita no es una coordenada. El GPS del móvil no representa el domicilio del incidente.'}));
+        missingDestinations.forEach(inc=>{
+          const line=el('div',{className:'emp-missing-destination-row'});
+          line.appendChild(el('span',{textContent:'Incidente '+String(inc.id).slice(0,12)+' · '+(inc.manualAddress||'Sin dirección registrada')}));
+          if(inc.manualAddress){
+            const link=el('a',{href:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(inc.manualAddress+', '+(inc.baseId==='LA_COSTA'?'Partido de La Costa':'Dolores')+', Buenos Aires, Argentina'),target:'_blank',rel:'noopener',textContent:'Buscar dirección ↗'});
+            line.appendChild(link);
+          }
+          note.appendChild(line);
+        });
+      }
     }
 
     // Priorizar el destino del incidente seleccionado. Evitar reencuadrar
