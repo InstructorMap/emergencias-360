@@ -301,7 +301,7 @@
           ui.mapMarkers[key].setLatLng(latlng);
           ui.mapMarkers[key].setPopupContent(popupHtml);
         } else {
-          ui.mapMarkers[key] = L.marker(latlng, { icon: incidentIcon(inc.status) })
+          ui.mapMarkers[key] = L.marker(latlng, { icon: incidentIcon(inc.status), zIndexOffset: 1000 })
             .addTo(ui.map)
             .bindPopup(popupHtml);
         }
@@ -350,7 +350,9 @@
     // Priorizar el destino del incidente seleccionado. Evitar reencuadrar
     // continuamente el mapa cuando el operador está explorando manualmente.
     const selected=active.find(i=>i.id===ui.selectedIncidentId);
-    const focus=selected?.location || selected?.unitLocation;
+    const selectedLoc=selected?.location;
+    const validSelectedLoc=selectedLoc && Number.isFinite(Number(selectedLoc.lat ?? selectedLoc.latitude)) && Number.isFinite(Number(selectedLoc.lng ?? selectedLoc.longitude));
+    const focus=validSelectedLoc ? {lat:Number(selectedLoc.lat ?? selectedLoc.latitude),lng:Number(selectedLoc.lng ?? selectedLoc.longitude)} : selected?.unitLocation;
     if(focus&&typeof focus.lat==='number'){
       const key=selected.id+':'+focus.lat.toFixed(5)+':'+focus.lng.toFixed(5);
       if(ui.lastMapFocus!==key){
