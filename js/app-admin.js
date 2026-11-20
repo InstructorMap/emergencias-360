@@ -194,6 +194,38 @@
     },'Restableciendo…');
   }
 
+  const SOCIOS_PAGE_SIZE = 10;
+  let sociosPage = 0;
+  function initAdminNavigation() {
+    const buttons = Array.from(document.querySelectorAll('[data-admin-tab]'));
+    const sections = Array.from(document.querySelectorAll('[data-admin-section]'));
+    function activate(tab) {
+      const selected = buttons.some(b => b.dataset.adminTab === tab) ? tab : 'socios';
+      buttons.forEach(b => {
+        const active = b.dataset.adminTab === selected;
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-pressed', String(active));
+      });
+      sections.forEach(section => { section.hidden = section.dataset.adminSection !== selected; });
+      if (history.replaceState) history.replaceState(null, '', '#'+selected);
+    }
+    buttons.forEach(b => b.addEventListener('click', () => activate(b.dataset.adminTab)));
+    activate(location.hash.replace('#','') || 'socios');
+  }
+  function updateSociosPager(total) {
+    const max = Math.max(1, Math.ceil(total / SOCIOS_PAGE_SIZE));
+    if (sociosPage >= max) sociosPage = max - 1;
+    const prev = $('#sociosPrev'), next = $('#sociosNext'), info = $('#sociosPageInfo');
+    if (prev) prev.disabled = sociosPage <= 0;
+    if (next) next.disabled = sociosPage >= max - 1;
+    if (info) info.textContent = total ? ('Mostrando '+(sociosPage*10+1)+'–'+Math.min(total,(sociosPage+1)*10)+' de '+total+' · Página '+(sociosPage+1)+' de '+max) : 'Sin resultados';
+  }
+  function initSociosPager() {
+    const prev = $('#sociosPrev'), next = $('#sociosNext');
+    if (prev) prev.addEventListener('click', () => { sociosPage=Math.max(0,sociosPage-1);renderSocios(); });
+    if (next) next.addEventListener('click', () => { sociosPage++;renderSocios(); });
+  }
+
   function renderSocios() {
     const tbody = $('#sociosTbody');
     const count = $('#sociosCount');
@@ -220,7 +252,12 @@
     if (!profiles.length && !padronSociosLoaded && !padronSociosError) {
       tbody.appendChild(el('tr', {}, [el('td', { colspan: '5', textContent: 'Cargando socios del padrón…' })]));
     }
-    profiles.forEach(p => {
+    const historicalTotal = countHistoricalSocios(search, filterPlan, filterBase);
+    const totalSocios = profiles.length + historicalTotal;
+    if (sociosPage >= Math.max(1,Math.ceil(totalSocios / SOCIOS_PAGE_SIZE))) sociosPage = Math.max(0,Math.ceil(totalSocios / SOCIOS_PAGE_SIZE)-1);
+    updateSociosPager(totalSocios);
+    const offset = sociosPage * SOCIOS_PAGE_SIZE;
+    profiles.slice(offset, offset + SOCIOS_PAGE_SIZE).forEach(p => {
       const effective = Store.calcCarnetStatus(p);
       const days = Store.daysToExpire(p);
       const validTxt = p.carnetValidUntil ? new Date(p.carnetValidUntil).toLocaleDateString('es-AR') : '—';
@@ -291,8 +328,8 @@
         ])
       ]));
     });
-    const historicalCount = appendPadronSocios(tbody,search,filterPlan,filterBase);
-    if (count) count.textContent = String(profiles.length + historicalCount);
+    appendPadronSocios(tbody,search,filterPlan,filterBase,Math.max(0,offset-profiles.length),Math.max(0,SOCIOS_PAGE_SIZE-Math.max(0,Math.min(profiles.length-offset,SOCIOS_PAGE_SIZE))));
+    if (count) count.textContent = String(totalSocios);
     if (!tbody.children.length) tbody.appendChild(el('tr',{},[el('td',{colSpan:5,textContent:'Sin socios para los filtros seleccionados.'})]));
   }
 
@@ -324,7 +361,7 @@
       padronSociosError = e.message;
     } finally {padronSociosLoading=false;renderSocios();}
   }
-  function appendPadronSocios(tbody, search, filterPlan, filterBase) {
+  function filteredHistoricalSocios(search, filterPlan, filterBase) {
     const existing = new Set(Store.listProfiles().filter(p=>p.role==='socio').map(p=>String(p.dni||'')));
     let rows = padronSociosCache.filter(s => !(s.dni_documento && existing.has(String(s.dni_documento))));
     if(search) rows = rows.filter(s=>[s.nombre,s.numero_socio,s.dni_documento,s.localidad].some(v=>String(v||'').toLowerCase().includes(search)));
@@ -337,8 +374,13 @@
       if(filterBase==='DOLORES') return base==='DOLORES';
       return base===filterBase.replace(/_/g,' ');
     });
+    return rows;
+  }
+  function countHistoricalSocios(search, filterPlan, filterBase) { return filteredHistoricalSocios(search,filterPlan,filterBase).length; }
+  function appendPadronSocios(tbody, search, filterPlan, filterBase, start, limit) {
+    const rows = filteredHistoricalSocios(search,filterPlan,filterBase);
     const db=Store._getState().supabase;
-    for(const s of rows) {
+    for(const s of rows.slice(start,start+limit)) {
       const tr=document.createElement('tr');
       const cell=(value)=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);return td;};
       cell(s.nombre + ' · DNI ' + (s.dni_documento || 'pendiente'));
@@ -1294,6 +1336,8 @@
   // ============================================================
   async function bootAdmin() {
     await applyBranding();
+    initAdminNavigation();
+    initSociosPager();
     initSociosFilters();
     loadPadronSocios();
     initExportSociosCSV();
