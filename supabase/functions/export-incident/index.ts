@@ -242,13 +242,13 @@ serve(async (req: Request) => {
     if (!hcNumber) throw new Error('El incidente no tiene número de historia clínica asignado.');
 
     // Leer datos del socio
-    let profile = null;
+    let patientProfile = null;
     if (rec.profile_dni) {
       const { data: p } = await sb.from('profiles')
         .select('*')
         .eq('dni', rec.profile_dni)
         .maybeSingle();
-      profile = p;
+      patientProfile = p;
     }
 
     // Leer media
@@ -272,7 +272,7 @@ serve(async (req: Request) => {
     }
 
     // Generar PDF
-    const pdfBytes = await generatePdf(rec, profile, mediaList || [], hcNumber);
+    const pdfBytes = await generatePdf(rec, patientProfile, mediaList || [], hcNumber);
 
     // Generar ZIP
     const zipBytes = await buildZip(rec, pdfBytes, mediaFiles, hcNumber);
