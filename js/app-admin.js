@@ -1198,7 +1198,25 @@
       const access=document.createElement('td');access.textContent=p.user_id?'Vinculada':'Pendiente';tr.appendChild(access);
       const action=document.createElement('td'),btn=document.createElement('button');
       btn.type='button';btn.className='btn-secondary';btn.textContent='Editar';btn.addEventListener('click',()=>editEMPStaff(p));
-      action.appendChild(btn);tr.appendChild(action);tbody.appendChild(tr);
+      action.appendChild(btn);
+      if(!p.user_id && p.active){
+        const invite=document.createElement('button');
+        invite.type='button';invite.className='btn-primary';invite.textContent='Invitar acceso';
+        invite.style.marginLeft='8px';
+        invite.addEventListener('click',async()=>{
+          if(!onlineOrToast())return;
+          if(!confirm('¿Enviar invitación de acceso a '+p.email+'?'))return;
+          await runLoading(invite,async()=>{
+            try{
+              await Store.inviteEMPStaff(p.id);
+              toast('Invitación enviada a '+p.email);
+              await renderEMPStaff();
+            }catch(err){toast('No se pudo invitar: '+fmtErr(err));}
+          },'Invitando…');
+        });
+        action.appendChild(invite);
+      }
+      tr.appendChild(action);tbody.appendChild(tr);
     });
   }
   function initEMPStaff() {
