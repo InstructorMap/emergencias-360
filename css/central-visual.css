@@ -31,3 +31,33 @@
 .emp-map-unit-camino .emp-ambulance-marker:after,.emp-map-unit-camino .emp-ambulance-led{border-top-color:#3aaaff;background:#3aaaff}
 .emp-map-unit-atencion .emp-ambulance-marker{border-color:#ff5265;box-shadow:0 4px 15px #0009,0 0 0 3px #ff526533}
 .emp-map-unit-atencion .emp-ambulance-marker:after,.emp-map-unit-atencion .emp-ambulance-led{border-top-color:#ff5265;background:#ff5265}
+
+/* Central V3: fondo ambiental detrás de los tres módulos operativos.
+   Se conserva fondo sólido en detalles clínicos y en el mapa Leaflet. */
+.central-body .central-grid{
+ position:relative;isolation:isolate;
+ padding:clamp(12px,1.8vw,26px)!important;
+ background:linear-gradient(100deg,rgba(6,18,37,.78),rgba(6,23,44,.65) 50%,rgba(5,18,36,.78)),
+ url('../assets/central/fondo.webp') center center/cover no-repeat!important;
+ background-attachment:scroll!important;
+ gap:clamp(10px,1.2vw,18px)!important;
+}
+.central-body .central-grid>.central-col{
+ background:rgba(12,28,49,.91)!important;
+ color:#f0f7ff!important;
+ border:1px solid rgba(112,173,219,.34)!important;
+ box-shadow:0 12px 32px rgba(0,0,0,.22)!important;
+ backdrop-filter:blur(7px);
+ -webkit-backdrop-filter:blur(7px);
+}
+.central-body .central-grid>.central-col h2{color:#e9f5ff!important}
+.central-body .central-col-2 #detailContainer{color:inherit}
+.central-body .central-col-2 .detail-empty{color:#c6d9eb!important}
+.central-body #mapContainer{background:#dbe8ed!important}
+@media(max-width:800px){
+ .central-body .central-grid{padding:12px!important;background-position:58% top!important}
+ .central-body .central-grid>.central-col{background:rgba(13,29,50,.95)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+@media(prefers-reduced-transparency:reduce){
+ .central-body .central-grid>.central-col{background:#11263e!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
