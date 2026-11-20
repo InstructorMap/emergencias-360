@@ -79,7 +79,7 @@
           'tab-sos', 'btnSOS', 'sosProgress', 'gpsStatus', 'btnGps', 'manualDir',
           'incidentPanel', 'incidentState', 'timeline', 'etaBlock', 'btnCallBase', 'b2bBanner',
           'tab-credencial', 'credencialTarjeta', 'ctPlanLabel', 'ctNombre', 'ctCuilDni', 'ctSocio', 'ctOrden', 'ctSede',
-          'csCodigo', 'csRenueva', 'qrSvgWrap', 'gfPildoras', 'btnShareCredencial', 'btnDownloadPDF',
+          'csCodigo', 'csRenueva', 'qrSvgWrap', 'gfPildoras', 'btnShareCredencial',
           'tab-beneficios', 'benefitsList', 'benefitsEmpty', 'planBenefitsHint',
           'tab-ficha', 'btnRecategorizar', 'medicacionHoy', 'medicacionLista', 'btnAddMedicacion',
           'formFicha', 'fNombre', 'fDni', 'fCuil', 'fTelefono', 'fGrupo', 'fAlergias', 'fPatologias', 'fContacto', 'fConsent',
