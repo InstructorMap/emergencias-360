@@ -684,6 +684,13 @@
     container.innerHTML = '';
     container.appendChild(buildIncidentCard(incident));
     container.appendChild(buildPatientCard(incident));
+    const clinicalButton=document.createElement('button');
+    clinicalButton.type='button';
+    clinicalButton.className='btn-primary';
+    clinicalButton.textContent='🩺 Completar historia clínica y firmas';
+    clinicalButton.style.cssText='display:block;width:100%;padding:14px;margin:12px 0;font-weight:700';
+    clinicalButton.addEventListener('click',()=>window.EMPClinicalForm?.open(incident));
+    container.appendChild(clinicalButton);
     container.appendChild(buildLocationCard(incident));
     container.appendChild(buildGpsCard(incident));
     container.appendChild(buildActionsCard(incident));
