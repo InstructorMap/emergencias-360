@@ -239,15 +239,11 @@
 
     ui.map = L.map(container, {zoomControl:false,attributionControl:true,preferCanvas:true}).setView(center, 12);
     L.control.zoom({position:'bottomright'}).addTo(ui.map);
+    // OpenStreetMap: mapa público sin clave de API ni marcas de agua de proveedor.
     const standard=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       maxZoom:19,attribution:'© OpenStreetMap contributors'
     });
-    const dark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-      maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'
-    });
-    dark.on('tileerror',()=>{if(ui.map.hasLayer(dark)){ui.map.removeLayer(dark);standard.addTo(ui.map);}});
-    dark.addTo(ui.map);
-    L.control.layers({'🌙 Operativo oscuro':dark,'🗺️ Calles':standard},null,{position:'topright',collapsed:true}).addTo(ui.map);
+    standard.addTo(ui.map);
     setTimeout(() => { try { ui.map.invalidateSize(); } catch (_) {} }, 300);
   }
 
