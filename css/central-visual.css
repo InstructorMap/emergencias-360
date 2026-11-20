@@ -20,3 +20,14 @@
 .shortcut-fleet{background-image:url('../assets/central/flota.webp');border-bottom:3px solid #39e3b1}
 .shortcut-clinical{background-image:url('../assets/central/historias.webp');border-bottom:3px solid #b494ff}
 @media(max-width:850px){.central-body .emp-central-banner{flex-direction:column;align-items:stretch;gap:12px;padding:12px!important}.central-body .emp-central-banner .emp-brand svg{width:88px;height:59px}.central-body .emp-central-banner .header-controls{display:flex;justify-content:flex-start;gap:7px}.central-body .emp-central-banner .header-controls label{flex:1 1 140px;min-width:120px}.central-body .emp-central-banner .header-controls select{max-width:100%;width:100%}.emp-central-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}.emp-central-shortcut{min-height:114px;padding:10px}.emp-central-shortcut small{font-size:11px}}
+
+/* Central v2: marcadores de ambulancia con contraste y estado real */
+.emp-map-unit{background:transparent!important;border:0!important}
+.emp-ambulance-marker{position:relative;display:grid;place-items:center;width:50px;height:42px;background:linear-gradient(145deg,#0a2341,#184d7c);border:2px solid #40e3a3;border-radius:12px;box-shadow:0 4px 15px #0009,0 0 0 3px #40e3a32a;filter:drop-shadow(0 2px 5px #0005)}
+.emp-ambulance-marker:after{content:"";position:absolute;bottom:-9px;left:18px;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #40e3a3}
+.emp-ambulance-symbol{font-size:27px;line-height:1;filter:drop-shadow(0 1px 2px #0008)}
+.emp-ambulance-led{position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:50%;background:#40e3a3;box-shadow:0 0 8px currentColor}
+.emp-map-unit-camino .emp-ambulance-marker{border-color:#3aaaff;box-shadow:0 4px 15px #0009,0 0 0 3px #3aaaff33}
+.emp-map-unit-camino .emp-ambulance-marker:after,.emp-map-unit-camino .emp-ambulance-led{border-top-color:#3aaaff;background:#3aaaff}
+.emp-map-unit-atencion .emp-ambulance-marker{border-color:#ff5265;box-shadow:0 4px 15px #0009,0 0 0 3px #ff526533}
+.emp-map-unit-atencion .emp-ambulance-marker:after,.emp-map-unit-atencion .emp-ambulance-led{border-top-color:#ff5265;background:#ff5265}
