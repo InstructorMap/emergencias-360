@@ -13,10 +13,13 @@ import JSZip from 'https://esm.sh/jszip@3.10.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
 };
 
-// ============ HELPERS ============
+// ============ HELPERS ===========
+const cleanPdf = (value: unknown) => String(value ?? '').replace(/[—–]/g,'-').replace(/…/g,'...').replace(/[•·]/g,'-').replace(/[^\x20-\x7e\xA0-\xFF]/g,' ');
+function drawText(page: any, value: unknown, opts: any) { page.drawText(cleanPdf(value),opts); }
+=
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   try {
@@ -43,33 +46,33 @@ async function generatePdf(incident: any, profile: any, mediaList: any[], hcNumb
   const { width, height } = page.getSize();
   let y = height - 60;
 
-  page.drawText('EMP - EMERGENCIAS MÉDICAS PRIVADAS', {
+  drawText(page,'EMP - EMERGENCIAS MÉDICAS PRIVADAS', {
     x: 50, y, size: 16, font: fontBold, color: rgb(0.04, 0.24, 0.47)
   });
   y -= 22;
-  page.drawText('HISTORIA CLÍNICA', {
+  drawText(page,'HISTORIA CLÍNICA', {
     x: 50, y, size: 12, font: fontBold, color: rgb(0.48, 0.11, 0.20)
   });
   y -= 30;
 
-  page.drawText('N° Historia Clínica:', { x: 50, y, size: 10, font: fontBold });
-  page.drawText(hcNumber, { x: 180, y, size: 10, font });
+  drawText(page,'N° Historia Clínica:', { x: 50, y, size: 10, font: fontBold });
+  drawText(page,hcNumber, { x: 180, y, size: 10, font });
   y -= 18;
-  page.drawText('N° Incidente:', { x: 50, y, size: 10, font: fontBold });
-  page.drawText(safeText(incident.id), { x: 180, y, size: 10, font });
+  drawText(page,'N° Incidente:', { x: 50, y, size: 10, font: fontBold });
+  drawText(page,safeText(incident.id), { x: 180, y, size: 10, font });
   y -= 18;
-  page.drawText('Fecha de cierre:', { x: 50, y, size: 10, font: fontBold });
-  page.drawText(fmtDate(incident.created_at), { x: 180, y, size: 10, font });
+  drawText(page,'Fecha de cierre:', { x: 50, y, size: 10, font: fontBold });
+  drawText(page,fmtDate(incident.created_at), { x: 180, y, size: 10, font });
   y -= 18;
-  page.drawText('Sede:', { x: 50, y, size: 10, font: fontBold });
-  page.drawText(incident.base_id === 'LA_COSTA' ? 'La Costa (LC)' : 'Dolores (DL)', { x: 180, y, size: 10, font });
+  drawText(page,'Sede:', { x: 50, y, size: 10, font: fontBold });
+  drawText(page,incident.base_id === 'LA_COSTA' ? 'La Costa (LC)' : 'Dolores (DL)', { x: 180, y, size: 10, font });
   y -= 18;
-  page.drawText('Tipo de guardia:', { x: 50, y, size: 10, font: fontBold });
-  page.drawText(safeText(incident.guardia_code), { x: 180, y, size: 10, font });
+  drawText(page,'Tipo de guardia:', { x: 50, y, size: 10, font: fontBold });
+  drawText(page,safeText(incident.guardia_code), { x: 180, y, size: 10, font });
   y -= 30;
 
   // Datos del socio
-  page.drawText('DATOS DEL SOCIO', { x: 50, y, size: 11, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
+  drawText(page,'DATOS DEL SOCIO', { x: 50, y, size: 11, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
   y -= 18;
   const socioFields: [string, string][] = [
     ['Nombre', safeText(profile?.nombre)],
@@ -83,14 +86,14 @@ async function generatePdf(incident: any, profile: any, mediaList: any[], hcNumb
     ['Contacto emergencia', safeText(profile?.contacto)],
   ];
   for (const [k, v] of socioFields) {
-    page.drawText(k + ':', { x: 50, y, size: 9, font: fontBold });
-    page.drawText(v.length > 70 ? v.slice(0, 70) + '…' : v, { x: 170, y, size: 9, font });
+    drawText(page,k + ':', { x: 50, y, size: 9, font: fontBold });
+    drawText(page,v.length > 70 ? v.slice(0, 70) + '…' : v, { x: 170, y, size: 9, font });
     y -= 14;
   }
   y -= 10;
 
   // Datos del incidente
-  page.drawText('DATOS DEL INCIDENTE', { x: 50, y, size: 11, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
+  drawText(page,'DATOS DEL INCIDENTE', { x: 50, y, size: 11, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
   y -= 18;
   const incFields: [string, string][] = [
     ['Estado final', safeText(incident.status)],
@@ -101,24 +104,24 @@ async function generatePdf(incident: any, profile: any, mediaList: any[], hcNumb
     ['Centro receptor', safeText(incident.destination_center)],
   ];
   for (const [k, v] of incFields) {
-    page.drawText(k + ':', { x: 50, y, size: 9, font: fontBold });
-    page.drawText(v.length > 70 ? v.slice(0, 70) + '…' : v, { x: 170, y, size: 9, font });
+    drawText(page,k + ':', { x: 50, y, size: 9, font: fontBold });
+    drawText(page,v.length > 70 ? v.slice(0, 70) + '…' : v, { x: 170, y, size: 9, font });
     y -= 14;
   }
 
   // --- PÁGINA 2: BITÁCORA ---
   page = doc.addPage([595, 842]);
   y = 780;
-  page.drawText('BITÁCORA DEL INCIDENTE', { x: 50, y, size: 12, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
+  drawText(page,'BITÁCORA DEL INCIDENTE', { x: 50, y, size: 12, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
   y -= 25;
   const history = Array.isArray(incident.status_history) ? incident.status_history : [];
   for (const h of history) {
     if (y < 60) { page = doc.addPage([595, 842]); y = 780; }
-    page.drawText('• ' + safeText(h.status), { x: 50, y, size: 9, font: fontBold });
-    page.drawText(fmtDate(h.ts) + ' · ' + safeText(h.actor), { x: 220, y, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
+    drawText(page,'• ' + safeText(h.status), { x: 50, y, size: 9, font: fontBold });
+    drawText(page,fmtDate(h.ts) + ' · ' + safeText(h.actor), { x: 220, y, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
     y -= 12;
     if (h.detail) {
-      page.drawText('  ' + String(h.detail).slice(0, 100), { x: 50, y, size: 8, font, color: rgb(0.2, 0.2, 0.2) });
+      drawText(page,'  ' + String(h.detail).slice(0, 100), { x: 50, y, size: 8, font, color: rgb(0.2, 0.2, 0.2) });
       y -= 14;
     }
   }
@@ -126,27 +129,27 @@ async function generatePdf(incident: any, profile: any, mediaList: any[], hcNumb
   // --- PÁGINA FINAL: ÍNDICE DE ARCHIVOS ---
   page = doc.addPage([595, 842]);
   y = 780;
-  page.drawText('ÍNDICE DE ARCHIVOS ADJUNTOS', { x: 50, y, size: 12, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
+  drawText(page,'ÍNDICE DE ARCHIVOS ADJUNTOS', { x: 50, y, size: 12, font: fontBold, color: rgb(0.04, 0.24, 0.47) });
   y -= 25;
-  page.drawText('Tipo', { x: 50, y, size: 9, font: fontBold });
-  page.drawText('Archivo', { x: 130, y, size: 9, font: fontBold });
-  page.drawText('Subido por', { x: 400, y, size: 9, font: fontBold });
+  drawText(page,'Tipo', { x: 50, y, size: 9, font: fontBold });
+  drawText(page,'Archivo', { x: 130, y, size: 9, font: fontBold });
+  drawText(page,'Subido por', { x: 400, y, size: 9, font: fontBold });
   y -= 15;
   for (const m of mediaList) {
     if (y < 60) { page = doc.addPage([595, 842]); y = 780; }
-    page.drawText(safeText(m.type).toUpperCase(), { x: 50, y, size: 8, font });
-    page.drawText(String(m.storage_path || '').slice(-40), { x: 130, y, size: 8, font });
-    page.drawText(safeText(m.uploaded_by), { x: 400, y, size: 8, font });
+    drawText(page,safeText(m.type).toUpperCase(), { x: 50, y, size: 8, font });
+    drawText(page,String(m.storage_path || '').slice(-40), { x: 130, y, size: 8, font });
+    drawText(page,safeText(m.uploaded_by), { x: 400, y, size: 8, font });
     y -= 12;
   }
   if (mediaList.length === 0) {
-    page.drawText('Sin archivos adjuntos.', { x: 50, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+    drawText(page,'Sin archivos adjuntos.', { x: 50, y, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
   }
 
   // Footer legal en todas las páginas
   const pages = doc.getPages();
   for (const p of pages) {
-    p.drawText('ASARI S.A.S. Proveedor Tecnológico · EMP Prestador Operativo', {
+    drawText(p,'ASARI S.A.S. Proveedor Tecnológico · EMP Prestador Operativo', {
       x: 50, y: 30, size: 7, font, color: rgb(0.5, 0.5, 0.5)
     });
   }
@@ -206,13 +209,20 @@ serve(async (req: Request) => {
     if (!supabaseUrl || !serviceRoleKey) throw new Error('Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
 
     const sb = createClient(supabaseUrl, serviceRoleKey);
-    const payload = await req.json();
-
-    // Soportar webhook (record + old_record) o llamada directa (incident_id)
-    const rec = payload.record || payload;
-    const old = payload.old_record || {};
-    const incidentId = rec.id;
-    if (!incidentId) throw new Error('Falta incident_id en el payload.');
+    const token=(req.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
+    const anon=Deno.env.get('SUPABASE_ANON_KEY')||'';
+    if(!token) return new Response(JSON.stringify({error:'Sesión requerida'}),{status:401,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const {data:{user},error:authErr}=await createClient(supabaseUrl,anon).auth.getUser(token);
+    if(authErr||!user) return new Response(JSON.stringify({error:'Sesión inválida'}),{status:401,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const {data:profile}=await sb.from('profiles').select('role').eq('user_id',user.id).maybeSingle();
+    const {data:staff}=await sb.from('emp_staff').select('access_role').eq('user_id',user.id).eq('active',true).is('deleted_at',null).maybeSingle();
+    if(profile?.role!=='admin'&&!['admin','operador'].includes(staff?.access_role||''))
+      return new Response(JSON.stringify({error:'Solo Central o Administración pueden exportar historias'}),{status:403,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const payload=await req.json();
+    const incidentId=String(payload.incident_id||'');
+    if(!incidentId) throw new Error('Falta incident_id');
+    const {data:rec,error:incidentErr}=await sb.from('incidents').select('*').eq('id',incidentId).single();
+    if(incidentErr||!rec) throw new Error('Incidente no encontrado');
 
     // Solo procesar si pasó a CERRADA
     if (rec.status !== 'CERRADA') {
@@ -276,7 +286,8 @@ serve(async (req: Request) => {
     if (upErr) throw new Error('Error subiendo ZIP: ' + upErr.message);
 
     // Guardar path en el incidente
-    await sb.from('incidents').update({ export_zip_path: zipPath }).eq('id', incidentId);
+    const {error:saveErr}=await sb.from('incidents').update({ export_zip_path: zipPath }).eq('id', incidentId);
+    if(saveErr) throw new Error('ZIP generado, pero no se pudo registrar: '+saveErr.message);
 
     return new Response(JSON.stringify({
       ok: true,
