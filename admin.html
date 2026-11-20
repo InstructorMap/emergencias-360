@@ -63,8 +63,15 @@
 
       <div class="admin-msg-bar" id="adminMsgBar" hidden></div>
 
+      <nav class="emp-admin-nav" aria-label="Secciones de administración" id="empAdminNav">
+        <button type="button" class="emp-nav-btn is-active" data-admin-tab="socios">👥 Socios</button>
+        <button type="button" class="emp-nav-btn" data-admin-tab="personal">🩺 Personal y flota</button>
+        <button type="button" class="emp-nav-btn" data-admin-tab="comercial">🏢 Convenios y beneficios</button>
+        <button type="button" class="emp-nav-btn" data-admin-tab="config">⚙️ Configuración</button>
+        <button type="button" class="emp-nav-btn" data-admin-tab="auditoria">📋 Auditoría</button>
+      </nav>
       <!-- 1. SOCIOS -->
-      <section class="admin-card" aria-label="Gestión de socios">
+      <section data-admin-section="socios" class="admin-card" aria-label="Gestión de socios">
         <h2>1. Socios <span class="section-badge" id="sociosCount">0</span></h2>
         <div class="admin-toolbar">
           <input type="text" id="sociosSearch" placeholder="Buscar por nombre, DNI o N° socio..." class="admin-search" />
@@ -89,10 +96,11 @@
             <tbody id="sociosTbody"></tbody>
           </table>
         </div>
+        <div class="emp-socios-pager" id="sociosPager" aria-label="Paginación de socios"><button type="button" id="sociosPrev" class="btn-secondary">← Anterior</button><span id="sociosPageInfo" role="status">Página 1</span><button type="button" id="sociosNext" class="btn-secondary">Siguiente →</button></div>
       </section>
 
       <!-- 2. ALTA INDIVIDUAL -->
-      <section class="admin-card" aria-label="Alta individual de socio">
+      <section data-admin-section="socios" class="admin-card" aria-label="Alta individual de socio">
         <h2>2. Alta individual de socio</h2>
         <p class="aviso-comercial">Creá un socio. Se le asigna contraseña inicial: <strong>EMP + últimos 4 dígitos del DNI</strong>. El socio deberá cambiarla en el primer login.</p>
         <form id="formAltaIndividual" class="admin-form" novalidate>
@@ -135,7 +143,7 @@
       </section>
 
       <!-- 3. ALTA MASIVA -->
-      <section class="admin-card" aria-label="Alta masiva por Excel">
+      <section data-admin-section="socios" class="admin-card" aria-label="Alta masiva por Excel">
         <h2>3. Alta masiva por Excel</h2>
         <p class="aviso-comercial">
           Subí un archivo <code>.xlsx</code> o <code>.csv</code> con las columnas:<br>
@@ -156,13 +164,13 @@
       </section>
 
       <!-- 4. SOLICITUDES -->
-      <section class="admin-card" aria-label="Solicitudes de socios">
+      <section data-admin-section="socios" class="admin-card" aria-label="Solicitudes de socios">
         <h2>4. Solicitudes "Hacete Socio" y recategorización <span class="section-badge" id="requestsCount">0</span></h2>
         <div id="socioRequestsList"></div>
       </section>
 
       <!-- 5. BRANDING -->
-      <section class="admin-card" aria-label="Branding">
+      <section data-admin-section="config" class="admin-card" aria-label="Branding">
         <h2>5. Branding (logo y colores)</h2>
         <p class="aviso-comercial">El logo se muestra en la app del socio, credencial, PDF, login y todas las vistas. Subí una imagen con fondo transparente (PNG o SVG, idealmente 400×140 px).</p>
         <div class="branding-preview">
@@ -189,7 +197,7 @@
       </section>
 
       <!-- 6. MERCADO PAGO -->
-      <section class="admin-card" aria-label="Mercado Pago">
+      <section data-admin-section="config" class="admin-card" aria-label="Mercado Pago">
         <h2>6. Mercado Pago</h2>
         <p class="aviso-comercial">Configurá las credenciales de Mercado Pago. El Access Token es secreto (solo admin). El socio ve las cuotas y la Public Key.</p>
         <form id="formMercadoPago" class="admin-form" novalidate>
@@ -209,7 +217,7 @@
       </section>
 
       <!-- 7. SERVICIOS TERCERIZADOS -->
-      <section class="admin-card" aria-label="Servicios tercerizados">
+      <section data-admin-section="comercial" class="admin-card" aria-label="Servicios tercerizados">
         <h2>7. Servicios Tercerizados</h2>
         <p class="aviso-comercial">Médico Virtual y Seguro al Viajero son prestadores tercerizados. Se muestran en la ficha del socio, gateados por plan (Oro y Platino).</p>
         <form id="formExtServices" class="admin-form" novalidate>
@@ -221,7 +229,7 @@
       </section>
 
       <!-- 8. BENEFICIOS -->
-      <section class="admin-card" aria-label="Beneficios">
+      <section data-admin-section="comercial" class="admin-card" aria-label="Beneficios">
         <h2>8. Red de Beneficios</h2>
         <p class="aviso-comercial">Al cambiar un prestador a ACTIVO con convenio firmado, se vuelve visible en la app del socio.</p>
         <div style="overflow-x:auto;">
@@ -234,7 +242,7 @@
       </section>
 
       <!-- 9. B2B -->
-      <section class="admin-card" aria-label="Establecimientos B2B">
+      <section data-admin-section="comercial" class="admin-card" aria-label="Establecimientos B2B">
         <h2>9. Establecimientos B2B</h2>
         <div style="overflow-x:auto;">
           <table class="admin-table" id="b2bTable">
@@ -245,7 +253,7 @@
       </section>
 
       <!-- PERSONAL EMP -->
-      <section class="admin-card emp-staff-card" id="adminPersonal" aria-label="Personal EMP">
+      <section data-admin-section="personal" class="admin-card emp-staff-card" id="adminPersonal" aria-label="Personal EMP">
         <div class="emp-section-heading"><div><span class="emp-eyebrow">RECURSOS HUMANOS · EMP</span><h2>Personal y habilitaciones <span class="section-badge" id="empStaffCount">0</span></h2><p>Legajos centralizados por sede, especialidad y estado.</p></div><button type="button" class="btn-secondary" id="empStaffRefresh">↻ Actualizar</button></div>
         <div class="emp-staff-summary"><div><strong id="empStaffTotal">—</strong><span>Registrados</span></div><div><strong id="empStaffActive">—</strong><span>Activos</span></div><div><strong id="empStaffDolores">—</strong><span>Dolores</span></div><div><strong id="empStaffCosta">—</strong><span>Santa Teresita</span></div></div>
         <form class="admin-form" id="empStaffForm" novalidate>
@@ -265,7 +273,7 @@
         <div class="emp-staff-table-wrap"><table class="admin-table"><thead><tr><th>Personal</th><th>Especialidad</th><th>Sede</th><th>Estado</th><th>Cuenta</th><th>Acción</th></tr></thead><tbody id="empStaffTbody"><tr><td colspan="6">Cargando legajos…</td></tr></tbody></table></div>
       </section>
       <!-- FLOTA EMP -->
-      <section class="admin-card" aria-label="Gestión de ambulancias" id="adminFlota">
+      <section data-admin-section="personal" class="admin-card" aria-label="Gestión de ambulancias" id="adminFlota">
         <h2>🚑 Flota EMP — Administración de ambulancias</h2>
         <p class="aviso-comercial">Las unidades se guardan en Supabase y se comparten con Central y Guardia. Desactivar una unidad la retira de los selectores sin borrar su historial.</p>
         <form id="formAmbulance" class="admin-form" novalidate>
@@ -284,7 +292,7 @@
       </section>
 
       <!-- PERSONAL DE GUARDIA ACTIVO -->
-      <section class="admin-card" aria-label="Tripulaciones activas">
+      <section data-admin-section="personal" class="admin-card" aria-label="Tripulaciones activas">
         <h2>👥 Tripulaciones activas por ambulancia</h2>
         <p class="aviso-comercial">Personal que confirmó inicio de guardia desde su dispositivo. Actualización cada 15 segundos.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
@@ -295,7 +303,7 @@
         <p id="adminCrewMsg" class="form-msg" role="status"></p>
       </section>
       <!-- 10. AUDITORÍA -->
-      <section class="admin-card" aria-label="Auditoría">
+      <section data-admin-section="auditoria" class="admin-card" aria-label="Auditoría">
         <h2>10. Auditoría</h2>
         <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
           <button type="button" id="btnExportAudit" class="btn-secondary">⬇ Exportar Auditoría JSON</button>
@@ -305,7 +313,7 @@
       </section>
 
       <!-- 11. RECORDATORIO LEGAL -->
-      <section class="admin-card" aria-label="Recordatorio legal">
+      <section data-admin-section="config" class="admin-card" aria-label="Recordatorio legal">
         <h2>Recordatorio legal</h2>
         <p class="warn-operador">
           <strong>ASARI S.A.S.</strong> es el proveedor tecnológico de la plataforma (desarrolla y opera el software).
@@ -332,7 +340,7 @@
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
   <script src="js/store.js?v=20261120-personal-stitch"></script>
-  <script src="js/app-admin.js?v=20261120-personal-stitch"></script>
+  <script src="js/app-admin.js?v=20261120-nav-paginacion"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
