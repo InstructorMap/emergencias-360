@@ -571,7 +571,7 @@
         .select('*').order('created_at', { ascending: false }).limit(200);
       if (error || !data) return;
       const next = data.map(mapIncidentFromDB);
-      const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation]));
+      const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation, i.supportRequests]));
       if (fingerprint(next) !== fingerprint(state.incidents)) {
         state.incidents = next;
         if (state.profile && state.profile.dni) {
