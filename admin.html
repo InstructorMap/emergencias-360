@@ -266,10 +266,10 @@
           <label>Teléfono<input type="tel" id="empStaffTelefono" maxlength="35"/></label>
           <label>Sede<select id="empStaffBase"><option value="DOLORES">Dolores</option><option value="LA_COSTA">Santa Teresita / La Costa</option></select></label>
           <label>Especialidad<select id="empStaffEspecialidad"><option value="MEDICO">Médico/a</option><option value="ENFERMERO">Enfermero/a</option><option value="TEM">TEM / Paramédico</option><option value="CONDUCTOR">Conductor/a</option><option value="OTRO">Otra función</option></select></label>
-          <label>Rol de acceso previsto<select id="empStaffRol"><option value="operador">Operador / personal</option><option value="admin">Administrador</option></select></label>
+          <label>Rol de acceso previsto<select id="empStaffRol"><option value="personal">Personal general</option><option value="operador">Operador de central</option><option value="admin">Administrador</option></select></label>
           <label>Estado<select id="empStaffActivo"><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
           <div class="full emp-staff-actions"><button type="submit" class="btn-primary" id="empStaffSave">Guardar legajo</button><button type="button" class="btn-secondary" id="empStaffClear">Nuevo legajo</button></div>
-          <p class="full emp-staff-note">Primero guardá el legajo. Luego usá «Invitar acceso» en la tabla para enviar un correo de activación. El acceso se habilita al completar la invitación.</p>
+          <p class="full emp-staff-note">Guardá el legajo y después elegí «Crear acceso» para definir usuario (correo) y clave, o «Invitar». Podés editar, cambiar contraseña, suspender, reactivar o dar de baja desde la tabla.</p>
           <p class="full" id="empStaffMessage" role="status"></p>
         </form>
         <div class="emp-staff-table-wrap"><table class="admin-table"><thead><tr><th>Personal</th><th>Especialidad</th><th>Sede</th><th>Estado</th><th>Cuenta</th><th>Acción</th></tr></thead><tbody id="empStaffTbody"><tr><td colspan="6">Cargando legajos…</td></tr></tbody></table></div>
@@ -341,8 +341,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
-  <script src="js/store.js?v=20261120-invite-staff"></script>
-  <script src="js/app-admin.js?v=20261120-invite-staff"></script>
+  <script src="js/store.js?v=20261120-staff-access-v2"></script>
+  <script src="js/app-admin.js?v=20261120-staff-access-v2"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
