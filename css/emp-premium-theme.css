@@ -1,0 +1,50 @@
+/* EMP Premium UI v1 — contrast, depth, accessibility and shared themes */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root,[data-theme="dark"]{
+ --e-bg:#080e1c;--e-surface:#101a2c;--e-raised:#1a2840;--e-text:#f2f6ff;--e-muted:#b2c1da;
+ --e-border:#405471;--e-accent:#9ed1ff;--e-shadow:0 14px 38px rgba(0,0,0,.38);--e-input:#0b1629;
+ color-scheme:dark;
+}
+[data-theme="light"]{
+ --e-bg:#eef3f9;--e-surface:#fff;--e-raised:#e7eef8;--e-text:#142238;--e-muted:#445775;
+ --e-border:#9eb1c9;--e-accent:#0a5395;--e-shadow:0 12px 30px rgba(22,44,77,.12);--e-input:#fff;
+ color-scheme:light;
+}
+body.admin-body,body.central-body,body.guardia-body,body.b2b-body,body.emp-themed{
+ background:var(--e-bg)!important;color:var(--e-text);font-family:Inter,system-ui,sans-serif;
+ background-image:radial-gradient(ellipse at 12% -18%,rgba(74,131,203,.15),transparent 48%),linear-gradient(160deg,transparent 60%,rgba(75,108,162,.05))!important;
+ background-attachment:fixed!important;
+}
+.emp-theme-switch{position:fixed;right:18px;bottom:18px;z-index:9998;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px 16px;background:var(--e-raised);color:var(--e-text);border:1px solid var(--e-border);border-radius:100px;box-shadow:var(--e-shadow);font:700 13px Inter,system-ui,sans-serif;cursor:pointer}
+.emp-theme-switch:hover{outline:2px solid var(--e-accent);outline-offset:2px}
+.emp-theme-switch:focus-visible{outline:3px solid var(--e-accent);outline-offset:3px}
+body.admin-body .admin-card,body.central-body .central-card,body.b2b-body .b2b-card,body.guardia-body .guardia-card{
+ background:var(--e-surface);color:var(--e-text);border:1px solid var(--e-border);box-shadow:var(--e-shadow);
+}
+body.admin-body .admin-card{border-top:2px solid var(--e-accent)}
+body.admin-body .admin-card h2,body.admin-body .admin-card h3,body.admin-body .admin-card p,body.admin-body .admin-card label{color:var(--e-text)}
+body.admin-body .admin-card input,body.admin-body .admin-card select,body.admin-body .admin-card textarea{
+ background:var(--e-input);color:var(--e-text);border:1px solid var(--e-border)
+}
+body.admin-body .admin-table th{background:var(--e-raised);color:var(--e-text)}
+body.admin-body .admin-table td{background:var(--e-surface);color:var(--e-text);border-color:var(--e-border)}
+body.admin-body .admin-table tbody tr:hover td{background:var(--e-raised)}
+body.admin-body .emp-admin-nav{background:var(--e-surface);border-color:var(--e-border);box-shadow:var(--e-shadow)}
+body.admin-body .emp-nav-btn{background:var(--e-raised);color:var(--e-text);border-color:var(--e-border)}
+body.admin-body .emp-nav-btn.is-active{background:var(--e-accent);color:var(--e-bg);border-color:var(--e-accent)}
+body.admin-body .emp-staff-summary>div{background:var(--e-raised);border-color:var(--e-border)}
+body.admin-body .emp-staff-summary strong,body.admin-body .emp-staff-summary span{color:var(--e-text)}
+body.admin-body .emp-staff-note{background:var(--e-raised);color:var(--e-text)}
+body.admin-body .admin-card .btn-secondary{background:var(--e-raised);color:var(--e-text);border-color:var(--e-border)}
+body.admin-body .admin-card .btn-secondary:hover{background:var(--e-border)}
+body.admin-body .admin-header{background:var(--e-surface);color:var(--e-text);border-color:var(--e-border)}
+[data-theme="light"] .emp-eyebrow{color:#a64d0b}
+[data-theme="light"] .carnet-status-pill{border:1px solid #7897b7}
+[data-theme="light"] .emp-staff-badge{background:#d5f4e8;color:#145f45}
+[data-theme="light"] .emp-staff-badge.inactive{background:#ffded8;color:#8a2923}
+[data-theme="light"] body.admin-body .admin-card .btn-primary{background:#b72d30;color:#fff}
+[data-theme="light"] body.admin-body .admin-card .btn-primary:hover{background:#962024}
+[data-theme="light"] body.central-body .central-header,[data-theme="light"] body.guardia-body .guardia-header{background:#fff;color:#142238}
+[data-theme="light"] body.central-body input,[data-theme="light"] body.central-body select,[data-theme="light"] body.b2b-body input,[data-theme="light"] body.b2b-body select{background:#fff;color:#142238;border-color:#9eb1c9}
+[data-theme="light"] body.emp-themed .card,[data-theme="light"] body.emp-themed .panel,[data-theme="light"] body.emp-themed .section-card{background:#fff;color:#142238;border-color:#9eb1c9}
+@media(max-width:700px){.emp-theme-switch{right:12px;bottom:12px;padding:10px 12px;min-height:48px}}
