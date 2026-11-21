@@ -146,3 +146,17 @@ body.emp-themed .app-header .pill-socio-activo{color:#d4ffe5!important;backgroun
 body.emp-themed .bottom-nav .nav-btn .nav-text{font-size:clamp(9px,2.3vw,12px)!important;letter-spacing:-.4px!important;max-width:100%!important}
 body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos){background:#173b61!important;color:#fff!important}
 body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos) .nav-text{color:#fff!important}
+
+/* V8: alineación y selección de pestañas corregidas */
+body.emp-themed .bottom-nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;align-items:stretch!important;overflow:hidden!important}
+body.emp-themed .bottom-nav .nav-btn{box-sizing:border-box!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;min-width:0!important;width:100%!important;height:66px!important;min-height:66px!important;max-height:66px!important;padding:5px 0!important;margin:0!important;border-radius:9px 9px 0 0!important;line-height:1!important;gap:6px!important;flex:initial!important}
+body.emp-themed .bottom-nav .nav-btn .nav-icon{display:block!important;font-size:21px!important;line-height:24px!important;flex:none!important}
+body.emp-themed .bottom-nav .nav-btn .nav-text{display:block!important;width:100%!important;text-align:center!important;font-size:clamp(9px,2.15vw,11px)!important;font-weight:700!important;letter-spacing:-.25px!important;line-height:13px!important;white-space:nowrap!important;overflow:hidden!important}
+body.emp-themed .bottom-nav #nav-sos:not(.active){background:transparent!important;color:#c4d0e0!important}
+body.emp-themed .bottom-nav #nav-sos:not(.active) .nav-text{color:#c4d0e0!important}
+body.emp-themed .bottom-nav #nav-sos.active{background:#b71930!important;color:#fff!important}
+body.emp-themed .bottom-nav #nav-sos.active .nav-text{color:#fff!important}
+body.emp-themed .bottom-nav .nav-btn:not(.active){background:transparent!important;border-color:transparent!important}
+body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos){background:#173b61!important}
+body.emp-themed .app-header .pill-socio-activo{color:#d9ffe7!important;background:#176144!important;opacity:1!important}
+@media(max-width:430px){body.emp-themed .bottom-nav .nav-btn .nav-text{font-size:9px!important;letter-spacing:-.45px!important}}
