@@ -160,3 +160,28 @@ body.emp-themed .bottom-nav .nav-btn:not(.active){background:transparent!importa
 body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos){background:#173b61!important}
 body.emp-themed .app-header .pill-socio-activo{color:#d9ffe7!important;background:#176144!important;opacity:1!important}
 @media(max-width:430px){body.emp-themed .bottom-nav .nav-btn .nav-text{font-size:9px!important;letter-spacing:-.45px!important}}
+
+/* V9: credencial como elemento principal; QR de verificación secundario */
+body.emp-themed #tab-credencial .credencial-tarjeta{
+ width:100%!important;max-width:none!important;
+ aspect-ratio:auto!important;min-height:250px!important;
+ padding:20px 18px!important;margin:0 0 14px!important;
+ box-sizing:border-box!important;display:flex!important;
+ flex-direction:column!important;justify-content:space-between!important;
+}
+body.emp-themed #tab-credencial .ct-logo img,
+body.emp-themed #tab-credencial .ct-logo svg{max-height:46px!important;max-width:170px!important}
+body.emp-themed #tab-credencial .ct-nombre{font-size:clamp(16px,4.1vw,22px)!important;line-height:1.22!important;overflow-wrap:anywhere!important}
+body.emp-themed #tab-credencial .ct-row-bottom{grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,.55fr) minmax(0,.8fr)!important;gap:8px!important}
+body.emp-themed #tab-credencial .ct-k{font-size:clamp(9px,2.1vw,11px)!important;letter-spacing:0!important}
+body.emp-themed #tab-credencial .ct-v{font-size:clamp(10px,2.4vw,13px)!important}
+body.emp-themed #tab-credencial .qr-card{max-width:100%!important;padding:14px!important;margin-top:0!important}
+body.emp-themed #tab-credencial .qr-card-svg{display:flex!important;justify-content:center!important;align-items:center!important}
+body.emp-themed #tab-credencial .qr-card-svg svg,
+body.emp-themed #tab-credencial .qr-card-svg canvas,
+body.emp-themed #tab-credencial .qr-card-svg img{width:160px!important;height:160px!important;max-width:100%!important;object-fit:contain!important}
+@media(max-width:410px){
+ body.emp-themed #tab-credencial .credencial-tarjeta{min-height:265px!important;padding:17px 14px!important}
+ body.emp-themed #tab-credencial .ct-row-bottom{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px 12px!important}
+ body.emp-themed #tab-credencial .ct-v{font-size:12px!important}
+}
