@@ -564,6 +564,12 @@
   const HOLD_MS = C.SOS_HOLD_MS || 1500;
   let holdTimer = null, holdStart = 0, holdRAF = null, sosFired = false;
 
+  function setSOSVisual(state) {
+    ['btnSOS','btnSOSInicio'].forEach(id => {
+      const btn=document.getElementById(id);
+      if(btn) btn.dataset.sosState=state;
+    });
+  }
   function setProgress(pct, btnId) {
     const btn = document.getElementById(btnId || 'btnSOS');
     if (!btn) return;
@@ -576,6 +582,7 @@
     const btn = document.getElementById(btnId || 'btnSOS');
     if (!btn || btn.disabled) return;
     btn.classList.add('pressing');
+    setSOSVisual('presionando');
     holdStart = Date.now();
     function tick() {
       const elapsed = Date.now() - holdStart;
@@ -591,7 +598,7 @@
     if (btn) btn.classList.remove('pressing');
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
     if (holdRAF) { cancelAnimationFrame(holdRAF); holdRAF = null; }
-    if (!force) setProgress(0, btnId);
+    if (!force) { setProgress(0, btnId); if (!sosFired) setSOSVisual('reposo'); }
   }
 
   function initSOSButton(btnId) {
@@ -608,11 +615,13 @@
   async function fireSOS(triggerBtnId) {
     // C2: SOS requiere internet. Si está offline, toast con teléfonos.
     if (!onlineOrToast()) {
+      setSOSVisual('error');
       sosFired = false;
       setProgress(0, 'btnSOS');
       setProgress(0, 'btnSOSInicio');
       return;
     }
+    setSOSVisual('enviando');
     const activeProfile = Store.getActiveProfile();
     const triggerBtn = document.getElementById(triggerBtnId || 'btnSOS');
     try {
@@ -626,6 +635,7 @@
         });
       }, 'Emitiendo SOS…');
 
+      setSOSVisual('confirmado');
       currentIncident = incident;
       renderIncident(incident);
       renderMisIncidentes();
@@ -639,8 +649,10 @@
         toast('🚨 Alerta SOS enviada a Central EMP');
       }
 
-      setTimeout(() => { setProgress(0, 'btnSOS'); setProgress(0, 'btnSOSInicio'); sosFired = false; }, 500);
+      setTimeout(() => { setProgress(0, 'btnSOS'); setProgress(0, 'btnSOSInicio'); sosFired = false; setSOSVisual('reposo'); }, 2500);
     } catch (err) {
+      setSOSVisual('error');
+      setTimeout(() => setSOSVisual('reposo'), 4000);
       toast('Error al emitir SOS: ' + fmtErr(err));
       sosFired = false;
     }
