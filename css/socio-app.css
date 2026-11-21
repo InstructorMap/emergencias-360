@@ -117,3 +117,32 @@ body.emp-themed #tab-inicio #servicioFarmacia{background-image:url('../assets/so
 body.emp-themed #tab-inicio #servicioTeleconsulta{background-image:url('../assets/socio/teleconsulta_medico.webp')!important}
 body.emp-themed #tab-inicio #servicioPulsera{background-image:url('../assets/socio/pulsera_emergencia.webp')!important}
 body.emp-themed #tab-inicio #servicioCursos{background-image:url('../assets/socio/cursos_rcp.webp')!important}
+
+/* V7: especificidad correcta para los recursos de estado del SOS */
+body.emp-themed #tab-inicio .card-sos-destacada #btnSOSInicio,
+body.emp-themed #tab-sos #btnSOS{
+ background-color:transparent!important;
+ background-image:url('../assets/socio/sos_reposo.webp')!important;
+ background-repeat:no-repeat!important;
+ background-position:center!important;
+ background-size:contain!important;
+ border:0!important;box-shadow:none!important;
+ color:transparent!important;
+}
+body.emp-themed #tab-inicio .card-sos-destacada #btnSOSInicio[data-sos-state="presionando"],
+body.emp-themed #tab-sos #btnSOS[data-sos-state="presionando"]{background-image:url('../assets/socio/sos_presionando.webp')!important}
+body.emp-themed #tab-inicio .card-sos-destacada #btnSOSInicio[data-sos-state="enviando"],
+body.emp-themed #tab-sos #btnSOS[data-sos-state="enviando"]{background-image:url('../assets/socio/sos_enviando.webp')!important}
+body.emp-themed #tab-inicio .card-sos-destacada #btnSOSInicio[data-sos-state="confirmado"],
+body.emp-themed #tab-sos #btnSOS[data-sos-state="confirmado"]{background-image:url('../assets/socio/sos_confirmado.webp')!important}
+body.emp-themed #tab-inicio .card-sos-destacada #btnSOSInicio[data-sos-state="error"],
+body.emp-themed #tab-sos #btnSOS[data-sos-state="error"]{background-image:url('../assets/socio/sos_error.webp')!important}
+body.emp-themed #tab-inicio .card-sos-destacada .card-sos-estado-activo{
+ background:rgba(255,255,255,.12)!important;color:#fff!important;
+ text-shadow:none!important;border:1px solid rgba(255,255,255,.25)!important;
+ line-height:1.4!important;overflow-wrap:anywhere!important;
+}
+body.emp-themed .app-header .pill-socio-activo{color:#d4ffe5!important;background:#145c43!important}
+body.emp-themed .bottom-nav .nav-btn .nav-text{font-size:clamp(9px,2.3vw,12px)!important;letter-spacing:-.4px!important;max-width:100%!important}
+body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos){background:#173b61!important;color:#fff!important}
+body.emp-themed .bottom-nav .nav-btn.active:not(#nav-sos) .nav-text{color:#fff!important}
