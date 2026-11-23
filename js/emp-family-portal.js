@@ -13,6 +13,21 @@ async function render(){
  await refresh();
 }
 let currentEvents=[];
+
+async function diagnoseFamilyNotifications(){
+ const result=['Diagnóstico EMP'];
+ result.push('Permiso: '+(('Notification' in window)?Notification.permission:'API no disponible'));
+ result.push('HTTPS: '+(window.isSecureContext?'sí':'no'));
+ result.push('Service Worker: '+('serviceWorker' in navigator?'sí':'no'));
+ result.push('Push API: '+('PushManager' in window?'sí':'no'));
+ result.push('Pestaña integrada: '+(document.referrer&&/chatgpt|whatsapp|facebook|instagram/i.test(document.referrer)?'posible':'no detectada'));
+ if(navigator.permissions&&navigator.permissions.query){
+  try{const p=await navigator.permissions.query({name:'notifications'});result.push('Permisos del navegador: '+p.state);}catch(e){result.push('Consulta de permisos: no disponible');}
+ }
+ try{if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration('./');result.push('Worker instalado: '+(reg?'sí':'no'));}}catch(e){result.push('Worker: error de consulta');}
+ result.push('Si el permiso sigue default, Chrome está descartando la solicitud. Abrí el menú junto a la dirección → Configuración del sitio → Restablecer permisos; después recargá EMP.');
+ notificationStatus(result.join(' | '));
+}
 async function testFamilyPush(){
  const {data:{session}}=await client.auth.getSession();
  if(!session){notificationStatus('Ingresá con tu cuenta familiar para probar.');return;}
@@ -60,7 +75,7 @@ function notificationSupported(){return 'Notification' in window&&window.isSecur
 function permissionHelp(){
  if(!notificationSupported())return 'Este navegador no admite notificaciones web. Abrí el enlace en Chrome para Android, no dentro de WhatsApp o Facebook.';
  if(Notification.permission==='denied')return 'Notificaciones bloqueadas para este sitio. En Chrome tocá el icono junto a la dirección → Permisos → Notificaciones → Permitir. Si no aparece, abrí Configuración de Android → Apps → Chrome → Notificaciones.';
- return 'Estado: '+Notification.permission+'. Chrome no abrió o no aprobó la solicitud. Revisá Configuración → Configuración de sitios → Notificaciones; desactivá solicitudes silenciosas y permití avisos de Chrome en Android.';
+ return 'Estado: '+Notification.permission+'. Chrome no concedió el permiso. Tocá «Diagnosticar permisos» para revisar la compatibilidad y el bloqueo del navegador.';
 }
 function notificationStatus(text){const el=$('notificationStatus');if(el)el.textContent=text;}
 function notificationPreferenceKey(userId){return 'emp-family-notify-'+userId;}
@@ -181,6 +196,7 @@ $('refreshBtn').onclick=refresh;
 $('enableFamilyNotifications').onclick=enableNotifications;
 $('registerFamilyPush').onclick=subscribeFamilyPush;
 $('testFamilyPush').onclick=testFamilyPush;
+$('diagnoseFamilyNotifications').onclick=diagnoseFamilyNotifications;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
 if('serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
