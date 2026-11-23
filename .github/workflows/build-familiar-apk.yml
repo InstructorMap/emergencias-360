@@ -275,3 +275,37 @@ jobs:
           files: android/app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
+
+      - name: Build and verify institutional signed release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EMP_KEYSTORE_BASE64: ${{ secrets.EMP_KEYSTORE_BASE64 }}
+          EMP_KEYSTORE_PASSWORD: ${{ secrets.EMP_KEYSTORE_PASSWORD }}
+          EMP_KEY_ALIAS: ${{ secrets.EMP_KEY_ALIAS }}
+          EMP_KEY_PASSWORD: ${{ secrets.EMP_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$EMP_KEYSTORE_BASE64" && test -n "$EMP_KEYSTORE_PASSWORD" && test -n "$EMP_KEY_ALIAS" && test -n "$EMP_KEY_PASSWORD"
+          KEYSTORE="$RUNNER_TEMP/emp-production.p12"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$EMP_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storetype PKCS12 -storepass:env EMP_KEYSTORE_PASSWORD -alias "$EMP_KEY_ALIAS" >/dev/null
+          (cd android && ./gradlew assembleRelease)
+          APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
+          test -n "$APK"
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          test -n "$TOOLS"
+          mkdir -p signed-release
+          "${TOOLS%/*}/zipalign" -f 4 "$APK" "$RUNNER_TEMP/emp-aligned.apk"
+          "$TOOLS" sign --ks "$KEYSTORE" --ks-type PKCS12 --ks-key-alias "$EMP_KEY_ALIAS" --ks-pass env:EMP_KEYSTORE_PASSWORD --key-pass env:EMP_KEY_PASSWORD --out signed-release/EMP-red-familiar-release.apk "$RUNNER_TEMP/emp-aligned.apk"
+          "$TOOLS" verify --verbose --print-certs signed-release/EMP-red-familiar-release.apk
+
+      - name: Upload institutional signed APK
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EMP-red-familiar-Release-Signed
+          path: signed-release/EMP-red-familiar-release.apk
+          if-no-files-found: error
+          retention-days: 30
