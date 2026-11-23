@@ -15,3 +15,8 @@
 #empTriaje #tr-result:not(:empty){margin-top:16px;padding:14px;border:1px solid var(--e-border,#9eb1c9);border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:9px}
 #empTriaje #tr-result h3{color:inherit;text-align:center}
 #empTriaje #tr-result a{display:block;background:#7a1c32;color:#fff;text-align:center;padding:14px;border-radius:12px;font-weight:800;width:100%}
+
+#empTriaje #tr-traslado{display:flex;flex-direction:column;gap:10px}
+#empTriaje #tr-traslado[hidden]{display:none}
+#empTriaje #tr-traslado button[type=submit]{min-height:50px;padding:12px;border:0;border-radius:12px;background:#0b3c78;color:#fff;font-weight:800;cursor:pointer}
+#empTriaje .tr-types{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
