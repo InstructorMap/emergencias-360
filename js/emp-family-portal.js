@@ -142,5 +142,6 @@ $('refreshBtn').onclick=refresh;
 $('enableFamilyNotifications').onclick=enableNotifications;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
+if('serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 render();
 })();
