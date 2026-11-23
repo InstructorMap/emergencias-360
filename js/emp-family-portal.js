@@ -16,6 +16,7 @@ let currentEvents=[];
 async function testFamilyPush(){
  const {data:{session}}=await client.auth.getSession();
  if(!session){notificationStatus('Ingresá con tu cuenta familiar para probar.');return;}
+ if(!notificationSupported()||Notification.permission!=='granted'){notificationStatus(permissionHelp());return;}
  notificationStatus('Enviando notificación de prueba...');
  try{
   const res=await fetch(cfg.URL+'/functions/v1/emp-family-push-test',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'apikey':cfg.ANON_KEY,'Content-Type':'application/json'},body:'{}'});
@@ -23,7 +24,7 @@ async function testFamilyPush(){
   if(body.error==='push_not_configured')throw Error('Falta configurar las claves privadas del servidor.');
   if(!res.ok)throw Error(body.error||'Error del servidor');
   notificationStatus('Prueba enviada a '+body.sent+' dispositivo(s). Fallidos: '+body.failed+'.');
- }catch(e){notificationStatus('Prueba no disponible: '+e.message);}
+ }catch(e){notificationStatus('Prueba no disponible: '+(e instanceof TypeError?'No se pudo conectar con Supabase (red/CORS). No depende del permiso de notificaciones.':e.message));}
 }
 
 const VAPID_PUBLIC_KEY='BCqL7Ex19lSGWuigrV-l9Gts40KHu3o4LoG2bWyCRGYTRsWAnocPHco98zg-RvbUGB-Bv1z-gVHUf9WOmoyjqpY';
@@ -36,7 +37,7 @@ async function subscribeFamilyPush(){
  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!notificationSupported()){notificationStatus('Este navegador no admite notificaciones push.');return;}
  const {data:{user}}=await client.auth.getUser();if(!user)return;
  const permission=await Notification.requestPermission();
- if(permission!=='granted'){notificationStatus('Necesitás permitir las notificaciones para continuar.');return;}
+ if(permission!=='granted'){notificationStatus(permissionHelp());return;}
  try{
   const reg=await navigator.serviceWorker.register('./sw.js');
   const ready=await navigator.serviceWorker.ready;
@@ -54,6 +55,11 @@ async function subscribeFamilyPush(){
 // Avisos locales: solo mientras el portal está abierto. No son push en segundo plano.
 const notificationState={enabled:false,seen:new Set(),ready:false,userId:null};
 function notificationSupported(){return 'Notification' in window&&window.isSecureContext;}
+function permissionHelp(){
+ if(!notificationSupported())return 'Este navegador no admite notificaciones web. Abrí el enlace en Chrome para Android, no dentro de WhatsApp o Facebook.';
+ if(Notification.permission==='denied')return 'Notificaciones bloqueadas para este sitio. En Chrome tocá el icono junto a la dirección → Permisos → Notificaciones → Permitir. Si no aparece, abrí Configuración de Android → Apps → Chrome → Notificaciones.';
+ return 'El navegador no concedió el permiso. Abrí el sitio directamente en Chrome y verificá que Chrome tenga las notificaciones habilitadas en Android.';
+}
 function notificationStatus(text){const el=$('notificationStatus');if(el)el.textContent=text;}
 function notificationPreferenceKey(userId){return 'emp-family-notify-'+userId;}
 function resetNotifications(){notificationState.enabled=false;notificationState.ready=false;notificationState.seen.clear();notificationState.userId=null;}
@@ -61,7 +67,7 @@ async function enableNotifications(){
  if(!notificationSupported()){notificationStatus('Este navegador no admite avisos del sistema.');return;}
  const {data:{user}}=await client.auth.getUser();if(!user)return;
  const permission=await Notification.requestPermission();
- if(permission!=='granted'){notificationStatus('Permiso no concedido. Podés seguir viendo las alertas en el panel.');return;}
+ if(permission!=='granted'){notificationStatus(permissionHelp());return;}
  localStorage.setItem(notificationPreferenceKey(user.id),'yes');
  notificationState.enabled=true;notificationState.ready=false;notificationState.seen.clear();
  notificationStatus('Avisos activados mientras este portal permanezca abierto.');
