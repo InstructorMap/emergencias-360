@@ -23,20 +23,26 @@ function boot(){
  host.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;host.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('selected',x===b));$('#tr-form').hidden=kind==='traslado';$('#tr-traslado').hidden=kind!=='traslado';$('#tr-result').innerHTML='';const target=kind==='traslado'?$('#tr-traslado'):$('#tr-form');target.scrollIntoView({behavior:'smooth',block:'nearest'});}));
  const dateInput=$('#tt-fecha');
  dateInput.addEventListener('focus',()=>{dateInput.min=localDatetime(minTransferTime());});
- $('#tr-traslado').addEventListener('submit',e=>{
+ $('#tr-traslado').addEventListener('submit',async e=>{
   e.preventDefault();
   const selected=new Date(dateInput.value);
   const result=$('#tr-result');result.replaceChildren();
   if(!Number.isFinite(selected.getTime())||selected.getTime()<minTransferTime().getTime()){
    result.textContent='El traslado debe solicitarse con al menos 24 horas de anticipación. Seleccioná una fecha y hora posteriores.';dateInput.min=localDatetime(minTransferTime());return;
   }
-  const p=document.createElement('p');
-  p.textContent='Datos del traslado revisados. Esta solicitud aún NO fue enviada ni confirmada por Central EMP. Para coordinarla, contactá a EMP por teléfono.';
-  result.appendChild(p);
-  const a=document.createElement('a');a.href='tel:2245444602';a.textContent='Llamar a EMP: 2245-444602';result.appendChild(a);
+  const store=window.E360Store;
+  if(!store||!store.getActiveProfile()){result.textContent='Iniciá sesión para solicitar el traslado.';return;}
+  const btn=e.currentTarget.querySelector('[type=submit]');btn.disabled=true;
+  try{
+   const fields=['paciente','origen','destino','motivo','movilidad','requerimientos','contacto'];
+   const datos=Object.fromEntries(fields.map(k=>[k,$('#tt-'+k).value.trim()]));
+   const request=await store.createServiceRequest({tipo:'traslado',datos,fechaTraslado:selected.toISOString()});
+   const p=document.createElement('p');p.textContent='Solicitud recibida por Central EMP. Número: '+request.id+'. Pendiente de evaluación y confirmación; NO es una reserva confirmada.';result.appendChild(p);
+  }catch(err){result.textContent='No se pudo registrar el traslado: '+(err.message||err);}
+  finally{btn.disabled=false;}
   result.scrollIntoView({behavior:'smooth',block:'nearest'});
  });
- $('#tr-form').addEventListener('submit',e=>{
+ $('#tr-form').addEventListener('submit',async e=>{
   e.preventDefault();
   const val=id=>$('#tr-'+id).value.trim();
   const p=window.E360Store&&window.E360Store.getActiveProfile?window.E360Store.getActiveProfile():null;
@@ -51,7 +57,17 @@ function boot(){
   const msg=document.createElement('p');msg.textContent=red?'Los síntomas referidos pueden requerir atención inmediata. No esperes ni completes otros formularios.': 'Clasificación orientativa: debe ser confirmada por personal sanitario de EMP. La solicitud todavía no fue enviada.';result.appendChild(msg);
   if(red){const sos=document.createElement('button');sos.type='button';sos.textContent='Ir al SOS';sos.onclick=()=>{const tab=document.querySelector('#nav-sos');if(tab)tab.click();};result.appendChild(sos);}
   const phone=document.createElement('a');phone.href='tel:2245444600';phone.textContent='Llamar a EMP: 2245-444600';result.appendChild(phone);
-  if(!red){const note=document.createElement('p');note.textContent='El formulario de triaje está preparado para integrar la recepción de solicitudes en Central. Por seguridad, hasta habilitar ese circuito, coordiná la atención por teléfono.';result.appendChild(note);}
+  if(!red){
+   const btn=e.currentTarget.querySelector('[type=submit]');btn.disabled=true;
+   try{
+    const keys=['motivo','detalle','inicio','empeora','alarma','telefono'];
+    const datos=Object.fromEntries(keys.map(k=>[k,val(k)]));
+    const request=await window.E360Store.createServiceRequest({tipo:kind,datos,prioridad:yellow?'AMARILLO':'VERDE'});
+    msg.textContent='Solicitud registrada en Central EMP. Número: '+request.id+'. Pendiente de valoración y confirmación por personal sanitario.';
+   }catch(err){msg.textContent='No se pudo enviar la solicitud: '+(err.message||err)+'. Contactá a EMP por teléfono.';}
+   finally{btn.disabled=false;}
+  }
+  
   result.scrollIntoView({behavior:'smooth',block:'nearest'});
  });
 }
