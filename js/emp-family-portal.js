@@ -40,11 +40,15 @@ function renderEvents(id,events,emptyText){
 async function refresh(){
  msg('appMessage','Actualizando información...');
  try{
-  const [{data:inv,error:ie},{data:feed,error:fe}]=await Promise.all([
-   client.rpc('emp_family_my_invitations'),client.rpc('emp_family_feed')
+  const [{data:inv,error:ie},{data:feed,error:fe},{data:due,error:de}]=await Promise.all([
+   client.rpc('emp_family_my_invitations'),client.rpc('emp_family_feed'),client.rpc('emp_family_medication_due')
   ]);
-  if(ie)throw ie;if(fe)throw fe;
-  const links=feed?.links||[];currentEvents=feed?.events||[];
+  if(ie)throw ie;if(fe)throw fe;if(de)throw de;
+  const links=feed?.links||[];
+  const recorded=feed?.events||[];
+  const generated=Array.isArray(due)?due:[];
+  const generatedKeys=new Set(generated.map(e=>e.contact_id+'|'+e.fecha));
+  currentEvents=[...recorded.filter(e=>e.tipo!=='MEDICACION'||!generatedKeys.has(e.contact_id+'|'+e.fecha)),...generated].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
   $('linkedCount').textContent=String(links.length);
   $('newCount').textContent=String(currentEvents.filter(e=>!e.accion).length);
   const sosPending=currentEvents.filter(e=>e.tipo==='SOS'&&!e.accion);
