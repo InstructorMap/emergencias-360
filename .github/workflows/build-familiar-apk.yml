@@ -88,6 +88,21 @@ jobs:
           echo "Secret Firebase familiar presente"
 
       # CRÍTICO: sin este plugin, google-services.json es ignorado por Gradle
+      - name: Validate Firebase JSON for Red Familiar
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_FAMILIAR }}
+        run: |
+          python - <<'PY'
+          import os,json
+          data=json.loads(os.environ['GOOGLE_SERVICES_JSON_CONTENT'])
+          info=data.get('project_info',{})
+          assert str(info.get('project_number','')).isdigit(), 'Falta project_info.project_number; usar JSON original sin traducir'
+          assert info.get('project_id')=='emergencias360', 'Proyecto Firebase incorrecto'
+          packages=[c.get('client_info',{}).get('android_client_info',{}).get('package_name') for c in data.get('client',[])]
+          assert 'com.emp.redfamiliar' in packages, 'Falta com.emp.redfamiliar en Firebase JSON'
+          print('Firebase Red Familiar: proyecto y paquete validados')
+          PY
+
       - name: Add Google Services Gradle plugin
         run: |
           if ! grep -q "com.google.gms:google-services" android/build.gradle; then
