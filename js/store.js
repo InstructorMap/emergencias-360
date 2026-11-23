@@ -1253,6 +1253,31 @@
       return state.doseLogs.filter(d => new Date(d.scheduledAt).toDateString() === day);
     },
 
+    // ============ SOLICITUDES ASISTENCIALES EMP (independientes de SOS) ============
+    async createServiceRequest(input) {
+      requireUser();initSupabase();
+      if (!state.supabase || !state.user) throw new Error('Iniciá sesión para solicitar asistencia.');
+      const record={user_id:state.user.id,tipo:input.tipo,datos:input.datos||{},prioridad:input.prioridad||null,fecha_traslado:input.fechaTraslado||null};
+      const {data,error}=await state.supabase.from('emp_service_requests').insert(record).select().single();
+      if(error)throw new Error(error.message);
+      return data;
+    },
+    async getServiceRequests() {
+      requireUser();initSupabase();
+      const {data,error}=await state.supabase.from('emp_service_requests').select('*').order('created_at',{ascending:false}).limit(150);
+      if(error)throw new Error(error.message);
+      return data||[];
+    },
+    async updateServiceRequest(id,patch) {
+      requireUser();initSupabase();
+      const allowed={};
+      for(const k of ['estado','observaciones_central','operador_id'])if(Object.prototype.hasOwnProperty.call(patch,k))allowed[k]=patch[k];
+      if(!Object.keys(allowed).length)throw new Error('Sin cambios.');
+      const {data,error}=await state.supabase.from('emp_service_requests').update(allowed).eq('id',id).select().single();
+      if(error)throw new Error(error.message);
+      return data;
+    },
+
     // ============ SOCIO REQUESTS ============
     async submitSocioRequest(data) {
       initSupabase();
