@@ -27,6 +27,25 @@ async function refresh(){
    card.appendChild(node('p','Ingresó: '+date(r.created_at)+(r.fecha_traslado?' · Traslado: '+date(r.fecha_traslado):'')));
    card.appendChild(node('p',detail(r)));
    card.appendChild(node('p','Solicitud: '+r.id));
+   const promotion=node('button',r.incident_id?'Ver incidente operativo':'Pasar a incidentes / asignar unidad');
+   promotion.type='button';
+   promotion.onclick=async()=>{
+    promotion.disabled=true;
+    try{
+     const incidentId=r.incident_id||await Store.promoteServiceRequest(r.id);
+     const base=document.getElementById('centralBaseSelector');if(base){base.value='ALL';base.dispatchEvent(new Event('change',{bubbles:true}));}
+     const active=document.querySelector('.btn-incident-filter[data-filter="active"]');if(active)active.click();
+     const items=Array.from(document.querySelectorAll('#incidentList li'));
+     const target=items.find(x=>x.textContent.includes(incidentId));
+     if(target)target.click();
+     document.querySelector('.central-col-1')?.scrollIntoView({behavior:'smooth',block:'start'});
+     msg.textContent='Incidente operativo: '+incidentId+'. Seleccionalo en la bandeja para asignar unidad.';
+     await refresh();
+    }catch(e){msg.textContent='No se pudo crear el incidente: '+(e.message||e);}
+    finally{promotion.disabled=false;}
+   };
+   card.appendChild(promotion);
+   if(r.incident_id)card.appendChild(node('p','Incidente vinculado: '+r.incident_id));
    const sel=node('select');sel.setAttribute('aria-label','Estado de solicitud');
    statuses.forEach(st=>{const o=node('option',st);o.value=st;sel.appendChild(o);});sel.value=r.estado;
    const note=node('textarea');note.placeholder='Observaciones de Central';note.value=r.observaciones_central||'';note.maxLength=1000;note.rows=2;
@@ -34,7 +53,7 @@ async function refresh(){
    const msg=node('p','');msg.setAttribute('role','status');
    save.onclick=async()=>{
     save.disabled=true;msg.textContent='Guardando…';
-    try{await Store.updateServiceRequest(r.id,{estado:sel.value,observaciones_central:note.value.trim()});msg.textContent='Estado guardado.';}
+    try{await Store.updateServiceRequest(r.id,{estado:sel.value,observaciones_central:note.value.trim()});if(sel.value==='CONFIRMADA'&&!r.incident_id){const id=await Store.promoteServiceRequest(r.id);msg.textContent='Confirmada y enviada a incidentes: '+id+'. Ya podés asignar unidad.';}else{msg.textContent='Estado guardado.';}await refresh();}
     catch(e){msg.textContent='Error: '+(e.message||e);}
     finally{save.disabled=false;}
    };
