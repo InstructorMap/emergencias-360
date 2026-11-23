@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-familiar-apk.yml'
+      - 'assets/apk-icons/familiar/**'
   workflow_dispatch:
 
 jobs:
@@ -131,8 +132,10 @@ jobs:
 
       - name: Use approved EMP Red Familiar launcher icon
         run: |
-          test -s resources/icon.png || { echo 'Falta el icono aprobado de EMP Red Familiar'; exit 1; }
-          echo 'Icono oficial EMP seleccionado provisionalmente para Red Familiar'
+          test -s assets/apk-icons/familiar/EMP_Red_Familiar_1024.png || { echo 'Falta el icono EMP Red Familiar 1024'; exit 1; }
+          mkdir -p resources
+          cp assets/apk-icons/familiar/EMP_Red_Familiar_1024.png resources/icon.png
+          echo 'Icono propio EMP Red Familiar seleccionado desde assets/apk-icons/familiar'
 
       - name: Normalize official EMP icon to real PNG
         run: |
