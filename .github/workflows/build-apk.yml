@@ -139,6 +139,45 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Enforce approved EMP Socio icon after Capacitor sync
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageOps, ImageDraw
+          import hashlib
+          source=Path('assets/apk-icons/socio/EMP_Socio_1024.png')
+          assert source.is_file(), 'Falta el icono EMP Socio'
+          base=Image.open(source).convert('RGBA')
+          assert base.width == base.height, 'Icono EMP Socio no es cuadrado'
+          root=Path('android/app/src/main/res')
+          assert root.is_dir(), 'Faltan recursos Android'
+          densities={'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          for density,side in densities.items():
+              directory=root / ('mipmap-'+density)
+              directory.mkdir(parents=True,exist_ok=True)
+              icon=base.resize((side,side),Image.Resampling.LANCZOS)
+              icon.save(directory/'ic_launcher.png')
+              icon.save(directory/'ic_launcher_round.png')
+              # Adaptive icons are cropped by the Android launcher; add safe padding.
+              fg=Image.new('RGBA',(side,side),(255,255,255,0))
+              inset=int(side*.19)
+              fg.alpha_composite(base.resize((side-2*inset,side-2*inset),Image.Resampling.LANCZOS),(inset,inset))
+              fg.save(directory/'ic_launcher_foreground.png')
+          for directory in [root/'mipmap-anydpi-v26',root/'mipmap-anydpi']:
+              if not directory.exists(): continue
+              for filename in ['ic_launcher.xml','ic_launcher_round.xml']:
+                  p=directory/filename
+                  if p.exists():
+                      xml=p.read_text()
+                      # Keep the generated adaptive icon references to the new foreground.
+                      assert 'foreground' in xml, f'Adaptive icon inesperado: {p}'
+          for density in densities:
+              p=root/('mipmap-'+density)/'ic_launcher.png'
+              with Image.open(p) as im: assert im.size == (densities[density],)*2
+          print('EMP Socio: iconos normales, redondos y foreground adaptativo actualizados')
+          print('Origen SHA256:',hashlib.sha256(source.read_bytes()).hexdigest())
+          PY
+
       # cap sync puede regenerar android/ y borrar el archivo, por eso se re-escribe
       - name: Re-write google-services.json after cap sync
         env:
