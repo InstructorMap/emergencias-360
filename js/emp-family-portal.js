@@ -8,11 +8,45 @@ function button(text,fn){const b=elem('button',text);b.type='button';b.onclick=f
 async function render(){
  const {data:{user},error}=await client.auth.getUser();
  auth.classList.toggle('hidden',!!user);app.classList.toggle('hidden',!user);
- if(!user){if(error)msg('authMessage','Iniciá sesión para continuar.');return;}
+ if(!user){resetNotifications();if(error)msg('authMessage','Iniciá sesión para continuar.');return;}
  $('currentEmail').textContent=user.email||'Cuenta familiar';
  await refresh();
 }
 let currentEvents=[];
+// Avisos locales: solo mientras el portal está abierto. No son push en segundo plano.
+const notificationState={enabled:false,seen:new Set(),ready:false,userId:null};
+function notificationSupported(){return 'Notification' in window&&window.isSecureContext;}
+function notificationStatus(text){const el=$('notificationStatus');if(el)el.textContent=text;}
+function notificationPreferenceKey(userId){return 'emp-family-notify-'+userId;}
+function resetNotifications(){notificationState.enabled=false;notificationState.ready=false;notificationState.seen.clear();notificationState.userId=null;}
+async function enableNotifications(){
+ if(!notificationSupported()){notificationStatus('Este navegador no admite avisos del sistema.');return;}
+ const {data:{user}}=await client.auth.getUser();if(!user)return;
+ const permission=await Notification.requestPermission();
+ if(permission!=='granted'){notificationStatus('Permiso no concedido. Podés seguir viendo las alertas en el panel.');return;}
+ localStorage.setItem(notificationPreferenceKey(user.id),'yes');
+ notificationState.enabled=true;notificationState.ready=false;notificationState.seen.clear();
+ notificationStatus('Avisos activados mientras este portal permanezca abierto.');
+ await refresh();
+}
+function checkNotifications(events,userId){
+ if(notificationState.userId!==userId){notificationState.userId=userId;notificationState.ready=false;notificationState.seen.clear();notificationState.enabled=notificationSupported()&&Notification.permission==='granted'&&localStorage.getItem(notificationPreferenceKey(userId))==='yes';}
+ const eligible=events.filter(e=>!e.accion&&['SOS','ASISTENCIA','MEDICACION'].includes(e.tipo));
+ const keys=eligible.map(e=>e.contact_id+'|'+e.event_key);
+ if(!notificationState.ready){keys.forEach(k=>notificationState.seen.add(k));notificationState.ready=true;return;}
+ if(!notificationState.enabled||document.hidden)return;
+ for(const ev of eligible){
+  const key=ev.contact_id+'|'+ev.event_key;
+  if(notificationState.seen.has(key))continue;
+  notificationState.seen.add(key);
+  try{
+   const title=ev.tipo==='SOS'?'EMP: aviso SOS':ev.tipo==='MEDICACION'?'EMP: toma sin confirmar':'EMP: solicitud de asistencia';
+   const notice=new Notification(title,{body:'Tenés un aviso nuevo en tu Red Familiar. Ingresá para revisar los detalles.',tag:'emp-family-'+key,icon:'assets/familiar/03_red_familiar.webp'});
+   notice.onclick=()=>{window.focus();notice.close();document.querySelector('[data-section=alertas]')?.click();};
+  }catch(err){notificationStatus('No se pudo mostrar el aviso del navegador.');}
+ }
+}
+
 function clear(id){$(id).replaceChildren();}
 function empty(id,text){$(id).appendChild(Object.assign(elem('p',text),{className:'empty'}));}
 function eventCard(ev){
@@ -76,6 +110,8 @@ async function refresh(){
   renderEvents('sosEvents',currentEvents.filter(e=>e.tipo==='SOS'),'No hay alertas SOS recientes.');
   renderEvents('medEvents',currentEvents.filter(e=>e.tipo==='MEDICACION'),'No hay tomas sin confirmar registradas.');
   renderEvents('assistEvents',currentEvents.filter(e=>e.tipo==='ASISTENCIA'),'No hay solicitudes de asistencia recientes.');
+  const {data:{user:notificationUser}}=await client.auth.getUser();
+  if(notificationUser)checkNotifications(currentEvents,notificationUser.id);
   msg('appMessage','');
  }catch(e){msg('appMessage','No se pudieron actualizar los datos: '+e.message);}
 }
@@ -103,6 +139,7 @@ $('registerBtn').onclick=async()=>{
 };
 $('logoutBtn').onclick=async()=>{await client.auth.signOut();await render();};
 $('refreshBtn').onclick=refresh;
+$('enableFamilyNotifications').onclick=enableNotifications;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
 render();
