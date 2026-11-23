@@ -96,6 +96,7 @@ $('registerBtn').onclick=async()=>{
 };
 $('logoutBtn').onclick=async()=>{await client.auth.signOut();await render();};
 $('refreshBtn').onclick=refresh;
-client.auth.onAuthStateChange(()=>{setTimeout(render,0);});\nsetInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
+client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
+setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
 render();
 })();
