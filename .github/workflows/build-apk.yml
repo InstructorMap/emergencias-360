@@ -100,9 +100,19 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
           echo "Archivo escrito: $(wc -c < android/app/google-services.json) bytes"
 
-      - name: Generate app icons from resources
+      - name: Verify official EMP icon source
+        run: |
+          test -s resources/icon.png || { echo 'Falta resources/icon.png (logo oficial EMP)'; exit 1; }
+          file resources/icon.png
+
+      - name: Generate official EMP Android launcher icons
         run: npx capacitor-assets generate --android
-        continue-on-error: true
+
+      - name: Verify generated Android launcher resources
+        run: |
+          test -d android/app/src/main/res || { echo 'No existe el directorio de recursos Android'; exit 1; }
+          find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' -o -name 'ic_launcher_round.png' \) -print
+          find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' \) | grep -q . || { echo 'No se generaron los iconos EMP'; exit 1; }
 
       - name: Sync Capacitor
         run: npx cap sync android
