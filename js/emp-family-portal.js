@@ -21,7 +21,7 @@ async function refresh(){
   ]);
   if(ie)throw ie;if(le)throw le;
   const pending=$('invitations');pending.replaceChildren();
-  if(!inv?.length)pending.appendChild(elem('p','No hay invitaciones pendientes para tu correo verificado.'));
+  if(!inv?.length)pending.appendChild(elem('p','No hay invitaciones pendientes para esta cuenta.'));
   for(const item of inv||[]){
    const card=elem('article');card.className='invite';
    card.appendChild(elem('h3','Invitación de '+item.owner_display));
@@ -51,7 +51,7 @@ $('loginForm').onsubmit=async e=>{
  e.preventDefault();const email=$('email').value.trim(),password=$('password').value;
  msg('authMessage','Ingresando...');
  const {error}=await client.auth.signInWithPassword({email,password});
- if(error){msg('authMessage',error.message);return;}
+ if(error){msg('authMessage',error.message==='Email not confirmed'?'La cuenta todavía no está habilitada. Contactá a EMP para activarla.':error.message);return;}
  msg('authMessage','');await render();
 };
 $('registerBtn').onclick=async()=>{
