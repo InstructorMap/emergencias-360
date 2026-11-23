@@ -34,22 +34,24 @@ function urlBase64ToUint8Array(base64String){
  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
 }
 async function subscribeFamilyPush(){
- if(!('serviceWorker' in navigator)||!('PushManager' in window)||!notificationSupported()){notificationStatus('Este navegador no admite notificaciones push.');return;}
- const {data:{user}}=await client.auth.getUser();if(!user)return;
- const permission=await Notification.requestPermission();
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)||!notificationSupported()){notificationStatus('Push no disponible en este navegador. Probá Chrome o Firefox actualizado en Android.');return;}
+ // IMPORTANTE: solicitar permiso antes de cualquier await: Chrome exige activación directa del toque.
+ let permission;
+ try{permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();}
+ catch(e){notificationStatus('Chrome no pudo abrir el permiso: '+e.message);return;}
  if(permission!=='granted'){notificationStatus(permissionHelp());return;}
  try{
-  const reg=await navigator.serviceWorker.register('./sw.js');
-  const ready=await navigator.serviceWorker.ready;
+  const {data:{user}}=await client.auth.getUser();if(!user){notificationStatus('Iniciá sesión para registrar el dispositivo.');return;}
+  localStorage.setItem(notificationPreferenceKey(user.id),'yes');
+  notificationState.enabled=true;
+  const ready=await navigator.serviceWorker.register('./sw.js').then(()=>navigator.serviceWorker.ready);
   let subscription=await ready.pushManager.getSubscription();
   if(!subscription)subscription=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
   const json=subscription.toJSON();
-  const {error}=await client.from('emp_family_push_subscriptions').upsert({
-   family_user_id:user.id,endpoint:subscription.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth
-  },{onConflict:'endpoint'});
+  const {error}=await client.from('emp_family_push_subscriptions').upsert({family_user_id:user.id,endpoint:subscription.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth},{onConflict:'endpoint'});
   if(error)throw error;
-  notificationStatus('Dispositivo registrado para push. El envío automático desde el servidor está pendiente de activación.');
- }catch(e){notificationStatus('No se pudo registrar el dispositivo: '+e.message);}
+  notificationStatus('Teléfono registrado correctamente para push. Ya podés enviar una notificación de prueba.');
+ }catch(e){notificationStatus('Permiso concedido, pero falló el registro push: '+e.message);}
 }
 
 // Avisos locales: solo mientras el portal está abierto. No son push en segundo plano.
@@ -58,20 +60,13 @@ function notificationSupported(){return 'Notification' in window&&window.isSecur
 function permissionHelp(){
  if(!notificationSupported())return 'Este navegador no admite notificaciones web. Abrí el enlace en Chrome para Android, no dentro de WhatsApp o Facebook.';
  if(Notification.permission==='denied')return 'Notificaciones bloqueadas para este sitio. En Chrome tocá el icono junto a la dirección → Permisos → Notificaciones → Permitir. Si no aparece, abrí Configuración de Android → Apps → Chrome → Notificaciones.';
- return 'El navegador no concedió el permiso. Abrí el sitio directamente en Chrome y verificá que Chrome tenga las notificaciones habilitadas en Android.';
+ return 'Estado: '+Notification.permission+'. Chrome no abrió o no aprobó la solicitud. Revisá Configuración → Configuración de sitios → Notificaciones; desactivá solicitudes silenciosas y permití avisos de Chrome en Android.';
 }
 function notificationStatus(text){const el=$('notificationStatus');if(el)el.textContent=text;}
 function notificationPreferenceKey(userId){return 'emp-family-notify-'+userId;}
 function resetNotifications(){notificationState.enabled=false;notificationState.ready=false;notificationState.seen.clear();notificationState.userId=null;}
 async function enableNotifications(){
- if(!notificationSupported()){notificationStatus('Este navegador no admite avisos del sistema.');return;}
- const {data:{user}}=await client.auth.getUser();if(!user)return;
- const permission=await Notification.requestPermission();
- if(permission!=='granted'){notificationStatus(permissionHelp());return;}
- localStorage.setItem(notificationPreferenceKey(user.id),'yes');
- notificationState.enabled=true;notificationState.ready=false;notificationState.seen.clear();
- notificationStatus('Avisos activados mientras este portal permanezca abierto.');
- await refresh();
+ await subscribeFamilyPush();
 }
 function checkNotifications(events,userId){
  if(notificationState.userId!==userId){notificationState.userId=userId;notificationState.ready=false;notificationState.seen.clear();notificationState.enabled=notificationSupported()&&Notification.permission==='granted'&&localStorage.getItem(notificationPreferenceKey(userId))==='yes';}
