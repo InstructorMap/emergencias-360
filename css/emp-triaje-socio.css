@@ -1,0 +1,17 @@
+/* EMP triaje — estilos encapsulados */
+#empTriaje{margin:16px 0;padding:18px;border-radius:18px;background:var(--e-surface,#fff);color:var(--e-text,#142238);border:1px solid var(--e-border,#9eb1c9)}
+#empTriaje .tr-head h2{font-size:1.2rem;margin:0 0 8px;color:inherit}
+#empTriaje p{line-height:1.5;margin:8px 0;color:inherit}
+#empTriaje .tr-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+#empTriaje .tr-types button{background:var(--e-raised,#edf3fb);color:var(--e-text,#142238);border:2px solid var(--e-border,#9eb1c9);border-radius:15px;min-height:125px;padding:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;font-weight:800;font-size:14px;cursor:pointer}
+#empTriaje .tr-types button.selected{border-color:var(--e-accent,#0b3c78);outline:2px solid var(--e-accent,#0b3c78)}
+#empTriaje img{width:76px;height:76px;object-fit:contain}
+#empTriaje #tr-form{display:flex;flex-direction:column;gap:10px}
+#empTriaje #tr-form[hidden]{display:none}
+#empTriaje #tr-form>img{margin:auto}
+#empTriaje label{font-size:14px;font-weight:700;color:inherit}
+#empTriaje select,#empTriaje textarea,#empTriaje input{width:100%;min-height:48px;padding:12px;border:1.5px solid var(--e-border,#9eb1c9);border-radius:10px;background:var(--e-input,#fff);color:var(--e-text,#142238);font:inherit}
+#empTriaje button[type=submit],#empTriaje #tr-result button{min-height:50px;padding:12px;border:0;border-radius:12px;background:#0b3c78;color:#fff;font:700 15px inherit;cursor:pointer}
+#empTriaje #tr-result:not(:empty){margin-top:16px;padding:14px;border:1px solid var(--e-border,#9eb1c9);border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:9px}
+#empTriaje #tr-result h3{color:inherit;text-align:center}
+#empTriaje #tr-result a{display:block;background:#7a1c32;color:#fff;text-align:center;padding:14px;border-radius:12px;font-weight:800;width:100%}
