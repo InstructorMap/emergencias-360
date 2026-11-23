@@ -13,6 +13,19 @@ async function render(){
  await refresh();
 }
 let currentEvents=[];
+async function testFamilyPush(){
+ const {data:{session}}=await client.auth.getSession();
+ if(!session){notificationStatus('Ingresá con tu cuenta familiar para probar.');return;}
+ notificationStatus('Enviando notificación de prueba...');
+ try{
+  const res=await fetch(cfg.URL+'/functions/v1/emp-family-push-test',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'apikey':cfg.ANON_KEY,'Content-Type':'application/json'},body:'{}'});
+  const body=await res.json();
+  if(body.error==='push_not_configured')throw Error('Falta configurar las claves privadas del servidor.');
+  if(!res.ok)throw Error(body.error||'Error del servidor');
+  notificationStatus('Prueba enviada a '+body.sent+' dispositivo(s). Fallidos: '+body.failed+'.');
+ }catch(e){notificationStatus('Prueba no disponible: '+e.message);}
+}
+
 const VAPID_PUBLIC_KEY='BCqL7Ex19lSGWuigrV-l9Gts40KHu3o4LoG2bWyCRGYTRsWAnocPHco98zg-RvbUGB-Bv1z-gVHUf9WOmoyjqpY';
 function urlBase64ToUint8Array(base64String){
  const padding='='.repeat((4-base64String.length%4)%4);
@@ -166,6 +179,7 @@ $('logoutBtn').onclick=async()=>{await client.auth.signOut();await render();};
 $('refreshBtn').onclick=refresh;
 $('enableFamilyNotifications').onclick=enableNotifications;
 $('registerFamilyPush').onclick=subscribeFamilyPush;
+$('testFamilyPush').onclick=testFamilyPush;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
 if('serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
