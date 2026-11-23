@@ -163,8 +163,10 @@
   function checkNewEmergencyAlerts() {
     const pending=pendingAlerts(), ids=new Set(pending.map(i=>String(i.id)));
     if (!emergencyAlert.initialized) {
-      pending.forEach(i=>emergencyAlert.known.add(String(i.id)));
+      // Alertas aún pendientes deben mostrarse incluso tras recargar Central.
+      pending.forEach(i=>{const id=String(i.id);emergencyAlert.known.add(id);emergencyAlert.active.set(id,i);});
       emergencyAlert.initialized=true;
+      renderEmergencyOverlay();
       return;
     }
     pending.forEach(inc=>{
@@ -223,6 +225,13 @@
     controls.insertBefore(preview,btn);
     controls.insertBefore(wrapper,preview);
     updateEmergencySoundButton();
+    // La activación de audio requiere interacción del operador por política del navegador.
+    // El aviso visual, en cambio, nunca depende de que el audio esté habilitado.
+    const notice=document.createElement('span');
+    notice.id='empAlarmStatusHint';
+    notice.textContent='Para recibir sonido: tocá «Activar alarma» una vez.';
+    notice.style.cssText='font-size:11px;color:#fbbf24;max-width:180px';
+    controls.insertBefore(notice,wrapper);
   }
 
   // ============ MAPA LEAFLET ============
