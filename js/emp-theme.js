@@ -19,8 +19,8 @@
    guardia.addEventListener('click',function(){setTimeout(function(){apply(document.documentElement.getAttribute('data-theme'));},0);});
    return;
   }
-  var btn=document.createElement('button');btn.id='empGlobalTheme';btn.className='emp-theme-switch';btn.type='button';
-  document.body.appendChild(btn);
+  var btn=document.getElementById('empGlobalTheme');
+  if(!btn){btn=document.createElement('button');btn.id='empGlobalTheme';btn.className='emp-theme-switch';btn.type='button';document.body.appendChild(btn);}
   btn.addEventListener('click',function(){apply(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light');});
   apply(saved());
  }
