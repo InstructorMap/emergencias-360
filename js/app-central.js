@@ -1568,6 +1568,20 @@
     renderAll();
     checkNewEmergencyAlerts();
     await refreshActiveCrew();
+    // Refuerzo independiente del canal Realtime: sincronización SOS con Central abierta.
+    let sosSyncBusy=false;
+    async function syncSOS(){
+      if(sosSyncBusy||document.getElementById('centralApp')?.hidden||document.hidden)return;
+      sosSyncBusy=true;
+      try{await Store.refreshIncidentsNow();renderAll();checkNewEmergencyAlerts();}
+      catch(err){console.error('[Central] Falló actualización de SOS:',err);}
+      finally{sosSyncBusy=false;}
+    }
+    const syncButton=el('button',{type:'button',className:'btn-emergency-sound',textContent:'↻ Actualizar SOS',onclick:syncSOS});
+    document.querySelector('.header-controls')?.prepend(syncButton);
+    setInterval(syncSOS,5000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSOS();});
+    syncSOS();
     setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); renderMapMarkers(); }, 15000);
   }
 
