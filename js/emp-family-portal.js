@@ -16,7 +16,7 @@ let currentEvents=[];
 function clear(id){$(id).replaceChildren();}
 function empty(id,text){$(id).appendChild(Object.assign(elem('p',text),{className:'empty'}));}
 function eventCard(ev){
- const card=elem('article');card.className='event-card';
+ const card=elem('article');card.className='event-card'+(ev.tipo==='SOS'?' family-sos-event':'');
  const type=elem('span',ev.tipo);type.className='event-type';card.appendChild(type);
  card.appendChild(elem('strong',ev.titulo+' · '+ev.socio));
  card.appendChild(elem('div','Estado: '+ev.estado));
@@ -47,6 +47,9 @@ async function refresh(){
   const links=feed?.links||[];currentEvents=feed?.events||[];
   $('linkedCount').textContent=String(links.length);
   $('newCount').textContent=String(currentEvents.filter(e=>!e.accion).length);
+  const sosPending=currentEvents.filter(e=>e.tipo==='SOS'&&!e.accion);
+  const sosBanner=$('familyUrgentBanner');
+  if(sosBanner){sosBanner.hidden=!sosPending.length; if(sosPending.length){sosBanner.querySelector('strong').textContent='🚨 '+sosPending.length+' alerta(s) SOS para revisar';sosBanner.querySelector('p').textContent='Avisos recibidos de personas vinculadas. Confirmá que estás al tanto desde Alertas.';}}
   clear('linked');
   if(!links.length)empty('linked','Todavía no hay socios vinculados.');
   for(const l of links){
