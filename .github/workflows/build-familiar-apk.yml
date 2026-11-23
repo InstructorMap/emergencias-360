@@ -203,7 +203,7 @@ jobs:
           assert strings.exists(), 'Falta strings.xml'
           data=strings.read_text()
           import re
-          data,n=re.subn(r'(<string name="app_name">).*?(</string>)',r'\\g<1>EMP Red Familiar\\g<2>',data)
+          data,n=re.subn(r'(<string name="app_name">).*?(</string>)',r'\g<1>EMP Red Familiar\g<2>',data)
           assert n==1, 'No se pudo fijar app_name'
           strings.write_text(data)
           manifest=Path('android/app/src/main/AndroidManifest.xml').read_text()
