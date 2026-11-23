@@ -207,3 +207,20 @@ body.emp-themed .med-time-row .med-remove-time{flex:0 0 44px;min-height:46px}
 body.emp-themed .med-add-time{width:100%;min-height:44px;font-size:14px}
 body.emp-themed #tab-ficha #socioThemeSetting{display:block!important;position:relative!important;z-index:2!important;margin:14px 0!important}
 body.emp-themed #tab-ficha #empGlobalTheme{position:static!important;display:inline-flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;min-height:48px!important;color:var(--e-text)!important;background:var(--e-raised)!important;border:1px solid var(--e-border)!important}
+
+/* V11 — controles persistentes y contraste alto, sin depender de variables heredadas */
+body.emp-themed #tab-ficha #socioThemeSetting{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;padding:14px!important;background:var(--e-surface,#fff)!important;border:1px solid var(--e-border,#9eb1c9)!important;border-radius:14px!important;margin:0 0 16px!important}
+body.emp-themed #tab-ficha .socio-theme-label{font-weight:800!important;color:var(--e-text,#142238)!important;font-size:15px!important}
+body.emp-themed #tab-ficha #empGlobalTheme{display:inline-flex!important;flex:0 0 auto!important;position:static!important;transform:none!important;inset:auto!important;margin:0!important;min-width:136px!important;min-height:46px!important;padding:10px 12px!important;border-radius:12px!important;font-weight:800!important}
+body.emp-themed .modal-card,
+body.emp-themed .modal-card *{color-scheme:light}
+body.emp-themed .modal-card label,
+body.emp-themed .modal-card label span,
+body.emp-themed .modal-card .med-schedule-label{color:#142238!important;-webkit-text-fill-color:#142238!important;text-shadow:none!important}
+body.emp-themed .modal-card input,
+body.emp-themed .modal-card textarea,
+body.emp-themed .modal-card select{color:#142238!important;-webkit-text-fill-color:#142238!important;background-color:#fff!important;caret-color:#142238!important}
+body.emp-themed .modal-card .modal-actions .btn-secondary,
+body.emp-themed .modal-card .med-add-time,
+body.emp-themed .modal-card .med-remove-time{color:#142238!important;-webkit-text-fill-color:#142238!important}
+body.emp-themed .modal-card .modal-actions .btn-primary{color:#fff!important;-webkit-text-fill-color:#fff!important}
