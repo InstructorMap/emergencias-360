@@ -100,6 +100,12 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
           echo "Archivo escrito: $(wc -c < android/app/google-services.json) bytes"
 
+      - name: Use approved EMP Socio launcher icon
+        run: |
+          test -s assets/apk-icons/socio/EMP_Socio_1024.png || { echo 'Falta el icono aprobado de EMP Socio'; exit 1; }
+          cp assets/apk-icons/socio/EMP_Socio_1024.png resources/icon.png
+          echo 'Icono aprobado EMP Socio seleccionado para la APK'
+
       - name: Normalize official EMP icon to real PNG
         run: |
           test -s resources/icon.png || { echo 'Falta resources/icon.png (logo oficial EMP)'; exit 1; }
