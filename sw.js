@@ -135,3 +135,29 @@ function offlineFallback() {
 </body></html>`;
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
+
+/* EMP Red Familiar: eventos push con contenido mínimo, sin información clínica. */
+self.addEventListener('push', event => {
+ let payload={};
+ try { payload=event.data?event.data.json():{}; } catch (_) {}
+ const kind=['SOS','ASISTENCIA','MEDICACION'].includes(payload.kind)?payload.kind:'AVISO';
+ const title=kind==='SOS'?'EMP · Alerta SOS':kind==='MEDICACION'?'EMP · Medicación':kind==='ASISTENCIA'?'EMP · Asistencia':'EMP · Aviso familiar';
+ event.waitUntil(self.registration.showNotification(title,{
+  body:'Tenés un aviso de tu Red Familiar. Abrí EMP para revisar los detalles.',
+  tag:typeof payload.event_key==='string'?'emp-'+payload.event_key.slice(0,100):'emp-family',
+  renotify:kind==='SOS',
+  icon:'./assets/familiar/03_red_familiar.webp',
+  data:{url:'./familiar.html'}
+ }));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ event.waitUntil((async()=>{
+  const url=new URL('./familiar.html',self.registration.scope).href;
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  for(const windowClient of windows){
+   if(windowClient.url.startsWith(self.registration.scope)){await windowClient.focus();if('navigate' in windowClient)await windowClient.navigate(url);return;}
+  }
+  await self.clients.openWindow(url);
+ })());
+});
