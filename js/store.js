@@ -1253,6 +1253,23 @@
       return state.doseLogs.filter(d => new Date(d.scheduledAt).toDateString() === day);
     },
 
+    // ============ RED FAMILIAR (registro privado del socio) ============
+    async listFamilyContacts(){
+      requireUser();initSupabase();
+      const {data,error}=await state.supabase.from('emp_family_contacts').select('*').order('created_at',{ascending:false});
+      if(error)throw new Error(error.message);return data||[];
+    },
+    async addFamilyContact(fields){
+      requireUser();initSupabase();
+      const record={...fields,owner_user_id:state.user.id,estado_vinculacion:'PENDIENTE'};
+      const {data,error}=await state.supabase.from('emp_family_contacts').insert(record).select().single();
+      if(error)throw new Error(error.message);return data;
+    },
+    async revokeFamilyContact(id){
+      requireUser();initSupabase();
+      const {data,error}=await state.supabase.from('emp_family_contacts').update({activo:false,estado_vinculacion:'REVOCADA',updated_at:new Date().toISOString()}).eq('id',id).eq('owner_user_id',state.user.id).select().single();
+      if(error)throw new Error(error.message);return data;
+    },
     // ============ SOLICITUDES ASISTENCIALES EMP (independientes de SOS) ============
     async createServiceRequest(input) {
       requireUser();initSupabase();
