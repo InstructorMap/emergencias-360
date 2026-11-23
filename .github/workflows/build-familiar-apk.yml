@@ -50,6 +50,7 @@ jobs:
           cp b2b.html www/ 2>/dev/null || true
           cp admin.html www/ 2>/dev/null || true
           cp manifest.json www/ 2>/dev/null || true
+          # El portal familiar es la pantalla inicial de esta APK, no el portal Socios.
           cp sw.js www/ 2>/dev/null || true
           cp -r css www/ 2>/dev/null || true
           cp -r js www/ 2>/dev/null || true
@@ -80,7 +81,7 @@ jobs:
             echo "ERROR: El secret GOOGLE_SERVICES_JSON_FAMILIAR está vacío o no existe."
             exit 1
           fi
-          echo "Secret OK (longitud: ${#GOOGLE_SERVICES_JSON_CONTENT} caracteres)"
+          echo "Secret Firebase familiar presente"
 
       # CRÍTICO: sin este plugin, google-services.json es ignorado por Gradle
       - name: Add Google Services Gradle plugin
@@ -183,6 +184,27 @@ jobs:
               with Image.open(p) as im: assert im.size == (densities[density],)*2
           print('EMP Red Familiar: iconos normales, redondos y foreground adaptativo actualizados')
           print('Origen SHA256:',hashlib.sha256(source.read_bytes()).hexdigest())
+          PY
+
+      - name: Verify independent Android identity and home screen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          config=json.loads(Path('capacitor.config.json').read_text())
+          assert config['appId']=='com.emp.redfamiliar',config
+          assert config['appName']=='EMP Red Familiar',config
+          assert Path('www/index.html').read_bytes()==Path('www/familiar.html').read_bytes()
+          strings=Path('android/app/src/main/res/values/strings.xml')
+          assert strings.exists(), 'Falta strings.xml'
+          data=strings.read_text()
+          import re
+          data,n=re.subn(r'(<string name="app_name">).*?(</string>)',r'\\g<1>EMP Red Familiar\\g<2>',data)
+          assert n==1, 'No se pudo fijar app_name'
+          strings.write_text(data)
+          manifest=Path('android/app/src/main/AndroidManifest.xml').read_text()
+          assert '@string/app_name' in manifest or 'EMP Red Familiar' in manifest, 'Etiqueta Android inesperada'
+          print('Validado: EMP Red Familiar, com.emp.redfamiliar, portal familiar inicial')
           PY
 
       # cap sync puede regenerar android/ y borrar el archivo, por eso se re-escribe
