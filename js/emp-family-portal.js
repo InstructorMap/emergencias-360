@@ -13,6 +13,31 @@ async function render(){
  await refresh();
 }
 let currentEvents=[];
+const VAPID_PUBLIC_KEY='BCqL7Ex19lSGWuigrV-l9Gts40KHu3o4LoG2bWyCRGYTRsWAnocPHco98zg-RvbUGB-Bv1z-gVHUf9WOmoyjqpY';
+function urlBase64ToUint8Array(base64String){
+ const padding='='.repeat((4-base64String.length%4)%4);
+ const raw=atob((base64String+padding).replace(/-/g,'+').replace(/_/g,'/'));
+ return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+async function subscribeFamilyPush(){
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)||!notificationSupported()){notificationStatus('Este navegador no admite notificaciones push.');return;}
+ const {data:{user}}=await client.auth.getUser();if(!user)return;
+ const permission=await Notification.requestPermission();
+ if(permission!=='granted'){notificationStatus('Necesitás permitir las notificaciones para continuar.');return;}
+ try{
+  const reg=await navigator.serviceWorker.register('./sw.js');
+  const ready=await navigator.serviceWorker.ready;
+  let subscription=await ready.pushManager.getSubscription();
+  if(!subscription)subscription=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+  const json=subscription.toJSON();
+  const {error}=await client.from('emp_family_push_subscriptions').upsert({
+   family_user_id:user.id,endpoint:subscription.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth
+  },{onConflict:'endpoint'});
+  if(error)throw error;
+  notificationStatus('Dispositivo registrado para push. El envío automático desde el servidor está pendiente de activación.');
+ }catch(e){notificationStatus('No se pudo registrar el dispositivo: '+e.message);}
+}
+
 // Avisos locales: solo mientras el portal está abierto. No son push en segundo plano.
 const notificationState={enabled:false,seen:new Set(),ready:false,userId:null};
 function notificationSupported(){return 'Notification' in window&&window.isSecureContext;}
@@ -140,6 +165,7 @@ $('registerBtn').onclick=async()=>{
 $('logoutBtn').onclick=async()=>{await client.auth.signOut();await render();};
 $('refreshBtn').onclick=refresh;
 $('enableFamilyNotifications').onclick=enableNotifications;
+$('registerFamilyPush').onclick=subscribeFamilyPush;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
 if('serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
