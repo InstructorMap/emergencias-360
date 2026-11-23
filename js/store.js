@@ -1268,6 +1268,14 @@
       if(error)throw new Error(error.message);
       return data||[];
     },
+    async promoteServiceRequest(id) {
+      requireUser();initSupabase();
+      const {data,error}=await state.supabase.rpc('emp_promote_service_request',{p_request_id:id});
+      if(error)throw new Error(error.message);
+      await loadAllData();saveCache();
+      if(channel)channel.postMessage({type:'STATE_CHANGED',ts:Date.now()});
+      return data;
+    },
     async updateServiceRequest(id,patch) {
       requireUser();initSupabase();
       const allowed={};
