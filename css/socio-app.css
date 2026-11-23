@@ -185,3 +185,25 @@ body.emp-themed #tab-credencial .qr-card-svg img{width:160px!important;height:16
  body.emp-themed #tab-credencial .ct-row-bottom{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px 12px!important}
  body.emp-themed #tab-credencial .ct-v{font-size:12px!important}
 }
+
+/* V10 — formulario medicación: contraste accesible en ambos temas */
+body.emp-themed .modal-overlay{z-index:9500!important}
+body.emp-themed .modal-card{background:#fff!important;color:#15253b!important;color-scheme:light!important}
+body.emp-themed .modal-card h2{color:#0b3c78!important}
+body.emp-themed .modal-card label,
+body.emp-themed .modal-card label span,
+body.emp-themed .modal-card .med-schedule-label{color:#1e293b!important;opacity:1!important;font-weight:750!important}
+body.emp-themed .modal-card input,
+body.emp-themed .modal-card textarea,
+body.emp-themed .modal-card select{background:#f8fafc!important;color:#142238!important;-webkit-text-fill-color:#142238!important;border:1.5px solid #94a3b8!important;opacity:1!important}
+body.emp-themed .modal-card input::placeholder{color:#64748b!important;opacity:1!important}
+body.emp-themed .modal-card .btn-secondary{color:#142238!important;background:#e9eef5!important;border:1px solid #94a3b8!important}
+body.emp-themed .modal-card .btn-primary{color:#fff!important;background:#0b3c78!important}
+body.emp-themed .med-schedule-field{margin:0 0 14px}
+body.emp-themed .med-schedule-label{display:block;font-size:14px;margin-bottom:7px}
+body.emp-themed .med-time-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+body.emp-themed .med-time-row input[type=time]{flex:1;min-width:0;min-height:48px;font-size:17px!important;padding:9px 12px}
+body.emp-themed .med-time-row .med-remove-time{flex:0 0 44px;min-height:46px}
+body.emp-themed .med-add-time{width:100%;min-height:44px;font-size:14px}
+body.emp-themed #tab-ficha #socioThemeSetting{display:block!important;position:relative!important;z-index:2!important;margin:14px 0!important}
+body.emp-themed #tab-ficha #empGlobalTheme{position:static!important;display:inline-flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;min-height:48px!important;color:var(--e-text)!important;background:var(--e-raised)!important;border:1px solid var(--e-border)!important}
