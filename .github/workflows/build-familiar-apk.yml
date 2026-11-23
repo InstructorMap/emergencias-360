@@ -88,6 +88,7 @@ jobs:
           echo "Secret Firebase familiar presente"
 
       # CRÍTICO: sin este plugin, google-services.json es ignorado por Gradle
+      # Rebuild after verified Firebase secret replacement
       - name: Validate Firebase JSON for Red Familiar
         env:
           GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_FAMILIAR }}
