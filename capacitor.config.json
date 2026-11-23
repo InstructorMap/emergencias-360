@@ -1,6 +1,6 @@
 {
   "appId": "com.emp.emergencias",
-  "appName": "EMP Emergencias",
+  "appName": "EMP Socio",
   "webDir": "www",
   "bundledWebRuntime": false,
   "plugins": {
