@@ -3,7 +3,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const base='assets/socio/triage/';
-const images={consulta:'01_consulta_medica.webp',domicilio:'02_visita_domiciliaria.webp',evaluacion:'05_evaluacion_sintomas.webp',rojo:'06_prioridad_roja.webp',amarillo:'07_prioridad_amarilla.webp',verde:'08_prioridad_verde.webp'};
+const images={consulta:'01_consulta_medica.webp',domicilio:'02_visita_domiciliaria.webp',programado:'03_atencion_programada.webp',evaluacion:'05_evaluacion_sintomas.webp',rojo:'06_prioridad_roja.webp',amarillo:'07_prioridad_amarilla.webp',verde:'08_prioridad_verde.webp'};
 function img(name){return '<img src="'+base+images[name]+'" alt="" loading="lazy">';}
 const questions=[
  {id:'motivo',label:'¿Cuál es el motivo principal de la consulta?',type:'select',opts:['','Fiebre','Dolor','Malestar general','Síntomas respiratorios','Control de salud','Seguimiento de tratamiento','Otro']},
@@ -13,11 +13,29 @@ const questions=[
  {id:'alarma',label:'¿Hay dificultad importante para respirar, dolor fuerte de pecho, pérdida de conciencia, convulsiones, sangrado abundante o signos de ACV?',type:'select',opts:['','Sí','No','No estoy seguro/a']}
 ];
 function field(q){const id='tr-'+q.id;return '<label for="'+id+'">'+q.label+(q.id==='detalle'?' (opcional)':'')+'</label>'+(q.type==='textarea'?'<textarea id="'+id+'" rows="3" maxlength="450"></textarea>':'<select id="'+id+'" required>'+q.opts.map((v,i)=>'<option value="'+v+'">'+(i===0?'Seleccioná una opción':v)+'</option>').join('')+'</select>');}
+function trasladoForm(){return '<form id="tr-traslado" hidden><h3>Traslado sanitario programado</h3><p>Solicitalo con al menos 24 horas de anticipación. Sujeto a evaluación y confirmación de Central EMP.</p><label for="tt-paciente">Paciente</label><input id="tt-paciente" required maxlength="100" placeholder="Nombre del paciente"><label for="tt-origen">Dirección de origen</label><input id="tt-origen" required maxlength="200"><label for="tt-destino">Destino</label><input id="tt-destino" required maxlength="200"><label for="tt-fecha">Fecha y hora solicitadas</label><input id="tt-fecha" type="datetime-local" required><label for="tt-motivo">Motivo del traslado</label><select id="tt-motivo" required><option value="">Seleccioná una opción</option><option>Consulta</option><option>Estudio médico</option><option>Alta médica</option><option>Derivación</option><option>Otro</option></select><label for="tt-movilidad">Movilidad del paciente</label><select id="tt-movilidad" required><option value="">Seleccioná una opción</option><option>Deambula</option><option>Silla de ruedas</option><option>Camilla</option></select><label for="tt-requerimientos">Requerimientos y observaciones</label><textarea id="tt-requerimientos" maxlength="500" rows="3" placeholder="Oxígeno, acompañante, asistencia u otros"></textarea><label for="tt-contacto">Teléfono de contacto</label><input id="tt-contacto" type="tel" maxlength="30" required><button type="submit">Revisar traslado</button></form>';}
+function minTransferTime(){return new Date(Date.now()+24*60*60*1000);}
+function localDatetime(d){const z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'T'+z(d.getHours())+':'+z(d.getMinutes());}
 function boot(){
  const host=$('#empTriaje');if(!host)return;
- host.innerHTML='<div class="tr-head"><h2>Solicitar asistencia médica</h2><p>Para consultas y visitas domiciliarias. Ante una emergencia, utilizá SOS o llamá a EMP.</p></div><div class="tr-types"><button type="button" data-kind="consulta">'+img('consulta')+'<span>Consulta médica</span></button><button type="button" data-kind="domicilio">'+img('domicilio')+'<span>Visita domiciliaria</span></button></div><form id="tr-form" hidden>'+img('evaluacion')+'<h3>Evaluación inicial</h3>'+questions.map(field).join('')+'<label for="tr-telefono">Teléfono de contacto</label><input id="tr-telefono" type="tel" maxlength="30" required><button type="submit">Evaluar solicitud</button></form><div id="tr-result" role="status" aria-live="polite"></div>';
+ host.innerHTML='<div class="tr-head"><h2>Solicitar asistencia médica</h2><p>Para consultas, visitas domiciliarias y traslados programados. Ante una emergencia, utilizá SOS o llamá a EMP.</p></div><div class="tr-types"><button type="button" data-kind="consulta">'+img('consulta')+'<span>Consulta médica</span></button><button type="button" data-kind="domicilio">'+img('domicilio')+'<span>Visita domiciliaria</span></button><button type="button" data-kind="traslado">'+img('programado')+'<span>Traslado programado</span></button></div>'+trasladoForm()+'<form id="tr-form" hidden>'+img('evaluacion')+'<h3>Evaluación inicial</h3>'+questions.map(field).join('')+'<label for="tr-telefono">Teléfono de contacto</label><input id="tr-telefono" type="tel" maxlength="30" required><button type="submit">Evaluar solicitud</button></form><div id="tr-result" role="status" aria-live="polite"></div>';
  let kind='';
- host.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;host.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('selected',x===b));$('#tr-form').hidden=false;$('#tr-result').innerHTML='';$('#tr-form').scrollIntoView({behavior:'smooth',block:'nearest'});}));
+ host.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>{kind=b.dataset.kind;host.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('selected',x===b));$('#tr-form').hidden=kind==='traslado';$('#tr-traslado').hidden=kind!=='traslado';$('#tr-result').innerHTML='';const target=kind==='traslado'?$('#tr-traslado'):$('#tr-form');target.scrollIntoView({behavior:'smooth',block:'nearest'});}));
+ const dateInput=$('#tt-fecha');
+ dateInput.addEventListener('focus',()=>{dateInput.min=localDatetime(minTransferTime());});
+ $('#tr-traslado').addEventListener('submit',e=>{
+  e.preventDefault();
+  const selected=new Date(dateInput.value);
+  const result=$('#tr-result');result.replaceChildren();
+  if(!Number.isFinite(selected.getTime())||selected.getTime()<minTransferTime().getTime()){
+   result.textContent='El traslado debe solicitarse con al menos 24 horas de anticipación. Seleccioná una fecha y hora posteriores.';dateInput.min=localDatetime(minTransferTime());return;
+  }
+  const p=document.createElement('p');
+  p.textContent='Datos del traslado revisados. Esta solicitud aún NO fue enviada ni confirmada por Central EMP. Para coordinarla, contactá a EMP por teléfono.';
+  result.appendChild(p);
+  const a=document.createElement('a');a.href='tel:2245444602';a.textContent='Llamar a EMP: 2245-444602';result.appendChild(a);
+  result.scrollIntoView({behavior:'smooth',block:'nearest'});
+ });
  $('#tr-form').addEventListener('submit',e=>{
   e.preventDefault();
   const val=id=>$('#tr-'+id).value.trim();
