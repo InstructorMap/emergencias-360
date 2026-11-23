@@ -569,7 +569,8 @@
     try {
       const { data, error } = await state.supabase.from('incidents')
         .select('*').order('created_at', { ascending: false }).limit(200);
-      if (error || !data) return;
+      if (error) { console.error('[E360Store] No se pudo sincronizar SOS:', error.message); return; }
+      if (!data) return;
       const next = data.map(mapIncidentFromDB);
       const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation, i.supportRequests]));
       if (fingerprint(next) !== fingerprint(state.incidents)) {
@@ -608,6 +609,7 @@
       return { loggedIn: false, mode: 'SUPABASE_LIVE' };
     },
 
+    async refreshIncidentsNow() { await refreshIncidentsFallback(); return this.getIncidents('ALL'); },
     login, loginWithEmail, logout, changePassword,
     getSession() { return state.session ? { ...state.session } : null; },
     getUser() { return state.user ? { ...state.user } : null; },
