@@ -1,6 +1,10 @@
 name: Build EMP Red Familiar APK
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-familiar-apk.yml'
   workflow_dispatch:
 
 jobs:
