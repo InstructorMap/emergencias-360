@@ -997,7 +997,8 @@
         if (!onlineOrToast()) return;
         const nombre = $('#medNombre').value.trim();
         if (!nombre) { toast('Ingresá el nombre'); return; }
-        const horarios = $('#medHorarios').value.split(',').map(s => s.trim()).filter(Boolean);
+        const horarios = Array.from(document.querySelectorAll('#medHorariosList input[type="time"]')).map(input => input.value.trim()).filter(Boolean);
+        if (!horarios.length) { toast('Agregá al menos un horario válido'); return; }
         await runLoading(saveBtn, async () => {
           try {
             const savedMed = await Store.saveMedication({
@@ -1044,7 +1045,22 @@
       el('label', {}, [el('span', { textContent: 'Nombre' }), el('input', { type: 'text', id: 'medNombre', value: existing ? existing.nombre : '', maxlength: '80', required: true })]),
       el('label', {}, [el('span', { textContent: 'Dosis (ej. 1 comprimido)' }), el('input', { type: 'text', id: 'medDosis', value: existing ? existing.dosis : '', maxlength: '60' })]),
       el('label', {}, [el('span', { textContent: 'Frecuencia (ej. cada 8 hs)' }), el('input', { type: 'text', id: 'medFrecuencia', value: existing ? existing.frecuencia : '', maxlength: '60' })]),
-      el('label', {}, [el('span', { textContent: 'Horarios (ej. 08:00, 20:00)' }), el('input', { type: 'text', id: 'medHorarios', value: existing ? (existing.horarios || []).join(', ') : '', maxlength: '80', placeholder: '08:00, 20:00' })]),
+      el('div', { className: 'med-schedule-field' }, [
+        el('span', { className: 'med-schedule-label', textContent: 'Horarios de toma' }),
+        el('div', { id: 'medHorariosList' }, (existing && existing.horarios && existing.horarios.length ? existing.horarios : ['']).map(h => el('div', { className: 'med-time-row' }, [
+          el('input', { type: 'time', value: h, 'aria-label': 'Horario de toma' }),
+          el('button', { type: 'button', className: 'btn-secondary med-remove-time', textContent: '✕', 'aria-label': 'Quitar horario', onclick: () => { const rows = document.querySelectorAll('#medHorariosList .med-time-row'); if (rows.length > 1) rows[0].remove(); else rows[0].querySelector('input').value = ''; } })
+        ]))),
+        el('button', { type: 'button', className: 'btn-secondary med-add-time', textContent: '+ Agregar otro horario', onclick: () => {
+          const wrap = $('#medHorariosList');
+          if (wrap.querySelectorAll('.med-time-row').length >= 12) return;
+          const row = el('div', { className: 'med-time-row' }, [
+            el('input', { type: 'time', 'aria-label': 'Horario de toma' }),
+            el('button', { type: 'button', className: 'btn-secondary med-remove-time', textContent: '✕', onclick: () => { if (wrap.querySelectorAll('.med-time-row').length > 1) row.remove(); else row.querySelector('input').value = ''; } })
+          ]);
+          wrap.appendChild(row);
+        } })
+      ]),
       el('label', {}, [el('span', { textContent: 'Notas' }), el('textarea', { id: 'medNotas', rows: '2', maxlength: '200' }, [existing && existing.notas ? document.createTextNode(existing.notas) : null])]),
       el('div', { className: 'modal-actions' }, [
         el('button', { type: 'button', className: 'btn-secondary', textContent: 'Cancelar', onclick: () => document.body.removeChild(overlay) }),
