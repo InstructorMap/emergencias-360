@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout source
@@ -275,3 +275,16 @@ jobs:
           path: signed-release/EMP-guardia-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish verified institutional Guardia APK
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: guardia-v1.${{ github.run_number }}
+          name: EMP Guardia v1.${{ github.run_number }}
+          files: signed-release/EMP-guardia-release.apk
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          make_latest: false
+          body: APK independiente EMP Guardia con firma institucional verificada durante la compilación. Panel operativo existente sin modificaciones.
