@@ -139,7 +139,10 @@
     }
     const items = Array.from(emergencyAlert.active.values());
     overlay.hidden = items.length === 0;
-    if (!items.length) { stopEmergencyTone(); return; }
+    if (!items.length) { delete overlay.dataset.renderSignature; stopEmergencyTone(); return; }
+    const signature=JSON.stringify(items.map(i=>[i.id,alertLabel(i)]));
+    if(overlay.dataset.renderSignature===signature && overlay.childElementCount) return;
+    overlay.dataset.renderSignature=signature;
     overlay.replaceChildren();
     const title = el('h2', {textContent: '🚨 NUEVA ALERTA DE EMERGENCIA'});
     overlay.appendChild(title);
@@ -604,12 +607,15 @@
     const list = $('#incidentList');
     const empty = $('#incidentEmpty');
     if (!list) return;
-    list.innerHTML = '';
     const all = Store.getIncidents(ui.baseFilter);
     const closedStates = ['CERRADA', 'CANCELADA'];
     let items = ui.incidentFilter === 'active'
       ? all.filter(i => !closedStates.includes(i.status))
       : all.filter(i => closedStates.includes(i.status));
+    const signature = JSON.stringify([ui.selectedIncidentId,items.map(i=>[i.id,i.createdAt,i.status,i.priority,i.baseId,i.manualAddress,i.location,!!i.supportRequests?.length])]);
+    if (list.dataset.renderSignature === signature) return;
+    list.dataset.renderSignature = signature;
+    list.replaceChildren();
     if (!items.length) { if (empty) empty.hidden = false; return; }
     if (empty) empty.hidden = true;
     items.forEach(inc => {
@@ -642,24 +648,56 @@
     ]);
   }
 
+  let detailGeneration=0, detailSignature='', silentTimer=null, pointerHeld=false;
+  function detailKey(){
+    const inc=ui.selectedIncidentId && Store.getIncidentById(ui.selectedIncidentId);
+    return JSON.stringify([ui.selectedIncidentId,inc,inc ? Store.getFleet(inc.baseId).map(u=>[u.id,u.status]) : []]);
+  }
+  function renderSilent(){
+    renderAlertCounter();
+    renderIncidentList();
+    renderFleet();
+    renderMapMarkers();
+    if(detailKey()===detailSignature)return;
+    const panel=$('#detailContainer');
+    if(pointerHeld || (panel?.contains(document.activeElement) && document.activeElement.matches('input,textarea,select,button')) || panel?.querySelector('button[disabled]')){
+      clearTimeout(silentTimer);
+      silentTimer=setTimeout(renderSilent,800);
+      return;
+    }
+    renderDetail();
+  }
+  document.addEventListener('pointerdown',e=>{if(e.target.closest('#detailContainer'))pointerHeld=true;},true);
+  ['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{pointerHeld=false;},true));
+  window.addEventListener('blur',()=>{pointerHeld=false;});
   async function renderDetail() {
     const container = $('#detailContainer');
     if (!container) return;
-    container.innerHTML = '';
-
+    const generation = ++detailGeneration;
+    const selectedId = ui.selectedIncidentId;
+    const selected = selectedId && Store.getIncidentById(selectedId);
+    detailSignature = detailKey();
+    const previous = container.dataset.incidentKey;
+    const nextKey = JSON.stringify([selectedId,selected?.status]);
+    const draft = previous === nextKey ? Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]) : [];
+    const target = document.createDocumentFragment();
     // F3-mejora: si el incidente seleccionado cambió y hay PTT de otro incidente, destruirlo
     if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) {
       destroyFloatingPTT();
     }
 
     if (!ui.selectedIncidentId) {
-      container.appendChild(el('div', { className: 'detail-empty', textContent: 'Seleccioná un incidente.' }));
+      target.appendChild(el('div', { className: 'detail-empty', textContent: 'Seleccioná un incidente.' }));
+      container.replaceChildren(target);
+      container.dataset.incidentKey=nextKey;
       renderFloatingPTT(null);
       return;
     }
     const inc = Store.getIncidentById(ui.selectedIncidentId);
     if (!inc) {
-      container.appendChild(el('div', { className: 'detail-empty', textContent: 'Incidente no disponible.' }));
+      target.appendChild(el('div', { className: 'detail-empty', textContent: 'Incidente no disponible.' }));
+      container.replaceChildren(target);
+      container.dataset.incidentKey=nextKey;
       renderFloatingPTT(null);
       return;
     }
@@ -674,7 +712,7 @@
           el('span', { textContent: (sr.notes || 'Sin detalle') + ' · (' + fmtTime(sr.ts) + ' - ' + (sr.requestedBy || 'guardia') + ')' })
         ]));
       });
-      container.appendChild(supBlock);
+      target.appendChild(supBlock);
     }
 
     if (inc.b2bEstablishmentId) {
@@ -688,7 +726,7 @@
           kv('Teléfono referente', est.referencePhone),
           kv('Protocolo', est.protocol)
         ]);
-        container.appendChild(b2bBlock);
+        target.appendChild(b2bBlock);
       }
     }
 
@@ -727,6 +765,7 @@
       patientBlock.appendChild(el('div', { className: 'warn-operador', textContent: 'Socio sin ficha.' }));
     }
 
+    if(generation!==detailGeneration || selectedId!==ui.selectedIncidentId)return;
     const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación y ETA' })]);
     if (inc.location) {
       geoBlock.appendChild(kv('Coordenadas', inc.location.lat.toFixed(6) + ', ' + inc.location.lng.toFixed(6)));
@@ -760,20 +799,20 @@
     const actionsBlock = buildActions(inc);
 
     if (inc.assignedUnitId && ['EN_CAMINO', 'EN_ESCENA'].indexOf(inc.status) !== -1) {
-      container.appendChild(patientBlock);
-      container.appendChild(geoBlock);
-      container.appendChild(actionsBlock);
-      container.appendChild(buildPTTBlock(inc)); // bloque embebido (referencia + unlock contextual)
-      container.appendChild(buildMediaBlock(inc));
+      target.appendChild(patientBlock);
+      target.appendChild(geoBlock);
+      target.appendChild(actionsBlock);
+      target.appendChild(buildPTTBlock(inc)); // bloque embebido (referencia + unlock contextual)
+      target.appendChild(buildMediaBlock(inc));
     } else {
-      container.appendChild(patientBlock);
-      container.appendChild(geoBlock);
-      container.appendChild(actionsBlock);
-      container.appendChild(buildMediaBlock(inc));
+      target.appendChild(patientBlock);
+      target.appendChild(geoBlock);
+      target.appendChild(actionsBlock);
+      target.appendChild(buildMediaBlock(inc));
     }
 
     if (inc.status === 'CERRADA' && inc.clinicalRecordNumber) {
-      container.appendChild(buildExportBlock(inc));
+      target.appendChild(buildExportBlock(inc));
     }
 
     const bitacoraBlock = el('div', { className: 'detail-block' }, [
@@ -786,9 +825,17 @@
         ].filter(Boolean))
       ))
     ]);
-    container.appendChild(bitacoraBlock);
+    target.appendChild(bitacoraBlock);
 
     // F3-mejora: render del PTT flotante
+    if(generation!==detailGeneration || selectedId!==ui.selectedIncidentId)return;
+    // Capture latest edits before replacing the panel.
+    if(previous===nextKey) draft.splice(0,draft.length,...Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]));
+    const scroll=container.scrollTop;
+    container.replaceChildren(target);
+    container.dataset.incidentKey=nextKey;
+    draft.forEach(([id,value])=>{const n=document.getElementById(id);if(n && container.contains(n) && (n.tagName!=='SELECT'||Array.from(n.options).some(o=>o.value===value)))n.value=value;});
+    container.scrollTop=scroll;
     renderFloatingPTT(inc);
   }
 
@@ -1509,8 +1556,11 @@
   function renderFleet() {
     const container = $('#fleetContainer');
     if (!container) return;
-    container.innerHTML = '';
     const bases = Store.getBases();
+    const signature=JSON.stringify([bases,bases.map(b=>Store.getFleet(b.id)),crewByUnit]);
+    if(container.dataset.renderSignature===signature)return;
+    container.dataset.renderSignature=signature;
+    container.replaceChildren();
     bases.forEach(base => {
       const units = Store.getFleet(base.id);
       container.appendChild(el('div', { className: 'fleet-base-header' }, [
@@ -1547,7 +1597,7 @@
       if (msg.type === 'AUTH_CHANGED') { location.reload(); return; }
       if (msg.type === 'BRANDING_CHANGED') applyBranding();
       if (msg.type !== 'STATE_CHANGED') return;
-      renderAll();
+      renderSilent();
       checkNewEmergencyAlerts();
     });
   }
@@ -1573,7 +1623,7 @@
     async function syncSOS(){
       if(sosSyncBusy||document.getElementById('centralApp')?.hidden||document.hidden)return;
       sosSyncBusy=true;
-      try{await Store.refreshIncidentsNow();renderAll();checkNewEmergencyAlerts();}
+      try{await Store.refreshIncidentsNow();renderSilent();checkNewEmergencyAlerts();}
       catch(err){console.error('[Central] Falló actualización de SOS:',err);}
       finally{sosSyncBusy=false;}
     }
