@@ -1,0 +1,277 @@
+name: Build EMP Guardia APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Corrección: el nombre correcto es android-actions/setup-android (sin "actions/" adelante)
+      # Usamos v4 porque v3 falla con "Failed to find package 'tools'" [citation:1][citation:5]
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+        continue-on-error: true
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Firebase Messaging plugin
+        run: npm install @capacitor-firebase/messaging@^7.0.0 firebase@^11.0.0
+
+      - name: Prepare www directory
+        run: |
+          mkdir -p www
+          cp guardia.html www/index.html
+          cp guardia.html www/guardia.html
+          cp socio.html www/ 2>/dev/null || true
+          cp central.html www/ 2>/dev/null || true
+          cp b2b.html www/ 2>/dev/null || true
+          cp admin.html www/ 2>/dev/null || true
+          cp manifest.json www/ 2>/dev/null || true
+          # El portal guardia es la pantalla inicial de esta APK, no el portal Socios.
+          cp sw.js www/ 2>/dev/null || true
+          cp -r css www/ 2>/dev/null || true
+          cp -r js www/ 2>/dev/null || true
+          cp -r assets www/ 2>/dev/null || true
+
+      - name: Configure standalone EMP Guardia Android identity
+        run: |
+          node - <<'JS'
+          const fs=require('fs');
+          const path='capacitor.config.json';
+          const cfg=JSON.parse(fs.readFileSync(path,'utf8'));
+          cfg.appId='com.emp.guardia';
+          cfg.appName='EMP Guardia';
+          fs.writeFileSync(path,JSON.stringify(cfg,null,2));
+          JS
+
+      - name: Initialize Capacitor Android platform
+        run: |
+          rm -rf android
+          npx cap add android
+
+      - name: Verify GOOGLE_SERVICES_JSON secret
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_GUARDIA }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_CONTENT" ]; then
+            echo "ERROR: El secret GOOGLE_SERVICES_JSON_GUARDIA está vacío o no existe."
+            exit 1
+          fi
+          echo "Secret Firebase guardia presente"
+
+      # CRÍTICO: sin este plugin, google-services.json es ignorado por Gradle
+      # Rebuild after verified Firebase secret replacement
+      - name: Validate Firebase JSON for Guardia
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_GUARDIA }}
+        run: |
+          python - <<'PY'
+          import os,json
+          data=json.loads(os.environ['GOOGLE_SERVICES_JSON_CONTENT'])
+          info=data.get('project_info',{})
+          assert str(info.get('project_number','')).isdigit(), 'Falta project_info.project_number; usar JSON original sin traducir'
+          assert info.get('project_id')=='emergencias360', 'Proyecto Firebase incorrecto'
+          packages=[c.get('client_info',{}).get('android_client_info',{}).get('package_name') for c in data.get('client',[])]
+          assert 'com.emp.guardia' in packages, 'Falta com.emp.guardia en Firebase JSON'
+          print('Firebase Guardia: proyecto y paquete validados')
+          PY
+
+      - name: Add Google Services Gradle plugin
+        run: |
+          if ! grep -q "com.google.gms:google-services" android/build.gradle; then
+            sed -i "/classpath 'com.android.tools.build:gradle/i\\        classpath 'com.google.gms:google-services:4.4.0'" android/build.gradle
+            echo "Plugin agregado a android/build.gradle"
+          else
+            echo "Plugin ya presente en android/build.gradle"
+          fi
+
+          if ! grep -q "com.google.gms.google-services" android/app/build.gradle; then
+            echo "" >> android/app/build.gradle
+            echo "apply plugin: 'com.google.gms.google-services'" >> android/app/build.gradle
+            echo "Plugin aplicado en android/app/build.gradle"
+          else
+            echo "Plugin ya presente en android/app/build.gradle"
+          fi
+
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_GUARDIA }}
+        run: |
+          mkdir -p android/app
+          printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
+          echo "Archivo escrito: $(wc -c < android/app/google-services.json) bytes"
+
+      - name: Use approved EMP Guardia launcher icon
+        run: |
+          test -s assets/apk-icons/guardia/EMP_Guardia_1024.png || { echo 'Falta el icono EMP Guardia 1024'; exit 1; }
+          mkdir -p resources
+          cp assets/apk-icons/guardia/EMP_Guardia_1024.png resources/icon.png
+          echo 'Icono propio EMP Guardia seleccionado desde assets/apk-icons/guardia'
+
+      - name: Normalize official EMP icon to real PNG
+        run: |
+          test -s resources/icon.png || { echo 'Falta resources/icon.png (logo oficial EMP)'; exit 1; }
+          python -m pip install --quiet Pillow
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          path=Path('resources/icon.png')
+          with Image.open(path) as img:
+              print('Logo original EMP:', img.format, img.size)
+              img=img.convert('RGBA')
+              if img.width != img.height:
+                  side=max(img.size)
+                  canvas=Image.new('RGBA',(side,side),'white')
+                  canvas.alpha_composite(img,((side-img.width)//2,(side-img.height)//2))
+                  img=canvas
+              img.resize((1024,1024),Image.Resampling.LANCZOS).save(path,format='PNG')
+          with Image.open(path) as check:
+              assert check.format == 'PNG' and check.size == (1024,1024)
+          PY
+
+      - name: Generate official EMP Android launcher icons
+        run: npx capacitor-assets generate --android
+
+      - name: Verify generated Android launcher resources
+        run: |
+          test -d android/app/src/main/res || { echo 'No existe el directorio de recursos Android'; exit 1; }
+          find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' -o -name 'ic_launcher_round.png' \) -print
+          find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' \) | grep -q . || { echo 'No se generaron los iconos EMP'; exit 1; }
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Enforce approved EMP Guardia icon after Capacitor sync
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageOps, ImageDraw
+          import hashlib
+          source=Path('resources/icon.png')
+          assert source.is_file(), 'Falta el icono EMP Guardia'
+          base=Image.open(source).convert('RGBA')
+          assert base.width == base.height, 'Icono EMP Guardia no es cuadrado'
+          root=Path('android/app/src/main/res')
+          assert root.is_dir(), 'Faltan recursos Android'
+          densities={'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          for density,side in densities.items():
+              directory=root / ('mipmap-'+density)
+              directory.mkdir(parents=True,exist_ok=True)
+              icon=base.resize((side,side),Image.Resampling.LANCZOS)
+              icon.save(directory/'ic_launcher.png')
+              icon.save(directory/'ic_launcher_round.png')
+              # Adaptive icons are cropped by the Android launcher; add safe padding.
+              fg=Image.new('RGBA',(side,side),(255,255,255,0))
+              inset=int(side*.19)
+              fg.alpha_composite(base.resize((side-2*inset,side-2*inset),Image.Resampling.LANCZOS),(inset,inset))
+              fg.save(directory/'ic_launcher_foreground.png')
+          for directory in [root/'mipmap-anydpi-v26',root/'mipmap-anydpi']:
+              if not directory.exists(): continue
+              for filename in ['ic_launcher.xml','ic_launcher_round.xml']:
+                  p=directory/filename
+                  if p.exists():
+                      xml=p.read_text()
+                      # Keep the generated adaptive icon references to the new foreground.
+                      assert 'foreground' in xml, f'Adaptive icon inesperado: {p}'
+          for density in densities:
+              p=root/('mipmap-'+density)/'ic_launcher.png'
+              with Image.open(p) as im: assert im.size == (densities[density],)*2
+          print('EMP Guardia: iconos normales, redondos y foreground adaptativo actualizados')
+          print('Origen SHA256:',hashlib.sha256(source.read_bytes()).hexdigest())
+          PY
+
+      - name: Verify independent Android identity and home screen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          config=json.loads(Path('capacitor.config.json').read_text())
+          assert config['appId']=='com.emp.guardia',config
+          assert config['appName']=='EMP Guardia',config
+          assert Path('www/index.html').read_bytes()==Path('www/guardia.html').read_bytes()
+          strings=Path('android/app/src/main/res/values/strings.xml')
+          assert strings.exists(), 'Falta strings.xml'
+          data=strings.read_text()
+          import re
+          data,n=re.subn(r'(<string name="app_name">).*?(</string>)',r'\g<1>EMP Guardia\g<2>',data)
+          assert n==1, 'No se pudo fijar app_name'
+          strings.write_text(data)
+          manifest=Path('android/app/src/main/AndroidManifest.xml').read_text()
+          assert '@string/app_name' in manifest or 'EMP Guardia' in manifest, 'Etiqueta Android inesperada'
+          print('Validado: EMP Guardia, com.emp.guardia, portal guardia inicial')
+          PY
+
+      # cap sync puede regenerar android/ y borrar el archivo, por eso se re-escribe
+      - name: Re-write google-services.json after cap sync
+        env:
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON_GUARDIA }}
+        run: |
+          mkdir -p android/app
+          printf '%s' "$GOOGLE_SERVICES_JSON_CONTENT" > android/app/google-services.json
+          echo "Archivo re-escrito post-sync: $(wc -c < android/app/google-services.json) bytes"
+
+      - name: Verify google-services.json placement
+        run: |
+          if [ ! -f "android/app/google-services.json" ]; then
+            echo "ERROR: android/app/google-services.json NO existe."
+            exit 1
+          fi
+          ls -la android/app/google-services.json
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      - name: Build and verify institutional signed release
+        env:
+          EMP_KEYSTORE_BASE64: ${{ secrets.EMP_KEYSTORE_BASE64 }}
+          EMP_KEYSTORE_PASSWORD: ${{ secrets.EMP_KEYSTORE_PASSWORD }}
+          EMP_KEY_ALIAS: ${{ secrets.EMP_KEY_ALIAS }}
+          EMP_KEY_PASSWORD: ${{ secrets.EMP_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$EMP_KEYSTORE_BASE64" && test -n "$EMP_KEYSTORE_PASSWORD" && test -n "$EMP_KEY_ALIAS" && test -n "$EMP_KEY_PASSWORD"
+          KEYSTORE="$RUNNER_TEMP/emp-production.p12"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$EMP_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storetype PKCS12 -storepass:env EMP_KEYSTORE_PASSWORD -alias "$EMP_KEY_ALIAS" >/dev/null
+          (cd android && ./gradlew assembleRelease)
+          APK=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -f "$APK"
+          test -n "$APK"
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          test -n "$TOOLS"
+          mkdir -p signed-release
+          "${TOOLS%/*}/zipalign" -f 4 "$APK" "$RUNNER_TEMP/emp-aligned.apk"
+          "$TOOLS" sign --ks "$KEYSTORE" --ks-type PKCS12 --ks-key-alias "$EMP_KEY_ALIAS" --ks-pass env:EMP_KEYSTORE_PASSWORD --key-pass env:EMP_KEY_PASSWORD --out signed-release/EMP-guardia-release.apk "$RUNNER_TEMP/emp-aligned.apk"
+          "$TOOLS" verify --verbose --print-certs signed-release/EMP-guardia-release.apk
+
+      - name: Upload institutional signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EMP-guardia-Release-Signed
+          path: signed-release/EMP-guardia-release.apk
+          if-no-files-found: error
+          retention-days: 30
