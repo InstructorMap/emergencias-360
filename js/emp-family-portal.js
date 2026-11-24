@@ -11,8 +11,34 @@ async function render(){
  if(!user){resetNotifications();if(error)msg('authMessage','Iniciá sesión para continuar.');return;}
  $('currentEmail').textContent=user.email||'Cuenta familiar';
  await refresh();
+ if(native&&nativeUser!==user.id)await registerNative();
 }
 let currentEvents=[];
+const native=!!window.Capacitor?.isNativePlatform?.();
+let nativeBusy=false, nativeToken=null, nativeUser=null, nativeBound=false;
+async function registerNative(){
+ if(!native||nativeBusy)return;
+ nativeBusy=true;
+ try{
+ const fm=window.Capacitor.Plugins.FirebaseMessaging;
+ const ln=window.Capacitor.Plugins.LocalNotifications;
+ const {data:{user}}=await client.auth.getUser();if(!user)return;
+ const perm=await fm.requestPermissions();if(perm.receive!=='granted')throw Error('Permití las notificaciones de EMP Red Familiar en Ajustes de Android.');
+ await ln.createChannel({id:'emp_sos_channel',name:'Alertas familiares EMP',importance:5,visibility:0,vibration:true});
+ const save=async(token)=>{const {data:{user:u}}=await client.auth.getUser();if(!u||!token)return;const {error}=await client.from('device_tokens').upsert({user_id:u.id,token,platform:'android-family',updated_at:new Date().toISOString()},{onConflict:'user_id,token'});if(error)throw error;nativeToken=token;nativeUser=u.id;};
+ await save((await fm.getToken()).token);
+ if(!nativeBound){
+ await fm.addListener('tokenReceived',e=>save(e.token).catch(()=>notificationStatus('No se pudo actualizar el registro.')));
+ await fm.addListener('notificationReceived',async e=>{const n=e.notification||{};await ln.schedule({notifications:[{id:Math.floor(Math.random()*2000000000)+1,title:n.title||'EMP Red Familiar',body:n.body||'Tenés un nuevo aviso familiar.',channelId:'emp_sos_channel'}]});await refresh();});
+ await fm.addListener('notificationActionPerformed',()=>{document.querySelector('[data-section=alertas]').click();refresh();});
+ await ln.addListener('localNotificationActionPerformed',()=>{document.querySelector('[data-section=alertas]').click();refresh();});
+ nativeBound=true;
+ }
+ notificationStatus('Notificaciones Android habilitadas.');
+ }catch(e){notificationStatus('No se pudo activar: '+e.message);}finally{nativeBusy=false;}
+}
+if(native){for(const id of ['registerFamilyPush','testFamilyPush','diagnoseFamilyNotifications'])$(id).hidden=true;notificationStatus('Activá los avisos de emergencia en este teléfono.');}
+
 
 async function diagnoseFamilyNotifications(){
  const result=['Diagnóstico EMP'];
@@ -81,6 +107,7 @@ function notificationStatus(text){const el=$('notificationStatus');if(el)el.text
 function notificationPreferenceKey(userId){return 'emp-family-notify-'+userId;}
 function resetNotifications(){notificationState.enabled=false;notificationState.ready=false;notificationState.seen.clear();notificationState.userId=null;}
 async function enableNotifications(){
+ if(native)return registerNative();
  await subscribeFamilyPush();
 }
 function checkNotifications(events,userId){
@@ -165,7 +192,7 @@ async function refresh(){
   renderEvents('medEvents',currentEvents.filter(e=>e.tipo==='MEDICACION'),'No hay tomas sin confirmar registradas.');
   renderEvents('assistEvents',currentEvents.filter(e=>e.tipo==='ASISTENCIA'),'No hay solicitudes de asistencia recientes.');
   const {data:{user:notificationUser}}=await client.auth.getUser();
-  if(notificationUser)checkNotifications(currentEvents,notificationUser.id);
+  if(notificationUser&&!native)checkNotifications(currentEvents,notificationUser.id);
   msg('appMessage','');
  }catch(e){msg('appMessage','No se pudieron actualizar los datos: '+e.message);}
 }
@@ -191,7 +218,7 @@ $('registerBtn').onclick=async()=>{
  msg('authMessage',error?'No se pudo registrar: '+error.message:(data.session?'Cuenta creada. Revisá las invitaciones.':'Revisá tu correo para confirmar la cuenta antes de ingresar.'));
  if(data.session)await render();
 };
-$('logoutBtn').onclick=async()=>{await client.auth.signOut();await render();};
+$('logoutBtn').onclick=async()=>{if(native&&nativeToken){const {error}=await client.from('device_tokens').delete().eq('user_id',nativeUser).eq('token',nativeToken);if(error){msg('appMessage','No se pudo desvincular este teléfono. Reintentá.');return;}await window.Capacitor.Plugins.FirebaseMessaging.deleteToken();nativeToken=null;nativeUser=null;}await client.auth.signOut();await render();};
 $('refreshBtn').onclick=refresh;
 $('enableFamilyNotifications').onclick=enableNotifications;
 $('registerFamilyPush').onclick=subscribeFamilyPush;
@@ -199,6 +226,6 @@ $('testFamilyPush').onclick=testFamilyPush;
 $('diagnoseFamilyNotifications').onclick=diagnoseFamilyNotifications;
 client.auth.onAuthStateChange(()=>{setTimeout(render,0);});
 setInterval(()=>{if(!document.hidden&&!app.classList.contains('hidden'))refresh();},30000);
-if('serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+if(!native&&'serviceWorker' in navigator&&window.isSecureContext){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 render();
 })();
