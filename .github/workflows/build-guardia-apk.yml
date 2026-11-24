@@ -160,6 +160,48 @@ jobs:
           find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' -o -name 'ic_launcher_round.png' \) -print
           find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' \) | grep -q . || { echo 'No se generaron los iconos EMP'; exit 1; }
 
+
+      - name: Apply Guardia-only Android compatibility fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          manifest=Path('android/app/src/main/AndroidManifest.xml')
+          ns='http://schemas.android.com/apk/res/android'
+          ET.register_namespace('android',ns)
+          tree=ET.parse(manifest)
+          root=tree.getroot()
+          key='{'+ns+'}name'
+          for permission in ['android.permission.RECORD_AUDIO','android.permission.MODIFY_AUDIO_SETTINGS','android.permission.ACCESS_COARSE_LOCATION','android.permission.ACCESS_FINE_LOCATION']:
+              if not any(e.get(key)==permission for e in root.findall('uses-permission')):
+                  root.insert(0,ET.Element('uses-permission',{key:permission}))
+          tree.write(manifest,encoding='utf-8',xml_declaration=True)
+          hc=Path('www/js/healthcheck.js')
+          data=hc.read_text()
+          old="const path = (global.location.pathname.split('/').pop() || 'index.html').toLowerCase();"
+          new="const path = document.getElementById('guardiaApp') ? 'guardia.html' : (global.location.pathname.split('/').pop() || 'index.html').toLowerCase();"
+          assert old in data
+          hc.write_text(data.replace(old,new,1))
+          css=Path('www/css/guardia-tactical.css')
+          css.write_text(css.read_text()+'''
+          /* Android Guardia: theme-aware operational surfaces */
+          html[data-theme="light"] body.guardia-body {color-scheme:light;background:#eef3f9!important;color:#142238!important;--gv-text:#142238;--gv-text-muted:#445775}
+          html[data-theme="dark"] body.guardia-body {color-scheme:dark;color:#f1f5f9;--gv-text:#f1f5f9;--gv-text-muted:#b2c1da}
+          html[data-theme="light"] .guardia-body :is(.tac-section-heading,.tac-empty,#empClinicalPanel,#empClinicalPanel fieldset,.hc-stepbar,.tac-bottom) {background:#fff!important;color:#142238!important;border-color:#9eb1c9!important}
+          html[data-theme="light"] .guardia-body #empClinicalPanel :is(h2,p,label,legend,small,span) {color:#142238!important}
+          html[data-theme="light"] .guardia-body :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {background:#fff!important;color:#142238!important;border-color:#9eb1c9!important}
+          html[data-theme="dark"] .guardia-body :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {background:#162f4a!important;color:#f1f5f9!important;border-color:#628eb1!important}
+          html[data-theme="light"] .guardia-body :is(input,textarea)::placeholder {color:#445775!important;opacity:1}
+          html[data-theme="dark"] .guardia-body :is(input,textarea)::placeholder {color:#b2c1da!important;opacity:1}
+          html[data-theme="light"] .guardia-body :is(.tac-tab,.hc-step,.tac-bottom button):not(.is-active) {background:#e7eef8!important;color:#142238!important;border-color:#9eb1c9!important}
+          html[data-theme="light"] .guardia-body :is(.tac-home-card,.tac-command,.emp-header-banner,.emp-guardia-footer-banner) {color:#fff!important}
+          html[data-theme="light"] .guardia-body .tac-home-copy strong {color:#fff!important}
+          html[data-theme="light"] .guardia-body .tac-home-copy small {color:#e4efff!important}
+          ''')
+          assert Path('www/index.html').read_bytes()==Path('www/guardia.html').read_bytes()
+          PY
+          node --check www/js/healthcheck.js
+
       - name: Sync Capacitor
         run: npx cap sync android
 
