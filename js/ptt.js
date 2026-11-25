@@ -319,6 +319,7 @@
       };
     },
 
+    setReceiveVolume(value) { if(remoteAudio) remoteAudio.volume=Math.max(0.2,Math.min(1,Number(value)||1)); },
     unlockAudio() {
       if (!remoteAudio) return Promise.resolve(false);
       remoteAudio.muted = false;
