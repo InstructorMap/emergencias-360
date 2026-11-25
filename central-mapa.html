@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa operativo · EMP</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="css/central-visual.css">
+  <style>
+    body{margin:0;display:flex;flex-direction:column;height:100vh;height:100dvh;background:#11263e;color:#fff;font:1rem system-ui}
+    header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:.8rem 1rem;gap:.5rem}
+    #monitorMap{flex:1;min-height:0;background:#dce5ea}
+  </style>
+</head>
+<body>
+  <header><strong>EMP · Mapa operativo</strong><output id="mapStatus" role="status">Esperando a Central…</output></header>
+  <main id="monitorMap" aria-label="Mapa de incidentes y móviles"></main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/central-map-icons.js"></script>
+  <script src="js/central-map-monitor.js"></script>
+</body></html>

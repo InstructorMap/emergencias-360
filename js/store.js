@@ -876,7 +876,7 @@
       // Velocidad real si unitLocation.speed está disponible y > 1.4 m/s (≈5 km/h)
       let velocidadKmh = 40;
       let source = 'estimated';
-      if (inc.unitLocation && typeof inc.unitLocation.speed === 'number' && inc.unitLocation.speed > 1.4) {
+      if (Number.isFinite(inc.unitLocation?.speed) && inc.unitLocation.speed > 1.4) {
         velocidadKmh = Math.min(120, Math.max(10, inc.unitLocation.speed * 3.6));
         source = 'gps';
       } else if (inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
@@ -889,6 +889,7 @@
         etaMinutes: mins,
         remainingMinutes: mins,
         source,
+        usesMeasuredSpeed: Number.isFinite(inc.unitLocation?.speed) && inc.unitLocation.speed > 1.4,
         velocidadKmh: Math.round(velocidadKmh),
         disclaimer
       };

@@ -139,6 +139,9 @@
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
         <section id="empSOSMonitor" class="emp-comms"><header><strong>CONTROL DE RECONOCIMIENTO SOS</strong></header><output role="status" aria-live="polite"></output><div class="sos-rows"></div></section>
+<div id="detailContainer">
+          <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
+        </div>
 <section id="empHealthMonitor" class="emp-comms" aria-label="Monitor de salud operativa">
 <header><strong>MONITOR OPERATIVO</strong><button type="button">Comprobar servidor</button></header>
 <div class="health-grid"><div><strong>Red</strong><span data-health="network"></span></div><div><strong>Servidor</strong><span data-health="server"></span></div><div><strong>GPS</strong><span data-health="gps"></span></div><div><strong>Radio</strong><span data-health="radio"></span></div></div>
@@ -167,13 +170,11 @@
 <output style="display:block;margin-top:8px" aria-live="polite"></output>
 </section>
 </section>
-<div id="detailContainer">
-          <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
-        </div>
       </section>
 
       <section class="central-col central-col-3" aria-label="Mapa, flota y configuración">
-        <h2>Mapa Operativo</h2>
+        <h2>Mapa operativo</h2>
+        <button type="button" id="openMapMonitor">Abrir mapa en segunda pantalla ↗</button>
         <div id="mapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(148,163,184,0.25);"></div>
 
         <div class="speed-limit-card" style="background:#1E293B;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -206,11 +207,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
-  <script src="js/store.js?v=20261125-recovery"></script>
+  <script src="js/store.js?v=eta-source-1"></script>
   <script src="js/capacitor-bridge.js"></script>
   <script src="js/ptt.js?v=20261125-recovery"></script>
   <script src="js/media.js"></script>
-  <script src="js/app-central.js?v=20261125-sos-v2"></script>
+  <script src="js/central-map-icons.js"></script>
+  <script src="js/app-central.js?v=map-monitor-1"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
