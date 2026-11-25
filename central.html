@@ -61,7 +61,7 @@
 .emp-comms .audio-rows>div>span{flex-basis:100%;overflow-wrap:anywhere}
 .comms-history{max-height:130px;overflow:auto;font-size:.8rem}
 </style>
-</head>
+<style>.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.health-grid>div{border:1px solid #64748b;border-radius:6px;padding:8px;display:grid;gap:4px;font-size:.8rem}.health-grid span{border-left:4px solid #64748b;padding-left:6px;overflow-wrap:anywhere}#empHealthMonitor [data-level=ok]{border-color:#16a34a}#empHealthMonitor [data-level=warn]{border-color:#d97706}#empHealthMonitor [data-level=bad]{border-color:#dc2626}.health-gps-list li{border-left:4px solid #64748b;padding-left:6px;margin:5px 0}</style></head>
 <body class="central-body theme-dark">
 
   <!-- C2: banner offline -->
@@ -138,7 +138,12 @@
 
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
-        <section id="empCommsConsole" class="emp-comms">
+        <section id="empHealthMonitor" class="emp-comms" aria-label="Monitor de salud operativa">
+<header><strong>MONITOR OPERATIVO</strong><button type="button">Comprobar servidor</button></header>
+<div class="health-grid"><div><strong>Red</strong><span data-health="network"></span></div><div><strong>Servidor</strong><span data-health="server"></span></div><div><strong>GPS</strong><span data-health="gps"></span></div><div><strong>Radio</strong><span data-health="radio"></span></div></div>
+<details><summary>Antigüedad de posiciones por móvil</summary><ul class="health-gps-list"></ul></details>
+</section>
+<section id="empCommsConsole" class="emp-comms">
 <header><strong>CONSOLA DE COMUNICACIONES</strong><span class="comms-state" role="status">Inicializando</span></header>
 <div class="comms-metrics"><span class="comms-channel"></span><span class="comms-network"></span><span class="comms-ice"></span></div>
 <div class="comms-actions"><label>Volumen de grabaciones <input class="comms-volume" type="range" min="0" max="100" value="100"></label><label>Volumen radio <input class="comms-radio-volume" type="range" min="20" max="100" value="100"></label><label>Volumen alarmas <input class="comms-alarm-volume" type="range" min="50" max="100" value="100"></label><button type="button" class="comms-unlock">Activar audio PTT</button><button type="button" class="comms-alarm">Ir a bandeja de audios</button></div>
@@ -239,5 +244,6 @@ if(new URLSearchParams(location.search).get('radioTest')==='1'){
 <script src="js/central-group-radio.js?v=4"></script>
 <script src="js/central-audio-queue.js?v=2"></script>
 <script src="js/central-comms-console.js?v=2"></script>
+<script src="js/central-health-monitor.js?v=1"></script>
 </body>
 </html>
