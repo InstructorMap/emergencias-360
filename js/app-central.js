@@ -154,13 +154,19 @@
     const view=el('button',{type:'button',textContent:'VER INCIDENTE',onclick:()=>{
       ui.baseFilter='ALL';const sel=document.getElementById('centralBaseSelector');if(sel)sel.value='ALL';
       ui.incidentFilter='active';document.querySelectorAll('.btn-incident-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter==='active'));
-      ui.selectedIncidentId=inc.id;emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();renderAll();
+      if(!openIncident(inc.id))return;emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();renderAll();
       document.querySelector('.central-col-2')?.scrollIntoView({behavior:'smooth',block:'start'});
     }});
     const dismiss=el('button',{type:'button',textContent:'SILENCIAR / CERRAR AVISO',onclick:()=>{
       emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();
     }});
     actions.append(view,dismiss);overlay.appendChild(actions);
+    if(items.length>1) items.slice(1).forEach(other=>{
+      overlay.appendChild(el('button',{type:'button',textContent:'Abrir '+other.id+' · '+alertLabel(other),onclick:()=>{
+        if(!openIncident(other.id))return;
+        emergencyAlert.active.delete(String(other.id));renderEmergencyOverlay();
+      }}));
+    });
     if(emergencyAlert.enabled&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,6000);}
   }
   function checkNewEmergencyAlerts() {
@@ -535,6 +541,7 @@
     if (!sel) return;
     sel.value = ui.baseFilter;
     sel.addEventListener('change', () => {
+      saveIncidentDraft();
       ui.baseFilter = sel.value;
       ui.selectedIncidentId = null;
       // F3-mejora: al cambiar base, si el PTT no corresponde al incidente seleccionado, destruirlo
@@ -624,7 +631,7 @@
       const hasSupport = Array.isArray(inc.supportRequests) && inc.supportRequests.length > 0;
       list.appendChild(el('li', {
         className: 'incident-card' + pendingClass + selectedClass,
-        onclick: () => { ui.selectedIncidentId = inc.id; renderIncidentList(); renderDetail(); }
+        onclick: () => { openIncident(inc.id); }
       }, [
         el('div', { className: 'card-top' }, [
           el('span', { className: 'card-id', textContent: inc.id }),
@@ -648,19 +655,59 @@
     ]);
   }
 
+  const openIncidents=new Set(), incidentDrafts=new Map();
+  let actionBusy=0;
+  function saveIncidentDraft(){
+    const panel=$('#detailContainer');
+    if(!panel?.dataset.incidentKey)return;
+    const key=panel.dataset.incidentKey;
+    incidentDrafts.set(key,{values:Array.from(panel.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]),scroll:panel.scrollTop});
+  }
+  function openIncident(id){
+    if(actionBusy){toast('Esperá a que finalice la acción actual');return false;}
+    saveIncidentDraft();
+    openIncidents.add(id);
+    ui.selectedIncidentId=id;
+    renderIncidentList();renderIncidentTabs();renderDetail();renderMapMarkers();
+    return true;
+  }
+  function renderIncidentTabs(){
+    const panel=$('#detailContainer');if(!panel)return;
+    if(ui.selectedIncidentId)openIncidents.add(ui.selectedIncidentId);
+    let bar=$('#empIncidentTabs');
+    if(!bar){bar=el('div',{id:'empIncidentTabs',className:'emp-incident-tabs'});panel.before(bar);}
+    const rows=Array.from(openIncidents).map(id=>{const i=Store.getIncidentById(id);return [id,i?.status,i?.priority,i?.assignedUnitId];});
+    const sig=JSON.stringify([ui.selectedIncidentId,rows]);
+    if(bar.dataset.signature===sig)return;
+    bar.dataset.signature=sig;bar.replaceChildren();
+    bar.appendChild(el('strong',{textContent:'Incidentes abiertos: '+rows.length}));
+    rows.forEach(([id,status,priority,unit])=>{
+      const item=el('div',{className:'emp-incident-tab'+(id===ui.selectedIncidentId?' is-active':'')});
+      const select=el('button',{type:'button',textContent:String(id)+' · '+(priority||'Sin triage')+' · '+(status||'No disponible')+(unit?' · '+unit:''),onclick:()=>openIncident(id)});
+      select.setAttribute('aria-pressed',String(id===ui.selectedIncidentId));
+      const close=el('button',{type:'button',textContent:'×',title:'Cerrar pestaña (no cierra incidente)',onclick:()=>{
+        if(actionBusy)return;
+        saveIncidentDraft();openIncidents.delete(id);
+        if(ui.selectedIncidentId===id){ui.selectedIncidentId=Array.from(openIncidents).at(-1)||null;renderDetail();}
+        renderIncidentTabs();renderIncidentList();renderMapMarkers();
+      }});
+      item.append(select,close);bar.appendChild(item);
+    });
+  }
   let detailGeneration=0, detailSignature='', silentTimer=null, pointerHeld=false;
   function detailKey(){
     const inc=ui.selectedIncidentId && Store.getIncidentById(ui.selectedIncidentId);
     return JSON.stringify([ui.selectedIncidentId,inc,inc ? Store.getFleet(inc.baseId).map(u=>[u.id,u.status]) : []]);
   }
   function renderSilent(){
+    renderIncidentTabs();
     renderAlertCounter();
     renderIncidentList();
     renderFleet();
     renderMapMarkers();
     if(detailKey()===detailSignature)return;
     const panel=$('#detailContainer');
-    if(pointerHeld || (panel?.contains(document.activeElement) && document.activeElement.matches('input,textarea,select,button')) || panel?.querySelector('button[disabled]')){
+    if(actionBusy || pointerHeld || (panel?.contains(document.activeElement) && document.activeElement.matches('input,textarea,select,button')) || panel?.querySelector('button[disabled]')){
       clearTimeout(silentTimer);
       silentTimer=setTimeout(renderSilent,800);
       return;
@@ -679,7 +726,8 @@
     detailSignature = detailKey();
     const previous = container.dataset.incidentKey;
     const nextKey = JSON.stringify([selectedId,selected?.status]);
-    const draft = previous === nextKey ? Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]) : [];
+    const savedDraft=incidentDrafts.get(nextKey);
+    const draft = previous === nextKey ? Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]) : (savedDraft?.values || []);
     const target = document.createDocumentFragment();
     // F3-mejora: si el incidente seleccionado cambió y hay PTT de otro incidente, destruirlo
     if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) {
@@ -831,7 +879,7 @@
     if(generation!==detailGeneration || selectedId!==ui.selectedIncidentId)return;
     // Capture latest edits before replacing the panel.
     if(previous===nextKey) draft.splice(0,draft.length,...Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]));
-    const scroll=container.scrollTop;
+    const scroll=previous===nextKey?container.scrollTop:(savedDraft?.scroll||0);
     container.replaceChildren(target);
     container.dataset.incidentKey=nextKey;
     draft.forEach(([id,value])=>{const n=document.getElementById(id);if(n && container.contains(n) && (n.tagName!=='SELECT'||Array.from(n.options).some(o=>o.value===value)))n.value=value;});
@@ -845,10 +893,11 @@
 
     const run = async (btn, fn, label) => {
       if (!onlineOrToast()) return;
-      await runLoading(btn, async () => {
+      actionBusy++;
+      try { await runLoading(btn, async () => {
         try { await fn(); renderAll(); }
         catch (err) { alert('Acción rechazada: ' + fmtErr(err)); }
-      }, label);
+      }, label); } finally { actionBusy--; }
     };
 
     const appendCancelBtn = () => {
@@ -1584,6 +1633,7 @@
   }
 
   function renderAll() {
+    renderIncidentTabs();
     renderAlertCounter();
     renderIncidentList();
     renderDetail();
