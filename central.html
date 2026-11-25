@@ -141,7 +141,7 @@
         <section id="empHealthMonitor" class="emp-comms" aria-label="Monitor de salud operativa">
 <header><strong>MONITOR OPERATIVO</strong><button type="button">Comprobar servidor</button></header>
 <div class="health-grid"><div><strong>Red</strong><span data-health="network"></span></div><div><strong>Servidor</strong><span data-health="server"></span></div><div><strong>GPS</strong><span data-health="gps"></span></div><div><strong>Radio</strong><span data-health="radio"></span></div></div>
-<details><summary>Antigüedad de posiciones por móvil</summary><ul class="health-gps-list"></ul></details>
+<div id="empRecovery" style="margin:10px 0;display:grid;gap:6px"><strong>Recuperación de sincronización</strong><output role="status" aria-live="polite">En espera</output><button type="button">Reintentar sincronización</button></div><details><summary>Antigüedad de posiciones por móvil</summary><ul class="health-gps-list"></ul></details>
 </section>
 <section id="empCommsConsole" class="emp-comms">
 <header><strong>CONSOLA DE COMUNICACIONES</strong><span class="comms-state" role="status">Inicializando</span></header>
@@ -205,7 +205,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/state-machine.js"></script>
-  <script src="js/store.js?v=20261123-sos-sync-v1"></script>
+  <script src="js/store.js?v=20261125-recovery-v1"></script>
   <script src="js/capacitor-bridge.js"></script>
   <script src="js/ptt.js?v=20261125-comms-v2"></script>
   <script src="js/media.js"></script>
@@ -245,5 +245,6 @@ if(new URLSearchParams(location.search).get('radioTest')==='1'){
 <script src="js/central-audio-queue.js?v=2"></script>
 <script src="js/central-comms-console.js?v=2"></script>
 <script src="js/central-health-monitor.js?v=1"></script>
+<script src="js/central-recovery.js?v=1"></script>
 </body>
 </html>
