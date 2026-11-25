@@ -178,7 +178,7 @@
   async function handleOffer(supabase, sdp) {
     if (!localStream) {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStream = sharedStream.clone();
       } catch (e) {
         lastSignalingError = 'getUserMedia: ' + e.message;
         console.warn('[ptt] Central sin micrófono:', e);
@@ -252,9 +252,7 @@
     async init(supabase, incidentId, role) {
       if (isInitialized) this.destroy();
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true }
-        });
+        localStream = sharedStream.clone();
       } catch (e) {
         lastSignalingError = 'getUserMedia: ' + e.message;
         return false;
