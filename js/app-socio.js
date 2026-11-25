@@ -735,6 +735,17 @@
     }
   }
 
+  const seenAcknowledgments=new Set();
+  function showAcknowledgment(incident){
+    const ack=(incident.statusHistory||[]).find(h=>h.status==='ACEPTADA_POR_CENTRAL');
+    if(!ack||!Number.isFinite(Date.parse(ack.ts)))return;
+    const profile=Store.getActiveProfile();if(!profile)return;
+    const key='emp-ack:'+profile.id+':'+incident.id+':'+ack.ts;
+    if(seenAcknowledgments.has(key))return;
+    try{if(localStorage.getItem(key))return;}catch(_){}
+    seenAcknowledgments.add(key);try{localStorage.setItem(key,'1');}catch(_){}
+    toast('Central EMP reconoció tu emergencia. Esto no confirma aún el despacho de una ambulancia.');
+  }
   function initIncidentSubscription() {
     Store.subscribe((msg) => {
       if (!msg) return;
@@ -744,6 +755,7 @@
       if (Store.getActiveProfile()) {
         renderPillSocio();
         renderInicio();
+        Store.getMyIncidents().filter(i=>!['CERRADA','CANCELADA'].includes(i.status)).forEach(showAcknowledgment);
         const latest = Store.getMyIncidents()[0] || Store.getLatestIncident();
         if (latest) {
           currentIncident = latest;
