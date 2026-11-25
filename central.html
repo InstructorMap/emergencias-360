@@ -43,6 +43,12 @@
 .emp-clock-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.76rem;padding:5px 0;color:inherit}
 .emp-incident-clock{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;color:inherit}
 </style>
+<style>
+.emp-radio-channels{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;color:inherit}
+.emp-radio-channels strong{flex-basis:100%;font-size:.85rem}
+.emp-radio-channels button{border:1px solid currentColor;background:transparent;color:inherit;padding:7px;border-radius:6px;cursor:pointer;overflow-wrap:anywhere;max-width:100%}
+.emp-radio-channels button[aria-pressed="true"]{background:#145b91;color:#fff;border-color:#145b91}
+</style>
 </head>
 <body class="central-body theme-dark">
 
@@ -163,7 +169,7 @@
   <script src="js/capacitor-bridge.js"></script>
   <script src="js/ptt.js?v=20261120-gps-support-ptt-v5"></script>
   <script src="js/media.js"></script>
-  <script src="js/app-central.js?v=20261125-priority-v3"></script>
+  <script src="js/app-central.js?v=20261125-radio-v1"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
