@@ -953,7 +953,7 @@
       const check = SM.canTransitionIncident(current.status, next);
       if (!check.ok) throw new Error(check.reason);
       const newHistory = (current.status_history || []).concat([{ status: next, ts: nowISO(), actor: state.profile ? state.profile.nombre : 'sistema', detail: 'Transición' }]);
-      const { data, error } = await state.supabase.from('incidents').update({ status: next, status_history: newHistory }).eq('id', id).select().single();
+      const { data, error } = await state.supabase.from('incidents').update({ status: next, status_history: newHistory }).eq('id', id).eq('status',current.status).select().single();
       if (error) throw new Error(error.message);
       const mapped = mapIncidentFromDB(data);
       const idx = state.incidents.findIndex(i => i.id === id);
