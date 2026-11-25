@@ -99,6 +99,7 @@
   const emergencyAlert = {initialized:false,known:new Set(),active:new Map(),enabled:false,timer:null,player:null,preview:null,choice:0};
   function pendingAlerts(){return Store.getIncidents('ALL').filter(i=>i.status==='RECIBIDA_SERVIDOR');}
   function alertLabel(inc){return [inc.priority||'SIN TRIAGE',inc.baseId||'BASE SIN DEFINIR',inc.manualAddress||'Ubicación en incidente'].join(' · ');}
+  window.E360SetAlarmVolume=function(v){window.E360AlarmVolume=Math.max(.5,Math.min(1,Number(v)||1));for(const p of [emergencyAlert.player,emergencyAlert.preview])if(p)p.volume=window.E360AlarmVolume;};
   function alarmUrl(){return 'assets/audio/'+EMP_ALARM_FILES[emergencyAlert.choice].file;}
   function stopEmergencyTone(){
     if(emergencyAlert.timer){clearInterval(emergencyAlert.timer);emergencyAlert.timer=null;}
@@ -114,7 +115,7 @@
     if(!emergencyAlert.enabled)return;
     if(!emergencyAlert.player)emergencyAlert.player=new Audio(alarmUrl());
     emergencyAlert.player.pause();
-    emergencyAlert.player.src=alarmUrl();
+    emergencyAlert.player.volume=window.E360AlarmVolume||1;emergencyAlert.player.src=alarmUrl();
     emergencyAlert.player.currentTime=0;
     emergencyAlert.player.play().catch(err=>console.warn('[Central] Audio de alarma bloqueado o no disponible:',err));
   }
@@ -217,7 +218,7 @@
       if(!emergencyAlert.preview)emergencyAlert.preview=new Audio();
       const player=emergencyAlert.preview;
       if(!player.paused){player.pause();player.currentTime=0;return;}
-      player.src=alarmUrl();player.currentTime=0;
+      player.volume=window.E360AlarmVolume||1;player.src=alarmUrl();player.currentTime=0;
       player.play().catch(err=>toast('No se pudo reproducir: '+(err.message||err)));
     }});
     const btn=el('button',{type:'button',id:'btnEmergencySound',className:'btn-emergency-sound',textContent:'🔔 Activar alarma',onclick:()=>{
