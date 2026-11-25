@@ -545,7 +545,7 @@
       ui.baseFilter = sel.value;
       ui.selectedIncidentId = null;
       // F3-mejora: al cambiar base, si el PTT no corresponde al incidente seleccionado, destruirlo
-      if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) destroyFloatingPTT();
+      // PTT remains attached to its explicitly selected radio channel.
       renderAll();
     });
   }
@@ -796,6 +796,7 @@
     return JSON.stringify([ui.selectedIncidentId,inc,inc ? Store.getFleet(inc.baseId).map(u=>[u.id,u.status]) : []]);
   }
   function renderSilent(){
+    renderRadioChannels();
     renderIncidentWindows();
     renderIncidentTabs();
     renderAlertCounter();
@@ -827,9 +828,7 @@
     const draft = previous === nextKey ? Array.from(container.querySelectorAll('.detail-actions input[id],.detail-actions textarea[id],.detail-actions select[id]')).map(n=>[n.id,n.value]) : (savedDraft?.values || []);
     const target = document.createDocumentFragment();
     // F3-mejora: si el incidente seleccionado cambió y hay PTT de otro incidente, destruirlo
-    if (ui.pttIncidentId && ui.pttIncidentId !== ui.selectedIncidentId) {
-      destroyFloatingPTT();
-    }
+    // Incident navigation does not disconnect the radio.
 
     if (!ui.selectedIncidentId) {
       target.appendChild(el('div', { className: 'detail-empty', textContent: 'Seleccioná un incidente.' }));
@@ -1247,11 +1246,15 @@
     }
     ui.pttIncidentId = null;
     ui.pttConnected = false;
+    radioTargetId=null;
     const existing = document.getElementById('cvPttFloating');
     if (existing) existing.remove();
   }
 
+  let radioTargetId=null, radioConnecting=false, radioTalking=false;
   function renderFloatingPTT(incident) {
+    if(radioConnecting || radioTalking)return;
+    incident=Store.getIncidentById(ui.pttIncidentId || radioTargetId || '') || null;
     let existing = document.getElementById('cvPttFloating');
 
     const canPTT = incident
@@ -1259,7 +1262,8 @@
       && typeof window.E360PTT !== 'undefined';
 
     if (!canPTT) {
-      if (existing) existing.remove();
+      if(ui.pttConnected)destroyFloatingPTT();
+      else if (existing) existing.remove();
       return;
     }
 
@@ -1268,7 +1272,7 @@
     // Re-render quirúrgico: si ya existe y el estado no cambió, solo actualizar
     if (existing) {
       const wasConnected = existing.dataset.connected === '1';
-      if (wasConnected === isConnected) {
+      if (wasConnected === isConnected && existing.dataset.incidentId===String(incident.id)) {
         // Actualizar botón conectar
         const connBtn = existing.querySelector('.cv-ptt-connect');
         if (connBtn) {
@@ -1288,6 +1292,8 @@
 
     const wrapper = el('div', { className: 'cv-ptt-floating', id: 'cvPttFloating' });
     wrapper.dataset.connected = isConnected ? '1' : '0';
+    wrapper.dataset.incidentId=String(incident.id);
+    wrapper.appendChild(el('strong',{textContent:'Móvil '+(incident.assignedUnitId||'Sin asignar')+' · '+incident.id}));
     const dragHandle=el('div',{className:'cv-ptt-drag',title:'Arrastrar PTT para moverlo'});
     dragHandle.appendChild(el('img',{src:pttImage('mover'),alt:'Mover PTT'}));
     dragHandle.appendChild(el('span',{textContent:'MOVER PTT'}));
@@ -1306,9 +1312,10 @@
         if (isConnected) {
           destroyFloatingPTT();
           toast('PTT desconectado');
-          renderDetail();
+          renderRadioChannels();renderDetail();
         } else {
-          if (!onlineOrToast()) return;
+          if (!onlineOrToast() || radioConnecting) return;
+          radioConnecting=true;connectBtn.disabled=true;
           try {
             updatePttVisual(wrapper,'abriendo_canal');
             const sb = Store._getState().supabase;
@@ -1323,7 +1330,8 @@
           } catch (err) {
             toast('❌ Error PTT: ' + (err.message || 'desconocido'));
           }
-          renderDetail();
+          radioConnecting=false;connectBtn.disabled=false;
+          renderRadioChannels();renderFloatingPTT(null);
         }
       }
     });
@@ -1338,7 +1346,8 @@
     if (isConnected) {
       const startTalk = async (e) => {
         if (e) e.preventDefault();
-        if (!onlineOrToast()) return;
+        if (!onlineOrToast() || radioTalking) return;
+        radioTalking=true;
         try {
           const sb = Store._getState().supabase;
           updatePttVisual(wrapper,'abriendo_canal');
@@ -1353,12 +1362,14 @@
           talkBtn.classList.remove('is-transmitting');
           updatePttVisual(wrapper,'canal_abierto');
           talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
+          radioTalking=false;
           statusEl.textContent = '❌ Error de conexión PTT';
           toast('❌ PTT error: ' + (err.message || 'desconocido'));
         }
       };
       const stopTalk = async (e) => {
         if (e) e.preventDefault();
+        if(!radioTalking)return;
         try {
           const sb = Store._getState().supabase;
           const path = await window.E360PTT.stopTalking(sb);
@@ -1372,7 +1383,7 @@
           talkBtn.textContent = '🎙 MANTENER PARA HABLAR';
           statusEl.textContent = '❌ Error al detener PTT';
           toast('❌ ' + (err.message || 'error'));
-        }
+        } finally {radioTalking=false;renderRadioChannels();}
       };
       talkBtn.addEventListener('mousedown', startTalk);
       talkBtn.addEventListener('mouseup', stopTalk);
@@ -1729,7 +1740,28 @@
     });
   }
 
+  function renderRadioChannels(){
+    const panel=$('#detailContainer');if(!panel)return;
+    let bar=$('#empRadioChannels');
+    if(!bar){bar=el('div',{id:'empRadioChannels',className:'emp-radio-channels'});panel.before(bar);}
+    const channels=Store.getIncidents('ALL').filter(i=>i.assignedUnitId&&['EN_CAMINO','EN_ESCENA'].includes(i.status));
+    const sig=JSON.stringify([channels.map(i=>[i.id,i.assignedUnitId,i.status]),radioTargetId,ui.pttIncidentId,ui.pttConnected]);
+    if(bar.dataset.signature===sig)return;
+    bar.dataset.signature=sig;bar.replaceChildren();
+    bar.appendChild(el('strong',{textContent:'Radio PTT · '+(ui.pttConnected?'Canal conectado':'Seleccioná un móvil')}));
+    channels.forEach(i=>{
+      const b=el('button',{type:'button',textContent:String(i.assignedUnitId)+' · '+i.id+(ui.pttIncidentId===i.id?' · CONECTADO':''),onclick:()=>{
+        if(radioConnecting||radioTalking){toast('Finalizá la comunicación actual');return;}
+        if(ui.pttConnected&&ui.pttIncidentId!==i.id){toast('Desconectá el canal actual antes de cambiar de móvil');return;}
+        radioTargetId=i.id;renderRadioChannels();renderFloatingPTT(null);
+      }});
+      b.setAttribute('aria-pressed',String((ui.pttIncidentId||radioTargetId)===i.id));bar.appendChild(b);
+    });
+    if(!channels.length)bar.appendChild(el('span',{textContent:'Sin móviles en camino o en escena'}));
+    renderFloatingPTT(null);
+  }
   function renderAll() {
+    renderRadioChannels();
     renderIncidentWindows();
     renderIncidentTabs();
     renderAlertCounter();
