@@ -46,8 +46,14 @@ jobs:
       - name: Prepare www directory
         run: |
           mkdir -p www
-          cp index.html www/ 2>/dev/null || true
-          cp socio.html www/ 2>/dev/null || true
+          cp index.html www/institucional.html
+          sed 's/href="index\.html"/href="institucional.html"/g' socio.html > www/socio.html
+          cat > www/index.html <<'HTML'
+          <!doctype html>
+          <html lang="es"><head><meta charset="utf-8"><title>EMP Socio</title>
+          <script>location.replace('socio.html' + location.search + location.hash);</script>
+          </head><body><a href="socio.html">Ingresar a Socio</a></body></html>
+          HTML
           cp central.html www/ 2>/dev/null || true
           cp guardia.html www/ 2>/dev/null || true
           cp b2b.html www/ 2>/dev/null || true
@@ -228,6 +234,9 @@ jobs:
           (cd android && ./gradlew assembleRelease)
           APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)
           test -n "$APK"
+          unzip -p "$APK" assets/public/index.html | cmp - www/index.html
+          unzip -p "$APK" assets/public/socio.html | cmp - www/socio.html
+          grep -Fq 'id="btnSOSInicio"' www/socio.html
           TOOLS=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
           test -n "$TOOLS"
           mkdir -p signed-release
