@@ -126,7 +126,14 @@
 
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
-        <div id="detailContainer">
+        <section id="empGroupRadio" hidden style="padding:10px;border:1px solid currentColor;border-radius:8px;margin:8px 0">
+<strong>PTT grupal / general — prueba técnica</strong>
+<select aria-label="Modo de transmisión"><option value="group">Grupal</option><option value="all">General (móviles elegibles)</option></select>
+<div class="group-targets" style="display:grid;gap:4px;margin:8px 0"></div>
+<button type="button" class="group-talk" style="touch-action:none;padding:10px">Mantener para transmitir</button>
+<output style="display:block;margin-top:8px" aria-live="polite"></output>
+</section>
+<div id="detailContainer">
           <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
         </div>
       </section>
@@ -194,5 +201,12 @@
 <script src="js/central-visual.js?v=20261120-central-v1"></script>
 <script src="js/emp-central-solicitudes.js?v=3"></script>
 <style>.emp-service-inbox{margin:14px;padding:16px;border:1px solid #64748b;border-radius:16px;background:#16253d;color:#f8fafc}.emp-service-inbox h2{margin:0 0 12px}.emp-service-card{padding:14px;margin:12px 0;border:1px solid #64748b;border-radius:12px}.emp-service-card p{overflow-wrap:anywhere}.emp-service-card select,.emp-service-card textarea{display:block;width:100%;padding:10px;margin:8px 0;background:#fff;color:#142238;border-radius:8px}.emp-service-card button,.emp-service-toolbar button{padding:11px;background:#0b65c2;color:white;border:0;border-radius:8px;font-weight:700} .emp-service-new-alert{margin:12px;padding:14px;background:#92400e;color:#fff;border-radius:12px;font-weight:800;display:flex;gap:12px;flex-wrap:wrap;align-items:center}.emp-service-new-alert[hidden]{display:none}.emp-service-new-alert button{padding:10px;border-radius:8px;background:#fff;color:#78350f;border:0;font-weight:800}</style>
+<script>
+if(new URLSearchParams(location.search).get('radioTest')==='1'){
+ document.getElementById('empGroupRadio').hidden=false;
+}
+</script>
+<script src="js/central-radio-factory.js?v=1"></script>
+<script src="js/central-group-radio.js?v=1"></script>
 </body>
 </html>
