@@ -1316,7 +1316,7 @@
         } else {
           if(window.E360GroupRadioBusy){toast('Finalizá la transmisión grupal antes de conectar');return;}
           if (!onlineOrToast() || radioConnecting) return;
-          radioConnecting=true;connectBtn.disabled=true;
+          window.E360PauseAudioQueue?.();radioConnecting=true;connectBtn.disabled=true;
           try {
             updatePttVisual(wrapper,'abriendo_canal');
             const sb = Store._getState().supabase;
