@@ -17,7 +17,7 @@
   let currentIncidentId = null;
   let currentRole = null;
   let signalChannel = null;
-  let remoteAudio = null;
+  let remoteAudio = null, remoteSpeaking=false;
   let isPressing = false;
   let isInitialized = false;
 
@@ -97,6 +97,7 @@
         }
       })
       .on('broadcast', { event: 'ptt_start' }, () => {
+        remoteSpeaking=true;
         if (remoteAudio) {
           try {
             remoteAudio.muted = true;
@@ -107,6 +108,7 @@
         }
       })
       .on('broadcast', { event: 'ptt_stop' }, () => {
+        remoteSpeaking=false;
         if (remoteAudio) { global.E360LiveArbiter?.release(currentIncidentId); try { remoteAudio.muted = true; } catch (_) {} }
       });
   }
@@ -137,6 +139,7 @@
       }
       remoteAudio.srcObject = event.streams[0];
       remoteAudio.muted = true;
+      if(remoteSpeaking)global.E360LiveArbiter?.request(currentIncidentId,remoteAudio);
       const playPromise = remoteAudio.play();
       if (playPromise !== undefined) {
         playPromise.catch((e) => {
@@ -317,15 +320,17 @@
       };
     },
 
+    setReceiveVolume(value) { if(remoteAudio) remoteAudio.volume=Math.max(0.2,Math.min(1,Number(value)||1)); },
     unlockAudio() {
       if (!remoteAudio) return Promise.resolve(false);
-      global.E360LiveArbiter?.request(currentIncidentId,remoteAudio);
+      if(remoteSpeaking)global.E360LiveArbiter?.request(currentIncidentId,remoteAudio);
       const p = remoteAudio.play();
       if (p === undefined) return Promise.resolve(true);
       return p.then(() => true).catch(() => false);
     },
 
     destroy() {
+      remoteSpeaking=false;
       global.E360LiveArbiter?.release(currentIncidentId);
       if (pc) { try { pc.close(); } catch (_) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
