@@ -23,7 +23,7 @@ function mount(){
  e.preventDefault();if(busy||e.button!==0)return;
  if(window.E360PTT?.isReady()){status.textContent='Desconectá primero el PTT individual.';return;}
  const rows=targets();if(!rows.length){status.textContent='Seleccioná móviles operativos.';return;}
- busy=true;window.E360GroupRadioBusy=true;held=true;mode.disabled=true;talk.setPointerCapture(e.pointerId);
+ window.E360PauseAudioQueue?.();busy=true;window.E360GroupRadioBusy=true;held=true;mode.disabled=true;talk.setPointerCapture(e.pointerId);
  status.textContent='Preparando '+rows.length+' canales…';
  starting=(async()=>{try{
  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
