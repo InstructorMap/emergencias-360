@@ -1253,6 +1253,39 @@
   }
 
   let radioTargetId=null, radioConnecting=false, radioTalking=false;
+  let recoveryTarget=null,recoveryBusy=false,recoveryNext=0,recoveryAttempts=0;
+  function interruptRadio(){
+    if(!ui.pttConnected||radioConnecting)return;
+    const inc=Store.getIncidentById(ui.pttIncidentId);
+    if(!inc)return;
+    recoveryTarget={id:inc.id,unit:inc.assignedUnitId};
+    const wasTalking=radioTalking||window.E360PTT?.isActive();
+    destroyFloatingPTT();radioTalking=false;radioTargetId=inc.id;
+    recoveryNext=Date.now()+2000;recoveryAttempts=0;
+    toast(wasTalking?'PTT interrumpido: mensaje no confirmado. Volvé a transmitir manualmente.':'PTT interrumpido: recuperando canal');
+    renderRadioChannels();renderFloatingPTT(null);
+  }
+  async function recoverRadio(){
+    if(!navigator.onLine||document.hidden||!Store.isStaff()||radioConnecting||radioTalking||recoveryBusy||window.E360GroupRadioBusy)return;
+    const d=window.E360PTT?.debug?.();
+    if(ui.pttConnected&&d&&(['closed','errored','leaving'].includes(d.channelState)||['failed','disconnected'].includes(d.pcIceState)))interruptRadio();
+    if(!recoveryTarget||Date.now()<recoveryNext)return;
+    const target=recoveryTarget;recoveryBusy=true;radioConnecting=true;window.E360IndividualRadioConnecting=true;
+    try{
+      await Store.refreshIncidentsNow(true);
+      if(recoveryTarget!==target||!navigator.onLine)return;
+      const inc=Store.getIncidentById(target.id);
+      if(!inc||inc.assignedUnitId!==target.unit||!['EN_CAMINO','EN_ESCENA'].includes(inc.status)){recoveryTarget=null;radioTargetId=null;toast('PTT: asignación modificada; seleccioná un móvil');return;}
+      window.E360PauseAudioQueue?.();
+      const ok=await window.E360PTT.init(Store._getState().supabase,target.id,'central');
+      if(!ok||!navigator.onLine||recoveryTarget!==target){window.E360PTT.destroy();throw Error('Canal no confirmado');}
+      ui.pttIncidentId=target.id;ui.pttConnected=true;radioTargetId=target.id;recoveryTarget=null;toast('PTT recuperado: recepción de voz aún no confirmada');
+    }catch(e){window.E360PTT?.destroy();recoveryNext=Date.now()+Math.min(60000,2000*2**Math.min(recoveryAttempts++,5));}
+    finally{recoveryBusy=false;radioConnecting=false;window.E360IndividualRadioConnecting=false;renderRadioChannels();renderFloatingPTT(null);}
+  }
+  window.addEventListener('offline',interruptRadio);
+  window.addEventListener('online',recoverRadio);
+  setInterval(recoverRadio,3000);
   function renderFloatingPTT(incident) {
     if(radioConnecting || radioTalking)return;
     incident=Store.getIncidentById(ui.pttIncidentId || radioTargetId || '') || null;
@@ -1316,6 +1349,7 @@
           renderRadioChannels();renderDetail();
         } else {
           if(window.E360GroupRadioBusy){toast('Finalizá la transmisión grupal antes de conectar');return;}
+          recoveryTarget=null;
           if (!onlineOrToast() || radioConnecting) return;
           window.E360PauseAudioQueue?.();radioConnecting=true;window.E360IndividualRadioConnecting=true;connectBtn.disabled=true;
           try {
@@ -1348,7 +1382,7 @@
     if (isConnected) {
       const startTalk = async (e) => {
         if (e) e.preventDefault();
-        if (!onlineOrToast() || radioTalking) return;
+        if (!onlineOrToast() || radioTalking || radioConnecting || !ui.pttConnected) return;
         radioTalking=true;
         try {
           const sb = Store._getState().supabase;
@@ -1755,7 +1789,7 @@
       const b=el('button',{type:'button',textContent:String(i.assignedUnitId)+' · '+i.id+(ui.pttIncidentId===i.id?' · CONECTADO':''),onclick:()=>{
         if(radioConnecting||radioTalking){toast('Finalizá la comunicación actual');return;}
         if(ui.pttConnected&&ui.pttIncidentId!==i.id){toast('Desconectá el canal actual antes de cambiar de móvil');return;}
-        radioTargetId=i.id;renderRadioChannels();renderFloatingPTT(null);
+        recoveryTarget=null;radioTargetId=i.id;renderRadioChannels();renderFloatingPTT(null);
       }});
       b.setAttribute('aria-pressed',String((ui.pttIncidentId||radioTargetId)===i.id));bar.appendChild(b);
     });
