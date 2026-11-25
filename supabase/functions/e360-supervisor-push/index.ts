@@ -80,20 +80,20 @@ serve(async req => {
   const key = req.headers.get('x-worker-key');
   if (!key || !/^[0-9a-f]{64}$/.test(key)) return new Response(null,{status:403});
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {auth:{persistSession:false}});
-  const {data: jobs,error} = await db.rpc('e360_claim_supervisor_push',{worker_key:key});
+  const {data: jobs,error} = await db.rpc('e360_claim_dispatch_push',{worker_key:key});
   if (error) return new Response(null,{status:error.code==='42501'?403:503});
   if (!jobs?.length) return new Response(null,{status:204});
   const account = JSON.parse(Deno.env.get('FCM_SERVICE_ACCOUNT')!);
   let bearer: string | undefined;
   try { bearer = await getGoogleAccessToken(account); } catch { /* Retry each claimed delivery. */ }
-  await Promise.all(jobs.map(async (job: {delivery_id:string,claim_id:string,device_token:string}) => {
+  await Promise.all(jobs.map(async (job: {delivery_id:string,claim_id:string,device_token:string,kind:string}) => {
     let outcome = 'retry';
     if (bearer) {
       try {
         const response = await fetch('https://fcm.googleapis.com/v1/projects/'+encodeURIComponent(account.project_id)+'/messages:send',{
           method:'POST',signal:AbortSignal.timeout(10000),
           headers:{Authorization:'Bearer '+bearer,'Content-Type':'application/json'},
-          body:JSON.stringify({message:{token:job.device_token,notification:{title:'Emergencias 360',body:'SOS pendiente de reconocimiento. Abrí Central.'},
+          body:JSON.stringify({message:{token:job.device_token,notification:{title:'Emergencias 360',body:job.kind==='ack'?'Central confirmó la recepción de tu SOS.':'SOS pendiente de reconocimiento. Abrí Central.'},
             android:{priority:'high',ttl:'60s',notification:{tag:job.delivery_id}}}})
         });
         if (response.ok) outcome='accepted';

@@ -301,7 +301,37 @@
     if (app) app.hidden = true;
   }
 
+  let registeringDevice = false;
+  let tokenListener = null;
+
+  async function syncSocioDevice() {
+    if (registeringDevice || !Store.isLoggedIn() || !window.E360Capacitor?.isNative) return;
+    const messaging = window.Capacitor?.Plugins?.FirebaseMessaging;
+    if (!messaging || navigator.onLine === false) return;
+    registeringDevice = true;
+    try {
+      const owner = Store.getUser()?.id;
+      const permission = await messaging.requestPermissions();
+      if (permission.receive !== 'granted') return;
+      if (!tokenListener) {
+        tokenListener = await messaging.addListener('tokenReceived', () => {
+          setTimeout(syncSocioDevice, 0);
+        });
+      }
+      const { token } = await messaging.getToken();
+      if (!token || !owner || owner !== Store.getUser()?.id) return;
+      const { error } = await Store._getState().supabase.rpc('e360_register_socio_device', { fcm_token: token });
+      if (error) throw error;
+    } catch {
+      console.warn('[Socio] Registro de notificaciones pendiente.');
+    } finally {
+      registeringDevice = false;
+    }
+  }
+
+  window.addEventListener('online', syncSocioDevice);
   function hideLogin() {
+    void syncSocioDevice();
     const overlay = $('#loginOverlay');
     if (overlay) overlay.hidden = true;
     const app = $('#appNormal');
