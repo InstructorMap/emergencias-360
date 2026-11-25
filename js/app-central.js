@@ -97,6 +97,7 @@
     {file:'03_Alerta_Triple_Despacho.wav',name:'Triple despacho'}
   ];
   const emergencyAlert = {initialized:false,known:new Set(),active:new Map(),enabled:false,timer:null,player:null,preview:null,choice:0};
+  const sosSnooze=new Map();
   function pendingAlerts(){return Store.getIncidents('ALL').filter(i=>i.status==='RECIBIDA_SERVIDOR');}
   function alertLabel(inc){return [inc.priority||'SIN TRIAGE',inc.baseId||'BASE SIN DEFINIR',inc.manualAddress||'Ubicación en incidente'].join(' · ');}
   window.E360SetAlarmVolume=function(v){window.E360AlarmVolume=Math.max(.5,Math.min(1,Number(v)||1));for(const p of [emergencyAlert.player,emergencyAlert.preview])if(p)p.volume=window.E360AlarmVolume;};
@@ -155,17 +156,17 @@
     const view=el('button',{type:'button',textContent:'VER INCIDENTE',onclick:()=>{
       ui.baseFilter='ALL';const sel=document.getElementById('centralBaseSelector');if(sel)sel.value='ALL';
       ui.incidentFilter='active';document.querySelectorAll('.btn-incident-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter==='active'));
-      if(!openIncident(inc.id))return;emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();renderAll();
+      if(!openIncident(inc.id))return;sosSnooze.set(String(inc.id),Date.now()+15000);emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();renderAll();
       document.querySelector('.central-col-2')?.scrollIntoView({behavior:'smooth',block:'start'});
     }});
-    const dismiss=el('button',{type:'button',textContent:'SILENCIAR / CERRAR AVISO',onclick:()=>{
+    const dismiss=el('button',{type:'button',textContent:'POSPONER AVISO 15 s (sin reconocer)',onclick:()=>{
       emergencyAlert.active.delete(String(inc.id));renderEmergencyOverlay();
     }});
     actions.append(view,dismiss);overlay.appendChild(actions);
     if(items.length>1) items.slice(1).forEach(other=>{
       overlay.appendChild(el('button',{type:'button',textContent:'Abrir '+other.id+' · '+alertLabel(other),onclick:()=>{
         if(!openIncident(other.id))return;
-        emergencyAlert.active.delete(String(other.id));renderEmergencyOverlay();
+        sosSnooze.set(String(other.id),Date.now()+15000);emergencyAlert.active.delete(String(other.id));renderEmergencyOverlay();
       }}));
     });
     if(emergencyAlert.enabled&&!emergencyAlert.timer){playEmergencyTone();emergencyAlert.timer=setInterval(playEmergencyTone,6000);}
@@ -181,7 +182,7 @@
     }
     pending.forEach(inc=>{
       const id=String(inc.id);
-      if(!emergencyAlert.known.has(id)){
+      if(!emergencyAlert.known.has(id)||(!emergencyAlert.active.has(id)&&Date.now()>=(sosSnooze.get(id)||0))){
         emergencyAlert.known.add(id);
         emergencyAlert.active.set(id,inc);
       }
@@ -189,6 +190,7 @@
     for(const id of emergencyAlert.active.keys())if(!ids.has(id))emergencyAlert.active.delete(id);
     renderEmergencyOverlay();
   }
+  window.E360OpenPendingSOS=id=>{ui.baseFilter='ALL';ui.incidentFilter='active';if(openIncident(id)){renderAll();document.querySelector('.central-col-2')?.scrollIntoView({block:'start'});}};
   function initEmergencyAudio(){
     const controls=document.querySelector('.header-controls');
     if(!controls||document.getElementById('btnEmergencySound'))return;
