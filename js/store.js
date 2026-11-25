@@ -562,15 +562,15 @@
   // No sustituye FCM: el polling solo funciona con la aplicación abierta.
   let incidentPollTimer = null;
   let incidentPollBusy = false;
-  async function refreshIncidentsFallback() {
-    if (incidentPollBusy || !state.connected || !state.supabase || !state.session) return;
-    if (typeof document !== 'undefined' && document.hidden) return;
+  async function refreshIncidentsFallback(strict=false) {
+    if (incidentPollBusy || !state.connected || !state.supabase || !state.session) {if(strict===true)throw Error('Sincronización no disponible o en curso');return;}
+    if (typeof document !== 'undefined' && document.hidden) {if(strict===true)throw Error('Central en segundo plano');return;}
     incidentPollBusy = true;
     try {
       const { data, error } = await state.supabase.from('incidents')
         .select('*').order('created_at', { ascending: false }).limit(200);
-      if (error) { console.error('[E360Store] No se pudo sincronizar SOS:', error.message); return; }
-      if (!data) return;
+      if (error) { if(strict===true)throw error;console.error('[E360Store] No se pudo sincronizar SOS:', error.message); return; }
+      if (!data) {if(strict===true)throw Error('Respuesta sin datos');return;}
       const next = data.map(mapIncidentFromDB);
       const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation, i.supportRequests]));
       if (fingerprint(next) !== fingerprint(state.incidents)) {
@@ -581,7 +581,7 @@
         saveCache();
         emitStateChanged('poll-fallback');
       }
-    } catch (e) { console.warn('[E360Store] fallback sync:', e); }
+    } catch (e) { if(strict===true)throw e;console.warn('[E360Store] fallback sync:', e); }
     finally { incidentPollBusy = false; }
   }
   function startIncidentFallback() {
@@ -609,7 +609,7 @@
       return { loggedIn: false, mode: 'SUPABASE_LIVE' };
     },
 
-    async refreshIncidentsNow() { await refreshIncidentsFallback(); return this.getIncidents('ALL'); },
+    async refreshIncidentsNow(strict=false) { await refreshIncidentsFallback(strict); return this.getIncidents('ALL'); },
     login, loginWithEmail, logout, changePassword,
     getSession() { return state.session ? { ...state.session } : null; },
     getUser() { return state.user ? { ...state.user } : null; },
