@@ -191,6 +191,7 @@
     renderEmergencyOverlay();
   }
   window.E360OpenPendingSOS=id=>{ui.baseFilter='ALL';ui.incidentFilter='active';if(openIncident(id)){renderAll();document.querySelector('.central-col-2')?.scrollIntoView({block:'start'});}};
+  window.E360SupervisorSOS=id=>{if(!Store.isAdmin())return;toast('SUPERVISIÓN: SOS '+id+' sin reconocimiento. Requiere intervención.');};
   function initEmergencyAudio(){
     const controls=document.querySelector('.header-controls');
     if(!controls||document.getElementById('btnEmergencySound'))return;
