@@ -4,6 +4,7 @@ const Store=window.E360Store;
 let sessions=[],stream=null,busy=false,held=false,starting=null,stopping=false;
 const active=()=>Store.getIncidents('ALL').filter(i=>i.assignedUnitId&&['EN_CAMINO','EN_ESCENA'].includes(i.status));
 const selected=new Set();
+window.E360SetGroupVolume=v=>sessions.forEach(s=>s.radio.setReceiveVolume?.(v));
 function cleanup(){sessions.forEach(s=>s.radio.destroy());sessions=[];if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;}
 function mount(){
  const host=document.getElementById('empGroupRadio');if(!host||host.hidden)return;
@@ -21,7 +22,7 @@ function mount(){
  }
  async function start(e){
  e.preventDefault();if(busy||e.button!==0)return;
- if(window.E360PTT?.isReady()){status.textContent='Desconectá primero el PTT individual.';return;}
+ if(window.E360PTT?.isReady()||window.E360IndividualRadioConnecting){status.textContent='Desconectá primero el PTT individual.';return;}
  const rows=targets();if(!rows.length){status.textContent='Seleccioná móviles operativos.';return;}
  window.E360PauseAudioQueue?.();busy=true;window.E360GroupRadioBusy=true;held=true;mode.disabled=true;talk.setPointerCapture(e.pointerId);
  status.textContent='Preparando '+rows.length+' canales…';
