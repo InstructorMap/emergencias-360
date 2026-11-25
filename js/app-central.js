@@ -1314,6 +1314,7 @@
           toast('PTT desconectado');
           renderRadioChannels();renderDetail();
         } else {
+          if(window.E360GroupRadioBusy){toast('Finalizá la transmisión grupal antes de conectar');return;}
           if (!onlineOrToast() || radioConnecting) return;
           radioConnecting=true;connectBtn.disabled=true;
           try {
