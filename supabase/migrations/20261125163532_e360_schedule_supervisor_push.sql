@@ -1,0 +1,1 @@
+select cron.schedule('e360-supervisor-push','15 seconds','select e360_audit.schedule_supervisor_push()');
