@@ -137,7 +137,7 @@
       overlay.setAttribute('aria-label','Emergencia entrante');
       document.body.appendChild(overlay);
     }
-    const items = Array.from(emergencyAlert.active.values());
+    const items = Array.from(emergencyAlert.active.values()).sort(compareIncidents);
     overlay.hidden = items.length === 0;
     if (!items.length) { delete overlay.dataset.renderSignature; stopEmergencyTone(); return; }
     const signature=JSON.stringify(items.map(i=>[i.id,alertLabel(i)]));
@@ -610,6 +610,54 @@
     ui.lastPendingCount = pending;
   }
 
+  let incidentQueueFilter='all';
+  function incidentRank(i){
+    const p=String(i.priority||'').toUpperCase();
+    return ({ROJO:0,AMARILLO:2,VERDE:3})[p]??1;
+  }
+  function compareIncidents(a,b){
+    return incidentRank(a)-incidentRank(b) ||
+      Number(!!b.supportRequests?.length)-Number(!!a.supportRequests?.length) ||
+      Number(b.status==='RECIBIDA_SERVIDOR')-Number(a.status==='RECIBIDA_SERVIDOR') ||
+      (Date.parse(a.createdAt)||Infinity)-(Date.parse(b.createdAt)||Infinity) ||
+      String(a.id).localeCompare(String(b.id));
+  }
+  function incidentClock(i,phase=false){
+    const history=(i.statusHistory||[]).filter(h=>Number.isFinite(Date.parse(h.ts))).sort((a,b)=>Date.parse(a.ts)-Date.parse(b.ts));
+    const closed=['CERRADA','CANCELADA'].includes(i.status);
+    const last=history.filter(h=>h.status===i.status).at(-1);
+    const start=Date.parse(phase?(last?.ts||(i.status==='RECIBIDA_SERVIDOR'?i.createdAt:null)):i.createdAt);
+    const end=closed?Date.parse(last?.ts):Date.now();
+    if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return 'Sin dato';
+    const seconds=Math.floor((end-start)/1000);
+    return [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(n=>String(n).padStart(2,'0')).join(':');
+  }
+  function clockNode(i,phase=false){
+    const n=el('span',{className:'emp-incident-clock',textContent:incidentClock(i,phase)});
+    n.dataset.clockIncident=String(i.id);n.dataset.clockPhase=phase?'1':'0';return n;
+  }
+  function updateIncidentClocks(){
+    document.querySelectorAll('[data-clock-incident]').forEach(n=>{
+      const i=Store.getIncidentById(n.dataset.clockIncident);
+      const value=i?incidentClock(i,n.dataset.clockPhase==='1'):'Sin dato';
+      if(n.textContent!==value)n.textContent=value;
+    });
+  }
+  function renderQueueControls(list,active){
+    let bar=$('#empQueueControls');
+    if(!bar){
+      bar=el('div',{id:'empQueueControls',className:'emp-queue-controls'});
+      const summary=el('div',{id:'empQueueSummary'});
+      const select=el('select',{id:'empQueueFilter','aria-label':'Filtrar bandeja de incidentes'});
+      [['all','Todos'],['pending','Sin reconocimiento'],['red','Prioridad roja'],['untriaged','Sin triage'],['support','Solicitudes de apoyo']].forEach(([v,t])=>select.appendChild(el('option',{value:v,textContent:t})));
+      select.addEventListener('change',()=>{incidentQueueFilter=select.value;renderIncidentList();});
+      bar.append(summary,select);list.before(bar);
+    }
+    bar.hidden=ui.incidentFilter!=='active';
+    const summary=$('#empQueueSummary');
+    const value=active.length+' activos · '+active.filter(i=>i.status==='RECIBIDA_SERVIDOR').length+' sin reconocer · '+active.filter(i=>incidentRank(i)===0).length+' rojos';
+    if(summary.textContent!==value)summary.textContent=value;
+  }
   function renderIncidentList() {
     const list = $('#incidentList');
     const empty = $('#incidentEmpty');
@@ -619,6 +667,10 @@
     let items = ui.incidentFilter === 'active'
       ? all.filter(i => !closedStates.includes(i.status))
       : all.filter(i => closedStates.includes(i.status));
+    renderQueueControls(list,all.filter(i=>!closedStates.includes(i.status)));
+    if(ui.incidentFilter==='active'){
+      items=items.filter(i=>incidentQueueFilter==='all'||(incidentQueueFilter==='pending'&&i.status==='RECIBIDA_SERVIDOR')||(incidentQueueFilter==='red'&&incidentRank(i)===0)||(incidentQueueFilter==='untriaged'&&!i.priority)||(incidentQueueFilter==='support'&&!!i.supportRequests?.length)).sort(compareIncidents);
+    }else items=items.slice().sort((a,b)=>(Date.parse(b.createdAt)||0)-(Date.parse(a.createdAt)||0));
     const signature = JSON.stringify([ui.selectedIncidentId,items.map(i=>[i.id,i.createdAt,i.status,i.priority,i.baseId,i.manualAddress,i.location,!!i.supportRequests?.length])]);
     if (list.dataset.renderSignature === signature) return;
     list.dataset.renderSignature = signature;
@@ -642,6 +694,7 @@
           inc.priority ? el('span', { className: 'badge badge-priority-' + inc.priority, textContent: inc.priority }) : null,
           hasSupport ? el('span', { className: 'badge badge-priority-ROJO', textContent: '🚨 PIDE APOYO' }) : null
         ].filter(Boolean)),
+        el('div',{className:'emp-clock-row'},[el('span',{textContent:'Total: '}),clockNode(inc),el('span',{textContent:' · Estado: '}),clockNode(inc,true)]),
         el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || 'DOLORES') + ' · ' + (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
       ]));
     });
@@ -695,6 +748,7 @@
       const sig=JSON.stringify(fields);if(w.signature===sig)return;w.signature=sig;
       w.body.replaceChildren();
       fields.forEach(([label,value])=>{const row=el('div',{className:'emp-window-field'});row.append(el('strong',{textContent:label}),el('span',{textContent:String(value??'Sin dato')}));w.body.appendChild(row);});
+      if(i)w.body.appendChild(el('div',{className:'emp-clock-row'},[el('span',{textContent:'Total: '}),clockNode(i),el('span',{textContent:' · Estado: '}),clockNode(i,true)]));
       w.body.appendChild(el('button',{type:'button',className:'emp-window-manage',textContent:'Gestionar incidente en panel principal',onclick:()=>{if(openIncident(id))w.node.classList.add('is-minimized');}}));
     });
   }
@@ -1724,6 +1778,7 @@
     const syncButton=el('button',{type:'button',className:'btn-emergency-sound',textContent:'↻ Actualizar SOS',onclick:syncSOS});
     document.querySelector('.header-controls')?.prepend(syncButton);
     setInterval(syncSOS,5000);
+    setInterval(updateIncidentClocks,1000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSOS();});
     syncSOS();
     setInterval(async () => { try { await Store.refreshFleet(); } catch (e) { console.warn('[Central] Flota:', e); } await refreshActiveCrew(); renderMapMarkers(); }, 15000);
