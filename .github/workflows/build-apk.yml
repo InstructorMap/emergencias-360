@@ -199,33 +199,19 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Debug APK
+        if: github.event_name == 'pull_request'
         run: cd android && ./gradlew assembleDebug
 
       - name: Upload APK artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: emp-emergencias-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        with:
-          tag_name: v1.1.${{ github.run_number }}
-          name: "EMP Emergencias v1.1.${{ github.run_number }}"
-          body: |
-            APK generada automáticamente desde el commit ${{ github.sha }} (incluye Push SOS FCM).
-
-            **Instalación:** descargá `app-debug.apk`, pasalo al teléfono Android, habilitá "orígenes desconocidos" e instalá.
-
-            **Link directo:** https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk
-          files: android/app/build/outputs/apk/debug/app-debug.apk
-          draft: false
-          prerelease: false
-
       - name: Build and verify institutional signed release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           EMP_KEYSTORE_BASE64: ${{ secrets.EMP_KEYSTORE_BASE64 }}
           EMP_KEYSTORE_PASSWORD: ${{ secrets.EMP_KEYSTORE_PASSWORD }}
@@ -250,10 +236,26 @@ jobs:
           "$TOOLS" verify --verbose --print-certs signed-release/EMP-socio-release.apk
 
       - name: Upload institutional signed APK
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: actions/upload-artifact@v4
         with:
           name: EMP-socio-Release-Signed
           path: signed-release/EMP-socio-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Preserve existing Socio download links
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: cp signed-release/EMP-socio-release.apk signed-release/app-debug.apk
+
+      - name: Publish verified institutional Socio APK
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.${{ github.run_number }}
+          name: EMP Socio v1.1.${{ github.run_number }}
+          files: |
+            signed-release/EMP-socio-release.apk
+            signed-release/app-debug.apk
+          fail_on_unmatched_files: true
+          body: APK Socio firmada con el certificado institucional EMP. El archivo app-debug.apk es una copia idéntica para compatibilidad con enlaces anteriores.
