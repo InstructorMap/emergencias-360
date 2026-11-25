@@ -657,6 +657,48 @@
 
   const openIncidents=new Set(), incidentDrafts=new Map();
   let actionBusy=0;
+  const incidentWindows=new Map();
+  let windowZ=100;
+  function openIncidentWindow(id){
+    if(incidentWindows.has(id)){
+      const w=incidentWindows.get(id);w.node.classList.remove('is-minimized');w.node.style.zIndex=String(++windowZ);return;
+    }
+    const node=el('section',{className:'emp-incident-window'});
+    node.setAttribute('aria-label','Ventana de incidente '+id);
+    const header=el('div',{className:'emp-window-header'});
+    const title=el('strong',{textContent:String(id)});
+    const body=el('div',{className:'emp-window-body'});
+    const controls=el('div',{className:'emp-window-controls'});
+    const button=(label,tip,fn)=>el('button',{type:'button',textContent:label,title:tip,onclick:fn});
+    const w={node,body,title,signature:null};
+    controls.append(button('−','Minimizar o restaurar',()=>{node.classList.remove('is-maximized');node.classList.toggle('is-minimized');}),button('□','Ampliar o restaurar',()=>{node.classList.remove('is-minimized');node.classList.toggle('is-maximized');}),button('×','Cerrar ventana sin cerrar incidente',()=>{node.remove();incidentWindows.delete(id);}));
+    header.append(title,controls);node.append(header,body);
+    const offset=(incidentWindows.size%6)*24;
+    node.style.left=Math.min(24+offset,Math.max(0,innerWidth-300))+'px';
+    node.style.top=Math.min(90+offset,Math.max(0,innerHeight-100))+'px';
+    node.style.zIndex=String(++windowZ);
+    node.addEventListener('pointerdown',()=>{node.style.zIndex=String(++windowZ);});
+    header.addEventListener('pointerdown',e=>{
+      if(e.button!==0||e.target.closest('button')||node.classList.contains('is-maximized'))return;
+      const rect=node.getBoundingClientRect(),dx=e.clientX-rect.left,dy=e.clientY-rect.top;
+      header.setPointerCapture(e.pointerId);
+      const move=ev=>{node.style.left=Math.max(0,Math.min(innerWidth-node.offsetWidth,ev.clientX-dx))+'px';node.style.top=Math.max(0,Math.min(innerHeight-44,ev.clientY-dy))+'px';};
+      const stop=()=>{header.removeEventListener('pointermove',move);header.removeEventListener('pointerup',stop);header.removeEventListener('pointercancel',stop);};
+      header.addEventListener('pointermove',move);header.addEventListener('pointerup',stop);header.addEventListener('pointercancel',stop);
+    });
+    incidentWindows.set(id,w);document.body.appendChild(node);renderIncidentWindows();
+  }
+  function renderIncidentWindows(){
+    incidentWindows.forEach((w,id)=>{
+      const i=Store.getIncidentById(id);
+      const fields=i?[['Estado',i.status],['Prioridad',i.priority],['Base',i.baseId],['Móvil',i.assignedUnitId],['Dirección',i.manualAddress],['Recepción',i.createdAt?fmtTime(i.createdAt):null],['Apoyo',i.supportRequests?.length||0]]:[['Estado','No disponible']];
+      const sig=JSON.stringify(fields);if(w.signature===sig)return;w.signature=sig;
+      w.body.replaceChildren();
+      fields.forEach(([label,value])=>{const row=el('div',{className:'emp-window-field'});row.append(el('strong',{textContent:label}),el('span',{textContent:String(value??'Sin dato')}));w.body.appendChild(row);});
+      w.body.appendChild(el('button',{type:'button',className:'emp-window-manage',textContent:'Gestionar incidente en panel principal',onclick:()=>{if(openIncident(id))w.node.classList.add('is-minimized');}}));
+    });
+  }
+  window.addEventListener('resize',()=>incidentWindows.forEach(({node})=>{node.style.left=Math.max(0,Math.min(node.offsetLeft,innerWidth-node.offsetWidth))+'px';node.style.top=Math.max(0,Math.min(node.offsetTop,innerHeight-44))+'px';}));
   function saveIncidentDraft(){
     const panel=$('#detailContainer');
     if(!panel?.dataset.incidentKey)return;
@@ -691,7 +733,7 @@
         if(ui.selectedIncidentId===id){ui.selectedIncidentId=Array.from(openIncidents).at(-1)||null;renderDetail();}
         renderIncidentTabs();renderIncidentList();renderMapMarkers();
       }});
-      item.append(select,close);bar.appendChild(item);
+      item.append(select,el('button',{type:'button',textContent:'↗',title:'Abrir ventana independiente',onclick:()=>openIncidentWindow(id)}),close);bar.appendChild(item);
     });
   }
   let detailGeneration=0, detailSignature='', silentTimer=null, pointerHeld=false;
@@ -700,6 +742,7 @@
     return JSON.stringify([ui.selectedIncidentId,inc,inc ? Store.getFleet(inc.baseId).map(u=>[u.id,u.status]) : []]);
   }
   function renderSilent(){
+    renderIncidentWindows();
     renderIncidentTabs();
     renderAlertCounter();
     renderIncidentList();
@@ -1633,6 +1676,7 @@
   }
 
   function renderAll() {
+    renderIncidentWindows();
     renderIncidentTabs();
     renderAlertCounter();
     renderIncidentList();
