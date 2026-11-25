@@ -99,14 +99,15 @@
       .on('broadcast', { event: 'ptt_start' }, () => {
         if (remoteAudio) {
           try {
-            remoteAudio.muted = false;
+            remoteAudio.muted = true;
+            global.E360LiveArbiter?.request(currentIncidentId,remoteAudio);
             const p = remoteAudio.play();
             if (p !== undefined) p.catch(() => {});
           } catch (_) {}
         }
       })
       .on('broadcast', { event: 'ptt_stop' }, () => {
-        if (remoteAudio) { try { remoteAudio.muted = true; } catch (_) {} }
+        if (remoteAudio) { global.E360LiveArbiter?.release(currentIncidentId); try { remoteAudio.muted = true; } catch (_) {} }
       });
   }
 
@@ -135,7 +136,7 @@
         remoteAudio.playsInline = true;
       }
       remoteAudio.srcObject = event.streams[0];
-      remoteAudio.muted = false;
+      remoteAudio.muted = true;
       const playPromise = remoteAudio.play();
       if (playPromise !== undefined) {
         playPromise.catch((e) => {
@@ -318,13 +319,14 @@
 
     unlockAudio() {
       if (!remoteAudio) return Promise.resolve(false);
-      remoteAudio.muted = false;
+      global.E360LiveArbiter?.request(currentIncidentId,remoteAudio);
       const p = remoteAudio.play();
       if (p === undefined) return Promise.resolve(true);
       return p.then(() => true).catch(() => false);
     },
 
     destroy() {
+      global.E360LiveArbiter?.release(currentIncidentId);
       if (pc) { try { pc.close(); } catch (_) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
       if (signalChannel) { try { signalChannel.unsubscribe(); } catch (_) {} signalChannel = null; }
