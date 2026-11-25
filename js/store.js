@@ -443,6 +443,28 @@
     { id:'mov_cos_02',baseId:'LA_COSTA',unit:'AMB-12',tipoUnidad:'PEDIATRICA_CON_INCUBADORA',status:'disponible',active:true }
   ];
 
+  async function fetchVisibleIncidents(sb, includeAllActive) {
+    const { data: recent, error } = await sb.from('incidents').select('*')
+      .order('created_at', { ascending: false }).order('id').limit(200);
+    if (error) throw error;
+    if (!includeAllActive) return recent;
+
+    const rows = new Map(recent.map(row => [row.id, row]));
+    const pageSize = 200;
+    let cursor = null;
+    while (true) {
+      let query = sb.from('incidents').select('*')
+        .not('status', 'in', '(CERRADA,CANCELADA)').order('id').limit(pageSize);
+      if (cursor !== null) query = query.gt('id', cursor);
+      const { data: active, error: activeError } = await query;
+      if (activeError) throw activeError;
+      for (const row of active) rows.set(row.id, row);
+      if (active.length < pageSize) break;
+      cursor = active[active.length - 1].id;
+    }
+    return Array.from(rows.values()).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }
+
   // ============ CARGA ============
   async function loadAllData() {
     if (!state.connected || !state.supabase) return;
@@ -464,8 +486,12 @@
       if (!fleetError && fleetData) state.fleet = fleetData.map(mapAmbulanceFromDB);
       else console.warn('[EMP] Flota Supabase no disponible:', fleetError && fleetError.message);
 
-      const { data: inc } = await sb.from('incidents').select('*').order('created_at', { ascending: false }).limit(200);
-      if (inc) state.incidents = inc.map(mapIncidentFromDB);
+      try {
+        const incidents = await fetchVisibleIncidents(sb, E360Store.isStaff());
+        if (state.user?.id === userId) state.incidents = incidents.map(mapIncidentFromDB);
+      } catch (e) {
+        console.warn('[E360Store] Incidentes Supabase no disponibles:', e.message);
+      }
 
       if (state.profile) {
         const { data: myInc } = await sb.from('incidents').select('*').eq('profile_dni', state.profile.dni).order('created_at', { ascending: false }).limit(50);
@@ -567,10 +593,12 @@
     if (typeof document !== 'undefined' && document.hidden) {if(strict===true)throw Error('Central en segundo plano');return;}
     incidentPollBusy = true;
     try {
-      const { data, error } = await state.supabase.from('incidents')
-        .select('*').order('created_at', { ascending: false }).limit(200);
-      if (error) { if(strict===true)throw error;console.error('[E360Store] No se pudo sincronizar SOS:', error.message); return; }
-      if (!data) {if(strict===true)throw Error('Respuesta sin datos');return;}
+      const userId = state.user?.id;
+      const data = await fetchVisibleIncidents(state.supabase, E360Store.isStaff());
+      if (!state.session || state.user?.id !== userId) {
+        if (strict === true) throw new Error('La sesión cambió durante la sincronización');
+        return;
+      }
       const next = data.map(mapIncidentFromDB);
       const fingerprint = items => JSON.stringify(items.map(i => [i.id, i.status, i.assignedUnitId, i.statusHistory, i.unitLocation, i.supportRequests]));
       if (fingerprint(next) !== fingerprint(state.incidents)) {
