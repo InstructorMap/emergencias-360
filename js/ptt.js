@@ -17,6 +17,11 @@
   let currentRole = null;
   let signalChannel = null;
   let remoteAudio = null;
+  let sessionGeneration = 0;
+  let pressGeneration = 0;
+  function muteMicrophone() {
+    localStream?.getAudioTracks().forEach(track => { track.enabled = false; });
+  }
   let isPressing = false;
   let isInitialized = false;
 
@@ -48,6 +53,7 @@
   }
 
   async function initSignaling(supabase, incidentId, role) {
+    const generation = sessionGeneration;
     currentIncidentId = incidentId;
     currentRole = role;
 
@@ -60,6 +66,11 @@
 
     await new Promise((resolve, reject) => {
       signalChannel.subscribe((status, err) => {
+        if (generation !== sessionGeneration) { reject(new Error('Canal cerrado')); return; }
+        if (isInitialized && currentRole === 'guardia' && ['CLOSED','CHANNEL_ERROR','TIMED_OUT'].includes(status)) {
+          global.dispatchEvent(new Event('e360-guardia-radio-interrupted'));
+          return;
+        }
         if (status === 'SUBSCRIBED') {
           resolve();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -69,6 +80,7 @@
       });
     });
 
+    if (generation !== sessionGeneration) throw new Error('Canal interrumpido');
     signalChannel
       .on('broadcast', { event: 'ptt_offer' }, async ({ payload }) => {
         if (payload.from === currentRole) return;
@@ -111,7 +123,9 @@
 
   async function createPeerConnection(supabase) {
     if (pc) { try { pc.close(); } catch (_) {} pc = null; }
+    const generation = sessionGeneration;
     const iceServers = await fetchIceServers(supabase);
+    if (generation !== sessionGeneration) throw new Error('Canal cerrado');
     pc = new RTCPeerConnection({ iceServers });
 
     pc.onicecandidate = (event) => {
@@ -124,7 +138,9 @@
     };
 
     pc.oniceconnectionstatechange = () => {
-      if (pc) console.log('[ptt] ICE state:', pc.iceConnectionState);
+      if (pc && currentRole === 'guardia' && ['failed','disconnected'].includes(pc.iceConnectionState)) {
+        global.dispatchEvent(new Event('e360-guardia-radio-interrupted'));
+      }
     };
 
     pc.ontrack = (event) => {
@@ -175,17 +191,9 @@
   }
 
   async function handleOffer(supabase, sdp) {
-    if (!localStream) {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        lastSignalingError = 'getUserMedia: ' + e.message;
-        console.warn('[ptt] Central sin micrófono:', e);
-        return;
-      }
-    }
+    // Incoming offers are receive-only. A local press creates its own sending peer.
+    if (!signalChannel) return;
     await createPeerConnection(supabase);
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
@@ -201,17 +209,7 @@
   }
 
   async function startRecording() {
-    let streamOk = localStream && localStream.getAudioTracks().some(t => t.readyState === 'live');
-    if (!streamOk) {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true }
-        });
-      } catch (e) {
-        console.warn('[ptt] No se pudo recrear el micrófono:', e);
-        return;
-      }
-    }
+    if (!isPressing || !localStream?.getAudioTracks().some(t => t.readyState === 'live')) return;
 
     recordedChunks = [];
     try {
@@ -226,10 +224,11 @@
   async function stopRecordingAndUpload(supabase) {
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return null;
     return new Promise((resolve) => {
+      const incidentId = currentIncidentId;
       mediaRecorder.onstop = async () => {
         if (recordedChunks.length === 0) { resolve(null); return; }
         const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-        const fileName = 'audio/' + currentIncidentId + '/ptt_' + Date.now() + '.webm';
+        const fileName = 'audio/' + incidentId + '/ptt_' + Date.now() + '.webm';
         try {
           const { data, error } = await supabase.storage
             .from('incident-media')
@@ -237,7 +236,7 @@
           if (error) throw error;
           const { data: userData } = await supabase.auth.getUser();
           await supabase.from('incident_media').insert({
-            incident_id: currentIncidentId, type: 'audio',
+            incident_id: incidentId, type: 'audio',
             storage_path: data.path,
             uploaded_by: userData?.user?.email || 'desconocido',
             duration_seconds: Math.max(1, Math.round(blob.size / 16000))
@@ -251,30 +250,45 @@
 
   global.E360PTT = {
     async init(supabase, incidentId, role) {
-      if (isInitialized) this.destroy();
+      if (isInitialized || localStream || signalChannel) this.destroy();
+      const generation = ++sessionGeneration;
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true }
         });
+        if (generation !== sessionGeneration) {
+          stream.getTracks().forEach(track => track.stop());
+          return false;
+        }
+        localStream = stream;
+        muteMicrophone();
       } catch (e) {
         lastSignalingError = 'getUserMedia: ' + e.message;
         return false;
       }
       await initSignaling(supabase, incidentId, role);
+      if (generation !== sessionGeneration) return false;
       isInitialized = true;
       return true;
     },
 
     async startTalking(supabase) {
       if (!isInitialized || isPressing) return;
+      if (navigator.onLine === false || !localStream) throw new Error('Radio sin conexión');
+      const press = ++pressGeneration;
       isPressing = true;
+      localStream.getAudioTracks().forEach(track => { track.enabled = true; });
       try {
         await startAsCaller(supabase);
+        if (press !== pressGeneration) return;
         await startRecording();
+        if (press !== pressGeneration) return;
         if (signalChannel) {
           signalChannel.send({ type: 'broadcast', event: 'ptt_start', payload: {} });
         }
       } catch (e) {
+        if (press !== pressGeneration) return;
+        muteMicrophone();
         isPressing = false;
         lastSignalingError = 'startTalking: ' + e.message;
         console.error('[ptt] startTalking falló:', e);
@@ -284,10 +298,14 @@
 
     async stopTalking(supabase) {
       if (!isPressing) return null;
+      ++pressGeneration;
+      muteMicrophone();
       isPressing = false;
       if (signalChannel) signalChannel.send({ type: 'broadcast', event: 'ptt_stop', payload: {} });
+      const closingPeer = pc;
       const path = await stopRecordingAndUpload(supabase);
-      if (pc) { try { pc.close(); } catch (_) {} pc = null; }
+      closingPeer?.close();
+      if (pc === closingPeer) pc = null;
       return path;
     },
 
@@ -329,6 +347,9 @@
     },
 
     destroy() {
+      ++sessionGeneration;
+      ++pressGeneration;
+      muteMicrophone();
       if (pc) { try { pc.close(); } catch (_) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} }); localStream = null; }
       if (signalChannel) { try { signalChannel.unsubscribe(); } catch (_) {} signalChannel = null; }

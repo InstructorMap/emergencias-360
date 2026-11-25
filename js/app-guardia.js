@@ -256,6 +256,7 @@
           }
           ui.crewName = profile.nombre || profile.dni;
           ui.crewId = profile.id;
+          if (recovering) { location.reload(); return; }
           hideLogin();
           await bootGuardia();
           await initPushRegistration();
@@ -1098,7 +1099,86 @@
   }
 
   // ============ PTT FLOTANTE FIJO ============
+  let recovering = false;
+  let recoveryRevision = 0;
+  let retryRecovery;
+
+  function recoveryMessage(message) {
+    const status = $('#guardiaRecoveryStatus');
+    if (status) { status.textContent = message; status.hidden = !message; }
+  }
+
+  function interruptGuardia() {
+    ++recoveryRevision;
+    clearTimeout(retryRecovery);
+    recovering = true;
+    stopWatch();
+    window.E360PTT?.destroy();
+    ui.pttIncidentId = null;
+    ui.lastRenderHash = null;
+    $('#guardiaApp').inert = true;
+    recoveryMessage('Sin sincronización. Usá la radio o el teléfono de la base. Al volver, verificá el incidente antes de repetir una acción.');
+  }
+
+  async function restoreGuardia() {
+    if (!recovering || !navigator.onLine || document.hidden) return;
+    const revision = ++recoveryRevision;
+    if (!ui.initialBootDone) { location.reload(); return; }
+    clearTimeout(retryRecovery);
+    try {
+      const sb = Store._getState().supabase;
+      const {data,error} = await sb.auth.getUser();
+      if (error || !data.user) {
+        if (error?.status === 401 || error?.status === 403 || error?.name === 'AuthSessionMissingError') {
+          if (revision === recoveryRevision) { showLogin(); recoveryMessage('Ingresá nuevamente para recuperar la guardia.'); }
+          return;
+        }
+        throw new Error('Sesión sin verificar');
+      }
+      if (data.user.id !== Store.getUser()?.id) { location.reload(); return; }
+      await Store.refreshFleet();
+      await Store.refreshIncidentsNow(true);
+      const profile = await sb.from('profiles').select('id,role,base_id,guardia_unit_id,guardia_role,on_duty')
+        .eq('id',ui.crewId).eq('user_id',data.user.id).single();
+      if (profile.error) throw profile.error;
+      if (!['admin','operador'].includes(profile.data.role)) {
+        const staff = await sb.from('emp_staff').select('access_role').eq('user_id',data.user.id).eq('active',true).is('deleted_at',null).maybeSingle();
+        if (staff.error) throw staff.error;
+        if (!['admin','operador','personal'].includes(staff.data?.access_role)) {
+          if (revision === recoveryRevision) { showLogin(); recoveryMessage('Acceso de Guardia no habilitado.'); }
+          return;
+        }
+      }
+      if (revision !== recoveryRevision || !navigator.onLine) return;
+      const assignment = profile.data;
+      ui.baseId = assignment.base_id;
+      ui.onDuty = assignment.on_duty;
+      $('#guardiaBaseSelector').value = ui.baseId;
+      populateUnitSelector();
+      ui.unitId = assignment.guardia_unit_id || null;
+      $('#guardiaUnitSelector').value = ui.unitId || '';
+      $('#guardiaRoleSelector').value = assignment.guardia_role || '';
+      updateAssignmentStatus();
+      recovering = false;
+      $('#guardiaApp').inert = false;
+      render();
+      recoveryMessage('Guardia sincronizada. Para usar PTT, conectá el canal y pulsá para hablar.');
+    } catch {
+      if (revision !== recoveryRevision) return;
+      recoveryMessage('Recuperando sesión y asignación. Usá la radio o el teléfono de la base.');
+      retryRecovery = setTimeout(restoreGuardia,5000);
+    }
+  }
+  window.addEventListener('offline',interruptGuardia);
+  window.addEventListener('online',restoreGuardia);
+  window.addEventListener('e360-guardia-radio-interrupted', () => {
+    interruptGuardia();
+    if (navigator.onLine) void restoreGuardia();
+  });
+  document.addEventListener('visibilitychange',()=>{if (!document.hidden) restoreGuardia();});
+
   function renderPTTFloating(incident) {
+    if (recovering) return;
     let existing = document.getElementById('gvPttFloating');
     const canPTT = incident && ['EN_CAMINO', 'EN_ESCENA'].indexOf(incident.status) !== -1 && typeof window.E360PTT !== 'undefined';
 
@@ -1152,9 +1232,13 @@
         } else {
           if (!onlineOrToast()) return;
           try {
+            const revision = recoveryRevision;
+            connectBtn.disabled = true;
             guardiaPttVisual(wrapper,'abriendo_canal');
             const sb = Store._getState().supabase;
             const ok = await window.E360PTT.init(sb, incident.id, 'guardia');
+            if (revision !== recoveryRevision || recovering) return;
+            connectBtn.disabled = false;
             if (ok) {
               ui.pttIncidentId = incident.id;
               toast('PTT conectado');
@@ -1162,6 +1246,7 @@
               toast('❌ No se pudo conectar PTT (micrófono o canal)');
             }
           } catch (err) {
+            connectBtn.disabled = false;
             toast('❌ Error PTT: ' + (err.message || 'desconocido'));
           }
           ui.lastRenderHash = null;
@@ -1185,7 +1270,9 @@
           const sb = Store._getState().supabase;
           guardiaPttVisual(wrapper,'abriendo_canal');
           await window.E360PTT.startTalking(sb);
+          if (!window.E360PTT.isActive()) return;
           await guardiaPttCue();
+          if (!window.E360PTT.isActive()) return;
           guardiaPttVisual(wrapper,'transmitiendo');
           talkBtn.textContent = '🔴 TRANSMITIENDO…';
           talkBtn.classList.add('is-transmitting');
@@ -1292,6 +1379,7 @@
     await applyBranding();
     initLogin();
 
+    if (!navigator.onLine) { interruptGuardia(); return; }
     const session = await Store.initSession();
     if (session.loggedIn && session.profile && await Store.hasEMPRole(['personal','operador','admin'])) {
       ui.crewName = session.profile.nombre || session.profile.dni;
@@ -1300,7 +1388,8 @@
       await bootGuardia();
       await initPushRegistration();
     } else {
-      if (session.loggedIn) await Store.logout();
+      if (!navigator.onLine) interruptGuardia();
+      if (session.loggedIn && navigator.onLine) recoveryMessage('No se pudo confirmar el acceso. Volvé a ingresar o verificá la conexión.');
       showLogin();
     }
   });

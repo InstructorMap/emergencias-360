@@ -39,6 +39,11 @@ function mount(){
  await starting;starting=null;if(!held&&!stopping){cleanup();busy=false;window.E360GroupRadioBusy=false;mode.disabled=false;}
  }
  talk.addEventListener('pointerdown',start);['pointerup','pointercancel','lostpointercapture'].forEach(t=>talk.addEventListener(t,()=>{if(busy)stop();}));
+ window.addEventListener('offline',()=>{
+   held=false;
+   for(const session of sessions)session.radio.destroy();
+   if(busy)stop();
+ });
  window.addEventListener('blur',()=>{if(busy)stop();});window.addEventListener('beforeunload',cleanup);
  refresh();setInterval(refresh,3000);
 }
