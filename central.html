@@ -126,7 +126,15 @@
 
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
-        <section id="empGroupRadio" hidden style="padding:10px;border:1px solid currentColor;border-radius:8px;margin:8px 0">
+        <section id="empAudioQueue" style="padding:10px;border:1px solid currentColor;border-radius:8px;margin:8px 0">
+<strong>Bandeja de audios</strong>
+<div class="audio-count" aria-live="polite"></div>
+<button type="button" class="audio-next">Escuchar siguiente pendiente</button>
+<audio controls preload="none" style="max-width:100%"></audio>
+<output style="display:block" aria-live="polite"></output>
+<div class="audio-rows" style="max-height:240px;overflow:auto;display:grid;gap:8px"></div>
+</section>
+<section id="empGroupRadio" hidden style="padding:10px;border:1px solid currentColor;border-radius:8px;margin:8px 0">
 <strong>PTT grupal / general — prueba técnica</strong>
 <select aria-label="Modo de transmisión"><option value="group">Grupal</option><option value="all">General (móviles elegibles)</option></select>
 <div class="group-targets" style="display:grid;gap:4px;margin:8px 0"></div>
@@ -176,7 +184,7 @@
   <script src="js/capacitor-bridge.js"></script>
   <script src="js/ptt.js?v=20261120-gps-support-ptt-v5"></script>
   <script src="js/media.js"></script>
-  <script src="js/app-central.js?v=20261125-radio-v2"></script>
+  <script src="js/app-central.js?v=20261125-audio-v3"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
@@ -207,6 +215,7 @@ if(new URLSearchParams(location.search).get('radioTest')==='1'){
 }
 </script>
 <script src="js/central-radio-factory.js?v=1"></script>
-<script src="js/central-group-radio.js?v=2"></script>
+<script src="js/central-group-radio.js?v=3"></script>
+<script src="js/central-audio-queue.js?v=1"></script>
 </body>
 </html>
