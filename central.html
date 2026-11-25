@@ -35,6 +35,14 @@
 .emp-incident-window.is-maximized{inset:8px!important;width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:none;resize:none}
 [data-theme="dark"] .emp-incident-window,.dark .emp-incident-window{background:#142235;color:#e7effa}
 </style>
+<style>
+.emp-queue-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;color:inherit;font-size:.82rem}
+.emp-queue-controls[hidden]{display:none}
+.emp-queue-controls select{background:#fff;color:#172334;border:1px solid #64748b;border-radius:5px;padding:6px;max-width:100%}
+[data-theme="dark"] .emp-queue-controls select,.dark .emp-queue-controls select{background:#142235;color:#e7effa}
+.emp-clock-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.76rem;padding:5px 0;color:inherit}
+.emp-incident-clock{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;color:inherit}
+</style>
 </head>
 <body class="central-body theme-dark">
 
@@ -155,7 +163,7 @@
   <script src="js/capacitor-bridge.js"></script>
   <script src="js/ptt.js?v=20261120-gps-support-ptt-v5"></script>
   <script src="js/media.js"></script>
-  <script src="js/app-central.js?v=20261125-multiwindow-v2"></script>
+  <script src="js/app-central.js?v=20261125-priority-v3"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
