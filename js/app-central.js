@@ -270,6 +270,7 @@
   }
 
   const {incidentIcon, unitIcon} = window.EMPMapIcons;
+  let roadRoute;
   let mapMonitor = null;
   function closeMapMonitor() {
     if (mapMonitor && !mapMonitor.closed) mapMonitor.close();
@@ -288,7 +289,7 @@
 
     });
     mapMonitor.postMessage({type:'emp-map', base:ui.baseFilter, selected:ui.selectedIncidentId,
-      center:[center.lat,center.lng], zoom:ui.map.getZoom(), points, online:navigator.onLine},location.origin);
+      center:[center.lat,center.lng], zoom:ui.map.getZoom(), points, route:roadRoute?.snapshot(), online:navigator.onLine},location.origin);
   }
   window.addEventListener('message', event => {
     if (mapMonitor && event.origin === location.origin && event.source === mapMonitor && event.data === 'emp-map-ready') publishMapView();
@@ -398,6 +399,7 @@
       else ui.map.fitBounds(bounds,{padding:[30,30],maxZoom:15});
       ui.lastMapFocus='initial';
     }
+    roadRoute?.update(selected);
     publishMapView();
   }
 
@@ -1827,6 +1829,7 @@
     initEmergencyAudio();
     checkDeepLinkIncident();
     initMap();
+    if (ui.map) roadRoute = window.EMPRoadRoute.create(ui.map, publishMapView);
     $('#openMapMonitor').onclick = () => {
       if (!ui.map) { toast('Mapa no disponible'); return; }
       if (mapMonitor && !mapMonitor.closed) { mapMonitor.focus(); return; }

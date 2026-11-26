@@ -177,6 +177,13 @@
         <button type="button" id="openMapMonitor">Abrir mapa en segunda pantalla ↗</button>
         <div id="mapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(148,163,184,0.25);"></div>
 
+        <details id="empRoadRoute">
+          <summary>Ruta del móvil al incidente</summary>
+          <p>Al consultar, se envían las dos coordenadas a FOSSGIS (OpenStreetMap), que registra la solicitud.</p>
+          <button type="button" id="empRoadButton" disabled>Consultar ruta por calles</button>
+          <output id="empRoadStatus" aria-live="polite">Seleccioná un incidente.</output>
+          <small>Ruta OSRM · © OpenStreetMap contributors · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Corregir el mapa</a></small>
+        </details>
         <div class="speed-limit-card" style="background:#1E293B;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <label style="flex:1;min-width:140px;color:#E2E8F0;font-size:0.78rem;">
             <span style="display:block;margin-bottom:4px;">Límite de velocidad (km/h)</span>
@@ -212,7 +219,8 @@
   <script src="js/ptt.js?v=20261125-recovery"></script>
   <script src="js/media.js"></script>
   <script src="js/central-map-icons.js"></script>
-  <script src="js/app-central.js?v=map-monitor-1"></script>
+  <script src="js/central-road-route.js"></script>
+  <script src="js/app-central.js?v=road-route-1"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->

@@ -11,6 +11,7 @@
     maxZoom: 19, attribution: '© OpenStreetMap contributors'
   }).addTo(map);
   const markers = new Map();
+  let routeLine, routeKey;
   let lastView, receivedAt = 0;
   window.addEventListener('message', event => {
     const data = event.data;
@@ -18,6 +19,13 @@
     receivedAt = Date.now();
     const base = {ALL:'Todas las bases', DOLORES:'Dolores', LA_COSTA:'La Costa'}[data.base] || data.base;
     status.textContent = base + ' · ' + (!data.online ? 'Central sin red' : data.points.length + ' posiciones en mapa');
+    const key = data.route ? JSON.stringify(data.route.points) : null;
+    if (routeKey !== key) {
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = data.route ? L.polyline(data.route.points,{color:'#1456b4',weight:5}).addTo(map) : null;
+      routeKey = key;
+    }
+    if (data.route) status.textContent += ' · ' + data.route.label;
     const seen = new Set();
     for (const point of data.points) {
       seen.add(point.id);
