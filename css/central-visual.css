@@ -131,3 +131,9 @@
 .central-body .cv-ptt-talk{touch-action:none}
 .central-body .cv-ptt-floating[data-ptt-state="transmitiendo"]{border-color:#ff6677!important}
 @media(max-width:480px){.central-body .cv-ptt-floating{width:118px!important;max-width:118px!important;min-width:0!important;bottom:82px}}
+
+#dispatchContext:not([hidden]){display:grid;gap:6px;padding:14px;margin:12px 0;border-inline-start:4px solid #1986be;background:var(--color-bg);color:var(--color-text);border-radius:8px}
+#dispatchContext h3,#dispatchContext p{margin:0;overflow-wrap:anywhere}
+#dispatchContext button{justify-self:start;min-height:44px;padding:6px 12px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:6px;cursor:pointer}
+#incidentList .card-id{font:inherit;font-weight:700;color:inherit;background:transparent;border:0;text-align:start;padding:0;overflow-wrap:anywhere;cursor:pointer}
+#incidentList .incident-card:focus-within,#dispatchCaseTitle:focus-visible,#dispatchBack:focus-visible{outline:3px solid currentColor;outline-offset:-3px}

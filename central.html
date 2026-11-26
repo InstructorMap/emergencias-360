@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/central-visual.css?v=20261120-ptt-v12" />
+  <link rel="stylesheet" href="css/central-visual.css?v=dispatch-desk-2" />
 <style>
 .emp-incident-tabs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;color:inherit}
 .emp-incident-tabs>strong{flex-basis:100%;font-size:.85rem}
@@ -127,7 +127,7 @@
     <section id="empServiceInbox" class="emp-service-inbox" aria-label="Solicitudes asistenciales"></section>
     <div class="central-grid">
       <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
-        <h2>Bandeja de Incidentes</h2>
+        <h2 id="incidentQueueTitle" tabindex="-1">Bandeja de incidentes</h2>
         <div class="incident-filters">
           <button type="button" class="btn-incident-filter active" data-filter="active">Activos</button>
           <button type="button" class="btn-incident-filter" data-filter="closed">Finalizados</button>
@@ -139,6 +139,11 @@
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
         <section id="empSOSMonitor" class="emp-comms"><header><strong>CONTROL DE RECONOCIMIENTO SOS</strong></header><output role="status" aria-live="polite"></output><div class="sos-rows"></div></section>
+<header id="dispatchContext" hidden>
+  <h3 tabindex="-1" id="dispatchCaseTitle"></h3>
+  <p id="dispatchCaseStatus"></p>
+  <button type="button" id="dispatchBack">Volver a la bandeja</button>
+</header>
 <section id="empIncidentOperator" hidden aria-label="Responsable de despacho">
   <strong>Responsable de despacho</strong>
   <output aria-live="polite"></output>
@@ -229,7 +234,7 @@
   <script src="js/central-map-icons.js"></script>
   <script src="js/central-road-route.js"></script>
   <script src="js/central-operator.js"></script>
-  <script src="js/app-central.js?v=available-gps-1"></script>
+  <script src="js/app-central.js?v=dispatch-desk-2"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->

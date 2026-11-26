@@ -304,13 +304,11 @@
     const missingDestinations=[];
 
     active.forEach(inc => {
-      const loc=inc.location;
-      const destLat=Number(loc?.lat ?? loc?.latitude);
-      const destLng=Number(loc?.lng ?? loc?.lon ?? loc?.longitude);
-      if (loc && Number.isFinite(destLat) && Number.isFinite(destLng) && Math.abs(destLat)<=90 && Math.abs(destLng)<=180) {
+      const destination = locationPoint(inc.location);
+      if (destination) {
         const key = 'inc_' + inc.id;
         seenKeys.add(key);
-        const latlng = [destLat, destLng];
+        const latlng = [destination.lat, destination.lng];
         bounds.push(latlng);
         const popupHtml = '<strong>🚨 DESTINO DEL INCIDENTE</strong><br>' + inc.id + '<br>' +
           'Estado: ' + inc.status + '<br>' +
@@ -326,10 +324,11 @@
         }
       } else { missingDestinations.push(inc); }
 
-      if (inc.assignedUnitId && inc.unitLocation && typeof inc.unitLocation.lat === 'number') {
+      const unitPoint = locationPoint(inc.unitLocation);
+      if (inc.assignedUnitId && unitPoint) {
         const key = 'unit_' + inc.id;
         seenKeys.add(key);
-        const latlng = [inc.unitLocation.lat, inc.unitLocation.lng];
+        const latlng = [unitPoint.lat, unitPoint.lng];
         bounds.push(latlng);
         const speedTxt = (typeof inc.unitLocation.speed === 'number')
           ? (inc.unitLocation.speed * 3.6).toFixed(0) + ' km/h'
@@ -401,15 +400,15 @@
     // Priorizar el destino del incidente seleccionado. Evitar reencuadrar
     // continuamente el mapa cuando el operador está explorando manualmente.
     const selected=active.find(i=>i.id===ui.selectedIncidentId);
-    const selectedLoc=selected?.location;
-    const validSelectedLoc=selectedLoc && Number.isFinite(Number(selectedLoc.lat ?? selectedLoc.latitude)) && Number.isFinite(Number(selectedLoc.lng ?? selectedLoc.longitude));
-    const focus=validSelectedLoc ? {lat:Number(selectedLoc.lat ?? selectedLoc.latitude),lng:Number(selectedLoc.lng ?? selectedLoc.longitude)} : selected?.unitLocation;
-    if(focus&&typeof focus.lat==='number'){
+    const destination = locationPoint(selected?.location);
+    const unitPoint = locationPoint(selected?.unitLocation);
+    const focus = destination || unitPoint;
+    if (focus) {
       const key=selected.id+':'+focus.lat.toFixed(5)+':'+focus.lng.toFixed(5);
       if(ui.lastMapFocus!==key){
         const target=[focus.lat,focus.lng];
-        if(selected?.location && selected?.unitLocation && typeof selected.unitLocation.lat==='number'){
-          ui.map.fitBounds([target,[selected.unitLocation.lat,selected.unitLocation.lng]],{padding:[55,55],maxZoom:16,animate:true});
+        if (destination && unitPoint) {
+          ui.map.fitBounds([target,[unitPoint.lat,unitPoint.lng]],{padding:[55,55],maxZoom:16,animate:true});
         }else ui.map.setView(target,Math.max(ui.map.getZoom(),15),{animate:true});
         ui.lastMapFocus=key;
       }
@@ -680,6 +679,26 @@
     const value=active.length+' activos · '+active.filter(i=>i.status==='RECIBIDA_SERVIDOR').length+' sin reconocer · '+active.filter(i=>incidentRank(i)===0).length+' rojos';
     if(summary.textContent!==value)summary.textContent=value;
   }
+  function locationPoint(loc) {
+    const lat = loc?.lat ?? loc?.latitude;
+    const lng = loc?.lng ?? loc?.lon ?? loc?.longitude;
+    const numeric = value => (typeof value === 'number' || typeof value === 'string' && value.trim() !== '') && Number.isFinite(Number(value));
+    if (!numeric(lat) || !numeric(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return {lat:Number(lat), lng:Number(lng)};
+  }
+
+  function caseState(status) {
+    return {RECIBIDA_SERVIDOR:'Pendiente de reconocimiento', ACEPTADA_POR_CENTRAL:'Reconocido por Central',
+      MOVIL_ASIGNADO:'Móvil asignado', EN_CAMINO:'En camino', EN_ESCENA:'En escena', EN_TRASLADO:'En traslado',
+      CLASIFICADA:'Clasificado', CERRADA:'Cerrado', CANCELADA:'Cancelado'}[status] || status || 'Estado sin informar';
+  }
+
+  $('#dispatchBack').addEventListener('click', () => {
+    const target = $('#incidentList .selected button') || $('#incidentQueueTitle');
+    target.focus();
+    target.scrollIntoView({block:'nearest'});
+  });
+
   function renderIncidentList() {
     const list = $('#incidentList');
     const empty = $('#incidentEmpty');
@@ -703,21 +722,22 @@
       const pendingClass = inc.status === 'RECIBIDA_SERVIDOR' ? ' pending' : '';
       const selectedClass = inc.id === ui.selectedIncidentId ? ' selected' : '';
       const hasSupport = Array.isArray(inc.supportRequests) && inc.supportRequests.length > 0;
+      const coords = locationPoint(inc.location);
       list.appendChild(el('li', {
         className: 'incident-card' + pendingClass + selectedClass,
-        onclick: () => { openIncident(inc.id); }
+        onclick: () => { if (openIncident(inc.id)) $('#dispatchCaseTitle').focus(); }
       }, [
         el('div', { className: 'card-top' }, [
-          el('span', { className: 'card-id', textContent: inc.id }),
+          el('button', { type:'button', className:'card-id', textContent:inc.id, 'aria-label':'Abrir incidente ' + inc.id + ', ' + caseState(inc.status), 'aria-current':selectedClass ? 'true' : null }),
           el('span', { className: 'card-time', textContent: fmtTime(inc.createdAt) })
         ]),
         el('div', { className: 'card-meta' }, [
-          el('span', { className: 'badge badge-state-' + inc.status, textContent: inc.status }),
+          el('span', { className: 'badge badge-state-' + inc.status, textContent: caseState(inc.status) }),
           inc.priority ? el('span', { className: 'badge badge-priority-' + inc.priority, textContent: inc.priority }) : null,
           hasSupport ? el('span', { className: 'badge badge-priority-ROJO', textContent: '🚨 PIDE APOYO' }) : null
         ].filter(Boolean)),
         el('div',{className:'emp-clock-row'},[el('span',{textContent:'Total: '}),clockNode(inc),el('span',{textContent:' · Estado: '}),clockNode(inc,true)]),
-        el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || 'DOLORES') + ' · ' + (inc.manualAddress || (inc.location ? ('GPS ' + inc.location.lat.toFixed(4) + ',' + inc.location.lng.toFixed(4)) : 'Sin ubicación')) })
+        el('div', { className: 'card-loc', textContent: 'Base: ' + (inc.baseId || 'Sin informar') + ' · ' + (inc.manualAddress || (coords ? ('GPS ' + coords.lat.toFixed(4) + ', ' + coords.lng.toFixed(4)) : 'Sin ubicación')) })
       ]));
     });
   }
@@ -843,6 +863,12 @@
     const generation = ++detailGeneration;
     const selectedId = ui.selectedIncidentId;
     const selected = selectedId && Store.getIncidentById(selectedId);
+    $('#dispatchContext').hidden = !selected;
+    if (selected) {
+      $('#dispatchCaseTitle').textContent = 'Incidente ' + selected.id;
+      $('#dispatchCaseStatus').textContent = [caseState(selected.status), selected.priority || 'Sin triage',
+        C.BASES?.[selected.baseId]?.name || selected.baseId || 'Base sin informar', selected.assignedUnitId || 'Sin móvil asignado'].join(' · ');
+    }
     window.EMPOperatorPanel.select(selected);
     detailSignature = detailKey();
     const previous = container.dataset.incidentKey;
@@ -915,8 +941,8 @@
       patientBlock.appendChild(kv('Patologías', profile.patologias));
       patientBlock.appendChild(kv('Contacto emergencia', profile.contacto));
 
-      try {
-        const meds = await Store.getMedicationsForProfile(profile.id);
+      Promise.resolve().then(() => Store.getMedicationsForProfile(profile.id)).then(meds => {
+        if (generation !== detailGeneration) return;
         if (meds.length) {
           const medsBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: '💊 Medicación activa' })]);
           meds.forEach(m => {
@@ -927,17 +953,18 @@
           });
           patientBlock.appendChild(medsBlock);
         }
-      } catch (_) {}
+      }).catch(() => {});
     } else {
       patientBlock.appendChild(el('div', { className: 'warn-operador', textContent: 'Socio sin ficha.' }));
     }
 
     if(generation!==detailGeneration || selectedId!==ui.selectedIncidentId)return;
     const geoBlock = el('div', { className: 'detail-block' }, [el('h3', { textContent: 'Ubicación y ETA' })]);
-    if (inc.location) {
-      geoBlock.appendChild(kv('Coordenadas', inc.location.lat.toFixed(6) + ', ' + inc.location.lng.toFixed(6)));
+    const point = locationPoint(inc.location);
+    if (point) {
+      geoBlock.appendChild(kv('Coordenadas', point.lat.toFixed(6) + ', ' + point.lng.toFixed(6)));
       geoBlock.appendChild(el('a', {
-        href: 'https://www.openstreetmap.org/?mlat=' + inc.location.lat + '&mlon=' + inc.location.lng + '#map=17/' + inc.location.lat + '/' + inc.location.lng,
+        href: 'https://www.openstreetmap.org/?mlat=' + point.lat + '&mlon=' + point.lng + '#map=17/' + point.lat + '/' + point.lng,
         target: '_blank', rel: 'noopener', className: 'gps-link', textContent: '🗺 Abrir en OpenStreetMap'
       }));
     }
@@ -945,8 +972,9 @@
 
     if (inc.assignedUnitId && inc.unitLocation) {
       const ul = inc.unitLocation;
-      if (typeof ul.lat === 'number') {
-        geoBlock.appendChild(kv('Posición unidad', ul.lat.toFixed(6) + ', ' + ul.lng.toFixed(6)));
+      const point = locationPoint(ul);
+      if (point) {
+        geoBlock.appendChild(kv('Posición unidad', point.lat.toFixed(6) + ', ' + point.lng.toFixed(6)));
       }
       if (typeof ul.speed === 'number') {
         geoBlock.appendChild(kv('Velocidad unidad', (ul.speed * 3.6).toFixed(0) + ' km/h'));
@@ -963,20 +991,13 @@
       }
     } catch (_) {}
 
-    const actionsBlock = buildActions(inc);
-
-    if (inc.assignedUnitId && ['EN_CAMINO', 'EN_ESCENA'].indexOf(inc.status) !== -1) {
-      target.appendChild(patientBlock);
-      target.appendChild(geoBlock);
-      target.appendChild(actionsBlock);
-      target.appendChild(buildPTTBlock(inc)); // bloque embebido (referencia + unlock contextual)
-      target.appendChild(buildMediaBlock(inc));
-    } else {
-      target.appendChild(patientBlock);
-      target.appendChild(geoBlock);
-      target.appendChild(actionsBlock);
-      target.appendChild(buildMediaBlock(inc));
+    target.appendChild(buildActions(inc));
+    target.appendChild(geoBlock);
+    target.appendChild(patientBlock);
+    if (inc.assignedUnitId && ['EN_CAMINO', 'EN_ESCENA'].includes(inc.status)) {
+      target.appendChild(buildPTTBlock(inc));
     }
+    target.appendChild(buildMediaBlock(inc));
 
     if (inc.status === 'CERRADA' && inc.clinicalRecordNumber) {
       target.appendChild(buildExportBlock(inc));
