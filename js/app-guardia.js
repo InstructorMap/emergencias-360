@@ -226,6 +226,7 @@
   }
 
   function showLogin() {
+    stopFreeGps();
     const ov = $('#guardiaLoginOverlay'); if (ov) ov.hidden = false;
     const app = $('#guardiaApp'); if (app) app.hidden = true;
   }
@@ -374,6 +375,7 @@
       });
       if(error)throw error;
       if(data==='SIN_CAMBIOS'){toast('La asignación ya estaba registrada');return;}
+      stopFreeGps();
       await loadGuardiaAssignment();
       await renderGuardiaHistory();
       toast(data==='FIN'?'Guardia finalizada':data==='CAMBIO'?'Cambio de guardia registrado':'Guardia iniciada correctamente');
@@ -384,6 +386,7 @@
   }
 
   function initGuardiaAssignment() {
+    $('#shareAvailable').onclick = toggleFreeGps;
     const start = $('#btnConfirmGuardia');
     const end = $('#btnEndGuardia');
     if (start) start.addEventListener('click', () => saveGuardiaAssignment(false));
@@ -466,6 +469,55 @@
     node.style.color = color === 'green' ? 'var(--gv-ok)' : color === 'red' ? 'var(--gv-danger)' : 'var(--gv-warn)';
   }
 
+  let freeGps = null;
+  function stopFreeGps() {
+    if (!freeGps) return;
+    clearTimeout(freeGps.timer);
+    freeGps = null;
+    $('#shareAvailable').textContent = 'Compartir GPS del móvil libre';
+    $('#availableStatus').textContent = 'GPS detenido. La última posición vence a los dos minutos.';
+  }
+
+  function toggleFreeGps() {
+    if (freeGps) { stopFreeGps(); return; }
+    if (!ui.onDuty || !ui.unitId) { toast('Confirmá tu guardia y móvil antes de compartir GPS'); return; }
+    if (!onlineOrToast() || !navigator.geolocation) { $('#availableStatus').textContent = 'GPS o conexión no disponibles.'; return; }
+    const session = freeGps = {unit:ui.unitId, timer:null};
+    const valid = () => freeGps === session && ui.unitId === session.unit && ui.onDuty &&
+      navigator.onLine && !document.hidden && !$('#guardiaApp').hidden && !Store.getActiveIncidentForUnit(session.unit);
+    $('#shareAvailable').textContent = 'Detener GPS del móvil libre';
+    const status = $('#availableStatus');
+    const sample = () => {
+      if (freeGps !== session) return;
+      if (!valid()) { stopFreeGps(); return; }
+      status.textContent = 'Obteniendo posición del móvil…';
+      navigator.geolocation.getCurrentPosition(async pos => {
+        if (!valid()) return;
+        try {
+          const {error} = await Store._getState().supabase.rpc('e360_report_available_position', {
+            p_unit:session.unit, p_lat:pos.coords.latitude, p_lng:pos.coords.longitude,
+            p_at:new Date(pos.timestamp).toISOString()
+          });
+          if (error) throw error;
+          if (!valid()) return;
+          status.textContent = 'Posición enviada a Central · ' + new Date(pos.timestamp).toLocaleTimeString('es-AR');
+          session.timer = setTimeout(sample, 30000);
+        } catch (err) {
+          if (freeGps !== session) return;
+          stopFreeGps();
+          status.textContent = 'GPS detenido. ' + fmtErr(err);
+        }
+      }, err => {
+        if (freeGps !== session) return;
+        stopFreeGps();
+        status.textContent = 'GPS detenido. ' + err.message;
+      }, {enableHighAccuracy:true, timeout:15000, maximumAge:5000});
+    };
+    sample();
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopFreeGps(); });
+  window.addEventListener('pagehide', stopFreeGps);
+
   function startWatch() {
     if (!onlineOrToast()) return;
     if (!navigator.geolocation) { updateGpsStatus('GPS no disponible.', 'red'); return; }
@@ -499,6 +551,7 @@
   }
 
   function stopWatch() {
+    stopFreeGps();
     if (ui.watchId !== null && ui.watchId !== undefined) { try { navigator.geolocation.clearWatch(ui.watchId); } catch (_) {} ui.watchId = null; }
     updateGpsStatus('GPS inactivo.', 'amber');
   }
@@ -612,6 +665,7 @@
       onclick: async () => {
         if (!onlineOrToast()) return;
         await setOnDutyStatus(!ui.onDuty);
+        if (!ui.onDuty) stopFreeGps();
         renderUnitStatus();
         toast(ui.onDuty ? 'En guardia activa (Push habilitado)' : 'Fuera de guardia');
       }
@@ -668,6 +722,7 @@
       return;
     }
 
+    stopFreeGps();
     container.hidden = false; empty.hidden = true;
 
     if (ui.initialBootDone && incident.id !== ui.lastIncidentId) {

@@ -282,6 +282,7 @@
     const center = ui.map.getCenter();
     const points = Object.entries(ui.mapMarkers).map(([id, marker]) => {
       const pos = marker.getLatLng();
+      if (marker.freeUnitLabel) return {id,lat:pos.lat,lng:pos.lng,unit:true,status:'Disponible',label:marker.freeUnitLabel};
       const unit = id.startsWith('unit_');
       const incident = Store.getIncidentById(id.slice(unit ? 5 : 4));
       return {id, lat:pos.lat, lng:pos.lng, unit, status:incident?.status,
@@ -348,6 +349,24 @@
         }
       }
     });
+
+    for (const position of availablePositions) {
+      if (ui.baseFilter !== 'ALL' && position.base_id !== ui.baseFilter) continue;
+      if (Date.now() - Date.parse(position.observed_at) > 120000) continue;
+      if (active.some(i => i.assignedUnitId === position.unit_id)) continue;
+      const vehicle = Store.getFleet(position.base_id).find(u => u.id === position.unit_id && u.status === 'disponible');
+      if (!vehicle) continue;
+      const key = 'free_' + vehicle.id;
+      const latlng = [position.lat,position.lng];
+      seenKeys.add(key);
+      bounds.push(latlng);
+      const marker = ui.mapMarkers[key] ||= L.marker(latlng,{icon:unitIcon('disponible')}).addTo(ui.map);
+      marker.setLatLng(latlng);
+      marker.freeUnitLabel = vehicle.unit;
+      const label = el('span',{textContent:vehicle.unit + ' · Disponible · GPS ' + fmtTime(position.observed_at)});
+      if (marker.getPopup()) marker.setPopupContent(label);
+      else marker.bindPopup(label);
+    }
 
     Object.keys(ui.mapMarkers).forEach(key => {
       if (!seenKeys.has(key)) {
@@ -1729,6 +1748,18 @@
 
   // Tripulaciones declaradas por cada empleado al iniciar Guardia.
   let crewByUnit = {};
+  let availablePositions = [];
+  let loadingPositions = false;
+  async function refreshAvailablePositions() {
+    if (loadingPositions || !ui.map || $('#centralApp').hidden) return;
+    loadingPositions = true;
+    try {
+      const {data,error} = await Store._getState().supabase.rpc('e360_available_positions');
+      availablePositions = error ? [] : data || [];
+      if (error) console.warn('[Central] GPS de móviles libres:',error.message);
+    } catch { availablePositions = []; }
+    finally { loadingPositions = false; renderMapMarkers(); }
+  }
   async function refreshActiveCrew() {
     try {
       const st = Store._getState();
@@ -1838,6 +1869,8 @@
       if (!mapMonitor) toast('Habilitá las ventanas emergentes para abrir el mapa.');
     };
     await renderSpeedLimitControl();
+    refreshAvailablePositions();
+    setInterval(refreshAvailablePositions,15000);
     initSubscription();
     // F3-mejora: ya NO se usa initAudioUnlockListener() global.
     // El botón "Activar audio" vive en el PTT flotante (contextual).
