@@ -88,62 +88,26 @@ async function getGoogleAccessToken(serviceAccount: {
 }
 
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
+  if (req.method !== 'POST') return new Response(null,{status:405});
+  const candidate = req.headers.get('x-emp-trigger');
+  if (!candidate || !/^[a-f0-9]{64}$/.test(candidate)) return new Response(null,{status:403});
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const fcmRaw = Deno.env.get('FCM_SERVICE_ACCOUNT') ?? '';
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
-    }
-    if (!fcmRaw) {
-      throw new Error('Falta secret FCM_SERVICE_ACCOUNT en Supabase.');
-    }
-
-    const serviceAccount = JSON.parse(fcmRaw);
-    const projectId = serviceAccount.project_id;
-    if (!projectId) {
-      throw new Error('FCM_SERVICE_ACCOUNT no contiene project_id.');
-    }
-
-    const sb = createClient(supabaseUrl, serviceRoleKey);
+    const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const auth = await sb.rpc('e360_verify_send_push',{candidate});
+    if (auth.error) return new Response(null,{status:503});
+    if (auth.data !== true) return new Response(null,{status:403});
     const payload = await req.json();
-
-    // Soportar tanto llamada directa como Database Webhook/Trigger (record)
-    const inc = payload.record || payload.incident || payload;
-    const incidentId = String(inc.id || '');
-    const baseId = String(inc.base_id || inc.baseId || 'DOLORES');
-    const profileDni = String(inc.profile_dni || inc.profileDni || '');
-    const manualAddress = String(inc.manual_address || inc.manualAddress || '');
-    const loc = inc.location;
-
-    // 1. Buscar datos del socio si hay DNI
-    let socioNombre = 'Socio EMP';
-    if (profileDni) {
-      const { data: socio } = await sb
-        .from('profiles')
-        .select('nombre, plan')
-        .eq('dni', profileDni)
-        .maybeSingle();
-      if (socio && socio.nombre) {
-        socioNombre = `${socio.nombre} (${socio.plan || 'EMP'})`;
-      } else {
-        socioNombre = `DNI ${profileDni}`;
-      }
-    }
-
-    const direccionTexto = manualAddress
-      ? manualAddress
-      : loc && typeof loc.lat === 'number'
-      ? `GPS ${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}`
-      : `Sede ${baseId}`;
-
-    const pushTitle = `🚨 SOS — ${socioNombre}`;
-    const pushBody = `Emergencia (${baseId}) en ${direccionTexto}`;
+    const incidentId = payload?.record?.id;
+    if (payload.type !== 'INSERT' || payload.table !== 'incidents' || typeof incidentId !== 'string' || !incidentId)
+      return new Response(null,{status:400});
+    const incident = await sb.from('incidents').select('base_id').eq('id',incidentId).maybeSingle();
+    if (incident.error) return new Response(null,{status:503});
+    if (!incident.data) return new Response(null,{status:204});
+    const baseId = incident.data.base_id || '';
+    const serviceAccount = JSON.parse(Deno.env.get('FCM_SERVICE_ACCOUNT')!);
+    const projectId = serviceAccount.project_id;
+    const pushTitle = 'Emergencias 360';
+    const pushBody = 'Nuevo incidente. Abrí Central.';
     const deepLink = `central.html?incident=${encodeURIComponent(incidentId)}`;
 
     // 2. Buscar operadores/admins en guardia activa (on_duty = true)
@@ -163,7 +127,7 @@ serve(async (req: Request) => {
       )
     );
 
-    console.log('[send-push] Operadores on_duty:', userIds.length, userIds);
+    console.log('[send-push] Operadores on_duty:', userIds.length);
 
     if (userIds.length === 0) {
       const msg = 'Sin operadores con on_duty = true';
@@ -242,10 +206,10 @@ serve(async (req: Request) => {
         sent++;
       } else {
         const errTxt = await resp.text();
-        errors.push(errTxt);
-        console.log('[send-push] Error FCM para token:', errTxt);
+        errors.push('FCM HTTP ' + resp.status);
+        console.log('[send-push] FCM HTTP', resp.status);
         // Si el token quedó inválido/desinstalado, limpiarlo
-        if (errTxt.includes('UNREGISTERED') || errTxt.includes('INVALID_ARGUMENT')) {
+        if (errTxt.includes('UNREGISTERED')) {
           await sb.from('device_tokens').delete().eq('token', token);
         }
       }

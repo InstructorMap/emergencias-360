@@ -275,6 +275,15 @@
         <div class="emp-staff-table-wrap"><table class="admin-table"><thead><tr><th>Personal</th><th>Especialidad</th><th>Sede</th><th>Estado</th><th>Cuenta</th><th>Acción</th></tr></thead><tbody id="empStaffTbody"><tr><td colspan="6">Cargando legajos…</td></tr></tbody></table></div>
       </section>
       <!-- FLOTA EMP -->
+      <section data-admin-section="personal" class="admin-card" aria-label="Supervisores de base">
+        <details id="empBaseSupervisors">
+          <summary>Supervisores de Dolores y La Costa</summary>
+          <button type="button" data-refresh>Actualizar asignaciones</button>
+          <div data-bases></div>
+          <output role="status"></output>
+          <details><summary>Historial de cambios</summary><ol data-history></ol></details>
+        </details>
+      </section>
       <section data-admin-section="personal" class="admin-card" aria-label="Gestión de ambulancias" id="adminFlota">
         <h2>🚑 Flota EMP — Administración de ambulancias</h2>
         <p class="aviso-comercial">Las unidades se guardan en Supabase y se comparten con Central y Guardia. Desactivar una unidad la retira de los selectores sin borrar su historial.</p>
@@ -343,6 +352,7 @@
   <script src="js/state-machine.js"></script>
   <script src="js/store.js?v=20261120-archive-v1"></script>
   <script src="js/app-admin.js?v=20261120-staff-access-v4"></script>
+  <script src="js/admin-supervisores.js"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
