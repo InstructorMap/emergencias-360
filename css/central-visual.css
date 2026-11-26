@@ -9,7 +9,7 @@
 .central-body .emp-central-banner .header-controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#e1f0fc!important}
 .central-body .emp-central-banner .header-controls select{background:#0e2945!important;color:#fff!important;border:1px solid #6799bc!important;min-height:44px;border-radius:9px;padding:8px;max-width:200px}
 .central-body .emp-central-banner .header-controls button,.central-body .emp-central-banner .header-controls a{min-height:44px;border-radius:9px}
-.emp-central-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:16px clamp(12px,2vw,26px);background:linear-gradient(90deg,rgba(5,16,33,.95),rgba(5,16,33,.82)),url('../assets/central/fondo.webp') center/cover no-repeat}
+.emp-central-shortcuts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:16px clamp(12px,2vw,26px);background:linear-gradient(90deg,rgba(5,16,33,.95),rgba(5,16,33,.82)),url('../assets/central/fondo.webp') center/cover no-repeat}
 .emp-central-shortcut{min-width:0;min-height:138px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:4px;position:relative;isolation:isolate;padding:14px;border:1px solid #5485aa;border-radius:14px;color:#fff;cursor:pointer;text-align:left;background-color:#112c48;background-position:center;background-size:cover;overflow:hidden}
 .emp-central-shortcut:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(2,12,28,.96),rgba(2,12,28,.35) 75%)}
 .emp-central-shortcut strong{font-size:clamp(14px,1.4vw,19px);font-weight:900;letter-spacing:.5px;text-shadow:0 2px 8px #000}
@@ -19,7 +19,18 @@
 .shortcut-dispatch{background-image:url('../assets/central/despacho.webp');border-bottom:3px solid #41b7ff}
 .shortcut-fleet{background-image:url('../assets/central/flota.webp');border-bottom:3px solid #39e3b1}
 .shortcut-clinical{background-image:url('../assets/central/historias.webp');border-bottom:3px solid #b494ff}
-@media(max-width:850px){.central-body .emp-central-banner{flex-direction:column;align-items:stretch;gap:12px;padding:12px!important}.central-body .emp-central-banner .emp-brand svg{width:88px;height:59px}.central-body .emp-central-banner .header-controls{display:flex;justify-content:flex-start;gap:7px}.central-body .emp-central-banner .header-controls label{flex:1 1 140px;min-width:120px}.central-body .emp-central-banner .header-controls select{max-width:100%;width:100%}.emp-central-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}.emp-central-shortcut{min-height:114px;padding:10px}.emp-central-shortcut small{font-size:11px}}
+@media(max-width:850px){.central-body .emp-central-banner{flex-direction:column;align-items:stretch;gap:12px;padding:12px!important}.central-body .emp-central-banner .emp-brand svg{width:88px;height:59px}.central-body .emp-central-banner .header-controls{display:flex;justify-content:flex-start;gap:7px}.central-body .emp-central-banner .header-controls label{flex:1 1 140px;min-width:120px}.central-body .emp-central-banner .header-controls select{max-width:100%;width:100%}}
+@media (max-width:850px) {
+  .emp-central-shortcuts { grid-template-columns: repeat(6,minmax(0,1fr)); gap:6px; padding:8px; }
+  .emp-central-shortcut {
+    grid-column:span 2; min-height:48px; padding:6px; border-radius:8px;
+    align-items:center; justify-content:center; text-align:center;
+  }
+  .emp-central-shortcut:nth-last-child(-n+2) { grid-column:span 3; }
+  .emp-central-shortcut strong { font-size:14px; line-height:1.2; letter-spacing:normal; overflow-wrap:anywhere; }
+  .emp-central-shortcut small { display:none; }
+  .emp-central-shortcut:before { background:rgba(5,18,33,.79); }
+}
 
 /* Central v2: marcadores de ambulancia con contraste y estado real */
 .emp-map-unit{background:transparent!important;border:0!important}
