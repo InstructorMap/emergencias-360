@@ -824,6 +824,7 @@
     const generation = ++detailGeneration;
     const selectedId = ui.selectedIncidentId;
     const selected = selectedId && Store.getIncidentById(selectedId);
+    window.EMPOperatorPanel.select(selected);
     detailSignature = detailKey();
     const previous = container.dataset.incidentKey;
     const nextKey = JSON.stringify([selectedId,selected?.status]);

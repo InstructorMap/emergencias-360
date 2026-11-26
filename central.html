@@ -139,6 +139,14 @@
       <section class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
         <section id="empSOSMonitor" class="emp-comms"><header><strong>CONTROL DE RECONOCIMIENTO SOS</strong></header><output role="status" aria-live="polite"></output><div class="sos-rows"></div></section>
+<section id="empIncidentOperator" hidden aria-label="Responsable de despacho">
+  <strong>Responsable de despacho</strong>
+  <output aria-live="polite"></output>
+  <button type="button" data-action="claim" hidden>Tomar incidente</button>
+  <button type="button" data-action="release" hidden>Liberar</button>
+  <select hidden aria-label="Operador que recibirá el incidente"></select>
+  <button type="button" data-action="transfer" hidden>Transferir</button>
+</section>
 <div id="detailContainer">
           <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
         </div>
@@ -220,7 +228,8 @@
   <script src="js/media.js"></script>
   <script src="js/central-map-icons.js"></script>
   <script src="js/central-road-route.js"></script>
-  <script src="js/app-central.js?v=road-route-1"></script>
+  <script src="js/central-operator.js"></script>
+  <script src="js/app-central.js?v=operator-1"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->
