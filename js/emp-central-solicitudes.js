@@ -64,10 +64,10 @@ async function refresh(){
      const base=document.getElementById('centralBaseSelector');if(base){base.value='ALL';base.dispatchEvent(new Event('change',{bubbles:true}));}
      const active=document.querySelector('.btn-incident-filter[data-filter="active"]');if(active)active.click();
      const items=Array.from(document.querySelectorAll('#incidentList li'));
-     const target=items.find(x=>x.textContent.includes(incidentId));
+     const target=items.find(x=>x.querySelector('.card-id')?.textContent===String(incidentId));
      if(target)target.click();
-     document.querySelector('.central-col-1')?.scrollIntoView({behavior:'smooth',block:'start'});
-     msg.textContent='Incidente operativo: '+incidentId+'. Seleccionalo en la bandeja para asignar unidad.';
+     else document.getElementById('incidentQueueTitle')?.focus();
+     msg.textContent='Incidente operativo: '+incidentId;
      await refresh();
     }catch(e){msg.textContent='No se pudo crear el incidente: '+(e.message||e);}
     finally{promotion.disabled=false;}
@@ -91,7 +91,7 @@ async function refresh(){
  finally{loading=false;}
 }
 const btn=document.getElementById('centralServicesShortcut');
-if(btn)btn.addEventListener('click',()=>{root.scrollIntoView({behavior:'smooth',block:'start'});refresh();});
+if(btn)btn.addEventListener('click',refresh);
 setInterval(refresh,10000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 setTimeout(refresh,1800);

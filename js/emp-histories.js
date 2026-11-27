@@ -20,7 +20,9 @@ async function download(record,button){
 function init(){
  const header=$('.header-controls'),main=$('main');
  if(!header||!main||$('#empHistoriesPanel'))return;
- const open=make('button','📁 Historias clínicas','btn-secondary');open.type='button';header.prepend(open);
+ const shortcut=$('#centralClinicalShortcut');
+ const open=shortcut || make('button','📁 Historias clínicas','btn-secondary');
+ if(!shortcut){open.type='button';header.prepend(open);}
  const panel=make('section',undefined,'admin-card');panel.id='empHistoriesPanel';panel.hidden=true;panel.style.cssText='padding:20px;margin:16px 0;border:1px solid #64748b;border-radius:14px';
  const title=make('h2','Archivo de historias clínicas');const help=make('p','Incidentes cerrados. Buscá por número de historia, incidente, DNI o móvil. Solo usuarios autorizados.');
  const search=make('input');search.type='search';search.placeholder='Buscar historia, DNI, incidente o móvil';search.style.cssText='padding:12px;width:100%;max-width:560px;margin:10px 0';
@@ -39,7 +41,7 @@ function init(){
   }
  }
  async function load(){status.textContent='Consultando historias…';try{records=await window.E360Store.listClinicalHistories(200);render();}catch(e){status.textContent='Error: '+(e.message||e);}}
- open.addEventListener('click',()=>{panel.hidden=!panel.hidden;if(!panel.hidden)load();});
+ open.addEventListener('click',()=>{panel.hidden=!panel.hidden;open.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden){search.focus();load();}});
  refresh.addEventListener('click',load);search.addEventListener('input',render);
 }
 document.addEventListener('DOMContentLoaded',init);

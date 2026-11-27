@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
   <script src="js/emp-theme.js?v=2" defer></script>
-  <link rel="stylesheet" href="css/central-visual.css?v=dispatch-desk-2" />
+  <link rel="stylesheet" href="css/central-visual.css?v=desk-complete-1" />
 <style>
 .emp-incident-tabs{display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;color:inherit}
 .emp-incident-tabs>strong{flex-basis:100%;font-size:.85rem}
@@ -118,15 +118,19 @@
       </div>
     </header>
 
-    <nav class="emp-central-shortcuts" aria-label="Accesos rápidos de Central">
-      <button type="button" class="emp-central-shortcut shortcut-incidents" data-central-target=".central-col-1"><strong>INCIDENTES</strong><small>Alertas y bandeja</small></button>
-      <button type="button" class="emp-central-shortcut shortcut-dispatch" data-central-target=".central-col-2"><strong>DESPACHO</strong><small>Gestión y comunicaciones</small></button>
-      <button type="button" class="emp-central-shortcut shortcut-fleet" data-central-target=".central-col-3"><strong>MAPA Y FLOTA</strong><small>Unidades y seguimiento</small></button>
-      <button type="button" class="emp-central-shortcut shortcut-clinical" id="centralClinicalShortcut"><strong>HISTORIAS</strong><small>Archivo clínico</small></button>
-    <button type="button" class="emp-central-shortcut" id="centralServicesShortcut"><strong>SOLICITUDES</strong><small>Consultas, visitas y traslados</small></button></nav>
-    <section id="empServiceInbox" class="emp-service-inbox" aria-label="Solicitudes asistenciales"></section>
+    <nav class="desk-nav" aria-label="Secciones de Central">
+      <a href="#deskQueue">Bandeja</a>
+      <a href="#deskDispatch">Despacho</a>
+      <a href="#deskMap">Mapa y flota</a>
+      <a href="#empCommsConsole">Radio</a>
+      <a href="#empServiceInbox" id="centralServicesShortcut">Solicitudes</a>
+      <button type="button" id="centralClinicalShortcut" aria-expanded="false" aria-controls="empHistoriesPanel">Historias</button>
+      <a href="#empHealthMonitor">Estado y recuperación</a>
+    </nav>
+    <div id="empServiceNewAlert" class="emp-service-new-alert" role="alert" hidden></div>
+    <main id="deskMain">
     <div class="central-grid">
-      <section class="central-col central-col-1" aria-label="Bandeja de incidentes">
+      <section id="deskQueue" tabindex="-1" class="central-col central-col-1" aria-label="Bandeja de incidentes">
         <h2 id="incidentQueueTitle" tabindex="-1">Bandeja de incidentes</h2>
         <div class="incident-filters">
           <button type="button" class="btn-incident-filter active" data-filter="active">Activos</button>
@@ -136,7 +140,7 @@
         <p class="empty-msg" id="incidentEmpty" hidden>No hay incidentes en esta vista.</p>
       </section>
 
-      <section class="central-col central-col-2" aria-label="Panel de control del incidente">
+      <section id="deskDispatch" tabindex="-1" class="central-col central-col-2" aria-label="Panel de control del incidente">
         <h2>Panel de Control y Despacho</h2>
         <section id="empSOSMonitor" class="emp-comms"><header><strong>CONTROL DE RECONOCIMIENTO SOS</strong></header><output role="status" aria-live="polite"></output><div class="sos-rows"></div></section>
 <header id="dispatchContext" hidden>
@@ -155,12 +159,38 @@
 <div id="detailContainer">
           <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
         </div>
-<section id="empHealthMonitor" class="emp-comms" aria-label="Monitor de salud operativa">
-<header><strong>MONITOR OPERATIVO</strong><button type="button">Comprobar servidor</button></header>
-<div class="health-grid"><div><strong>Red</strong><span data-health="network"></span></div><div><strong>Servidor</strong><span data-health="server"></span></div><div><strong>GPS</strong><span data-health="gps"></span></div><div><strong>Radio</strong><span data-health="radio"></span></div></div>
-<div id="empRecovery" style="margin:10px 0;display:grid;gap:6px"><strong>Recuperación de sincronización</strong><output role="status" aria-live="polite">En espera</output><button type="button">Reintentar sincronización</button></div><details><summary>Antigüedad de posiciones por móvil</summary><ul class="health-gps-list"></ul></details>
-</section>
-<section id="empCommsConsole" class="emp-comms">
+      </section>
+
+      <section id="deskMap" tabindex="-1" class="central-col central-col-3" aria-label="Mapa, flota y configuración">
+        <h2>Mapa operativo</h2>
+        <button type="button" id="openMapMonitor">Abrir mapa en segunda pantalla ↗</button>
+        <div id="mapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(148,163,184,0.25);"></div>
+
+        <details id="empRoadRoute">
+          <summary>Ruta del móvil al incidente</summary>
+          <p>Al consultar, se envían las dos coordenadas a FOSSGIS (OpenStreetMap), que registra la solicitud.</p>
+          <button type="button" id="empRoadButton" disabled>Consultar ruta por calles</button>
+          <output id="empRoadStatus" aria-live="polite">Seleccioná un incidente.</output>
+          <small>Ruta OSRM · © OpenStreetMap contributors · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Corregir el mapa</a></small>
+        </details>
+        <h2>Bases y Flota</h2>
+        <div id="fleetContainer"></div>
+        <details><summary>Configurar límite de velocidad</summary>
+        <div class="speed-limit-card" style="background:#1E293B;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label style="flex:1;min-width:140px;color:#E2E8F0;font-size:0.78rem;">
+            <span style="display:block;margin-bottom:4px;">Límite de velocidad (km/h)</span>
+            <input type="number" id="speedLimitInput" min="10" max="160" step="5" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#0F172A;color:#F1F5F9;" />
+          </label>
+          <button type="button" id="btnApplySpeedLimit" style="padding:8px 14px;border-radius:6px;background:#0B3C78;color:#fff;border:none;font-weight:700;cursor:pointer;font-size:0.78rem;">Aplicar</button>
+          <span id="speedLimitStatus" style="font-size:0.7rem;color:#94A3B8;width:100%;"></span>
+        </div>
+
+</details>
+      </section>
+    </div>
+
+    <div class="desk-support">
+<section id="empCommsConsole" aria-label="Comunicaciones" tabindex="-1" class="emp-comms">
 <header><strong>CONSOLA DE COMUNICACIONES</strong><span class="comms-state" role="status">Inicializando</span></header>
 <div class="comms-metrics"><span class="comms-channel"></span><span class="comms-network"></span><span class="comms-ice"></span></div>
 <div class="comms-actions"><label>Volumen de grabaciones <input class="comms-volume" type="range" min="0" max="100" value="100"></label><label>Volumen radio <input class="comms-radio-volume" type="range" min="20" max="100" value="100"></label><label>Volumen alarmas <input class="comms-alarm-volume" type="range" min="50" max="100" value="100"></label><button type="button" class="comms-unlock">Activar audio PTT</button><button type="button" class="comms-alarm">Ir a bandeja de audios</button></div>
@@ -183,33 +213,14 @@
 <output style="display:block;margin-top:8px" aria-live="polite"></output>
 </section>
 </section>
-      </section>
-
-      <section class="central-col central-col-3" aria-label="Mapa, flota y configuración">
-        <h2>Mapa operativo</h2>
-        <button type="button" id="openMapMonitor">Abrir mapa en segunda pantalla ↗</button>
-        <div id="mapContainer" style="height:280px;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(148,163,184,0.25);"></div>
-
-        <details id="empRoadRoute">
-          <summary>Ruta del móvil al incidente</summary>
-          <p>Al consultar, se envían las dos coordenadas a FOSSGIS (OpenStreetMap), que registra la solicitud.</p>
-          <button type="button" id="empRoadButton" disabled>Consultar ruta por calles</button>
-          <output id="empRoadStatus" aria-live="polite">Seleccioná un incidente.</output>
-          <small>Ruta OSRM · © OpenStreetMap contributors · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Corregir el mapa</a></small>
-        </details>
-        <div class="speed-limit-card" style="background:#1E293B;padding:10px;border-radius:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <label style="flex:1;min-width:140px;color:#E2E8F0;font-size:0.78rem;">
-            <span style="display:block;margin-bottom:4px;">Límite de velocidad (km/h)</span>
-            <input type="number" id="speedLimitInput" min="10" max="160" step="5" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#0F172A;color:#F1F5F9;" />
-          </label>
-          <button type="button" id="btnApplySpeedLimit" style="padding:8px 14px;border-radius:6px;background:#0B3C78;color:#fff;border:none;font-weight:700;cursor:pointer;font-size:0.78rem;">Aplicar</button>
-          <span id="speedLimitStatus" style="font-size:0.7rem;color:#94A3B8;width:100%;"></span>
-        </div>
-
-        <h2>Bases y Flota</h2>
-        <div id="fleetContainer"></div>
-      </section>
+<section id="empHealthMonitor" tabindex="-1" class="emp-comms" aria-label="Monitor de salud operativa">
+<header><strong>MONITOR OPERATIVO</strong><button type="button">Comprobar servidor</button></header>
+<div class="health-grid"><div><strong>Red</strong><span data-health="network"></span></div><div><strong>Servidor</strong><span data-health="server"></span></div><div><strong>GPS</strong><span data-health="gps"></span></div><div><strong>Radio</strong><span data-health="radio"></span></div></div>
+<div id="empRecovery" style="margin:10px 0;display:grid;gap:6px"><strong>Recuperación de sincronización</strong><output role="status" aria-live="polite">En espera</output><button type="button">Reintentar sincronización</button></div><details><summary>Antigüedad de posiciones por móvil</summary><ul class="health-gps-list"></ul></details>
+</section>
     </div>
+    <section id="empServiceInbox" class="emp-service-inbox" tabindex="-1" aria-label="Solicitudes asistenciales"></section>
+    </main>
 
     <footer class="asari-footer" role="contentinfo">
       <div class="asari-logo">ASARI S.A.S.</div>
@@ -255,9 +266,9 @@
       }
     })();
   </script>
-<script src="js/emp-histories.js?v=20261120-archive-v2"></script>
-<script src="js/central-visual.js?v=20261120-central-v1"></script>
-<script src="js/emp-central-solicitudes.js?v=3"></script>
+<script src="js/emp-histories.js?v=desk-complete-1"></script>
+
+<script src="js/emp-central-solicitudes.js?v=desk-complete-1"></script>
 <style>.emp-service-inbox{margin:14px;padding:16px;border:1px solid #64748b;border-radius:16px;background:#16253d;color:#f8fafc}.emp-service-inbox h2{margin:0 0 12px}.emp-service-card{padding:14px;margin:12px 0;border:1px solid #64748b;border-radius:12px}.emp-service-card p{overflow-wrap:anywhere}.emp-service-card select,.emp-service-card textarea{display:block;width:100%;padding:10px;margin:8px 0;background:#fff;color:#142238;border-radius:8px}.emp-service-card button,.emp-service-toolbar button{padding:11px;background:#0b65c2;color:white;border:0;border-radius:8px;font-weight:700} .emp-service-new-alert{margin:12px;padding:14px;background:#92400e;color:#fff;border-radius:12px;font-weight:800;display:flex;gap:12px;flex-wrap:wrap;align-items:center}.emp-service-new-alert[hidden]{display:none}.emp-service-new-alert button{padding:10px;border-radius:8px;background:#fff;color:#78350f;border:0;font-weight:800}</style>
 <script>
 if(new URLSearchParams(location.search).get('radioTest')==='1'){

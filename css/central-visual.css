@@ -137,3 +137,21 @@
 #dispatchContext button{justify-self:start;min-height:44px;padding:6px 12px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:6px;cursor:pointer}
 #incidentList .card-id{font:inherit;font-weight:700;color:inherit;background:transparent;border:0;text-align:start;padding:0;overflow-wrap:anywhere;cursor:pointer}
 #incidentList .incident-card:focus-within,#dispatchCaseTitle:focus-visible,#dispatchBack:focus-visible{outline:3px solid currentColor;outline-offset:-3px}
+
+/* Secciones operativas de Central */
+.desk-nav{position:sticky;top:0;z-index:900;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:5px 12px;background:#102b45;color:#f5f9ff;border-bottom:1px solid #52718d}
+.desk-nav a,.desk-nav button{display:grid;place-items:center;min-height:44px;padding:4px 14px;background:transparent;border:0;border-radius:6px;color:inherit;text-decoration:none;text-align:center;font:600 .9rem/1.2 var(--font-body,sans-serif);cursor:pointer}
+.desk-nav :is(a,button):is(:hover,:focus-visible){background:#284d70;outline:2px solid #a4d9ff;outline-offset:-2px}
+#deskMain [tabindex],#empHistoriesPanel input,#empHistoriesPanel{scroll-margin-block-start:72px}
+#deskMain{max-width:1680px;margin-inline:auto}
+.central-body .central-grid{max-width:none;grid-template-columns:minmax(0,1fr)}
+.central-body .central-col{min-width:0;overflow-wrap:anywhere}
+.desk-support{display:grid;align-items:start;gap:12px;padding:12px clamp(12px,1.8vw,26px)}
+.desk-support>.emp-comms{margin:0;color:var(--color-text);background:var(--color-surface)}
+[data-theme="light"] .central-body .central-grid>.central-col{background:#fff!important;color:#172c41!important;border-color:#afc2d2!important}
+[data-theme="light"] .central-body .central-grid>.central-col h2,[data-theme="light"] .central-body .central-col-2 .detail-empty{color:#234563!important}
+@media(min-width:760px){.desk-support{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
+@media(min-width:760px) and (max-width:1099px){.central-body .central-grid{grid-template-columns:minmax(0,2fr) minmax(0,3fr)}.central-col-3{grid-column:1/-1}}
+@media(min-width:1100px){.central-body .central-grid{grid-template-columns:minmax(235px,.85fr) minmax(360px,1.4fr) minmax(270px,1fr);align-items:start}}
+@media(max-width:759px){.desk-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:2px}.desk-nav :is(a,button){padding:4px;font-size:.8rem}.desk-nav a:last-child{grid-column:span 2}.central-col-3{grid-column:auto}#deskMain [tabindex],#empHistoriesPanel input,#empHistoriesPanel{scroll-margin-block-start:106px}}
+@media(max-height:480px){.desk-nav{position:static}}
