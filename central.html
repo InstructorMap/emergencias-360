@@ -61,7 +61,15 @@
 .emp-comms .audio-rows>div>span{flex-basis:100%;overflow-wrap:anywhere}
 .comms-history{max-height:130px;overflow:auto;font-size:.8rem}
 </style>
-<style>.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.health-grid>div{border:1px solid #64748b;border-radius:6px;padding:8px;display:grid;gap:4px;font-size:.8rem}.health-grid span{border-left:4px solid #64748b;padding-left:6px;overflow-wrap:anywhere}#empHealthMonitor [data-level=ok]{border-color:#16a34a}#empHealthMonitor [data-level=warn]{border-color:#d97706}#empHealthMonitor [data-level=bad]{border-color:#dc2626}.health-gps-list li{border-left:4px solid #64748b;padding-left:6px;margin:5px 0}</style><style>.sos-rows{display:grid;gap:6px;max-height:260px;overflow:auto}.sos-rows>div{border:1px solid #64748b;border-left:5px solid #64748b;border-radius:6px;padding:8px;display:grid;gap:4px;font-size:.85rem}.sos-rows>[data-level=warn]{border-left-color:#d97706}.sos-rows>[data-level=bad]{border-left-color:#dc2626}</style></head>
+<style>.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.health-grid>div{border:1px solid #64748b;border-radius:6px;padding:8px;display:grid;gap:4px;font-size:.8rem}.health-grid span{border-left:4px solid #64748b;padding-left:6px;overflow-wrap:anywhere}#empHealthMonitor [data-level=ok]{border-color:#16a34a}#empHealthMonitor [data-level=warn]{border-color:#d97706}#empHealthMonitor [data-level=bad]{border-color:#dc2626}.health-gps-list li{border-left:4px solid #64748b;padding-left:6px;margin:5px 0}</style><style>.sos-rows{display:grid;gap:6px;max-height:260px;overflow:auto}.sos-rows>div{border:1px solid #64748b;border-left:5px solid #64748b;border-radius:6px;padding:8px;display:grid;gap:4px;font-size:.85rem}.sos-rows>[data-level=warn]{border-left-color:#d97706}.sos-rows>[data-level=bad]{border-left-color:#dc2626}</style><style>
+#callInterview[hidden]{display:none}
+#callInterview summary{cursor:pointer;font-weight:700}
+#callInterview fieldset,#callInterview label{display:grid;gap:.45rem;min-width:0}
+#callInterview fieldset{padding:.7rem;margin:.7rem 0}
+#callInterview :is(input,textarea,select){width:100%;box-sizing:border-box;font:inherit}
+#callInterview output{display:block;margin-top:.5rem}
+</style>
+</head>
 <body class="central-body theme-dark">
 
   <!-- C2: banner offline -->
@@ -156,6 +164,25 @@
   <select hidden aria-label="Operador que recibirá el incidente"></select>
   <button type="button" data-action="transfer" hidden>Transferir</button>
 </section>
+<details id="callInterview" class="emp-comms" hidden>
+  <summary>Interrogatorio telefónico</summary>
+  <form>
+    <fieldset disabled>
+      <legend>Información referida durante la llamada</legend>
+      <label>Quién llama y vínculo con el paciente<input name="caller" maxlength="160"></label>
+      <label>Teléfono de retorno<input name="callback" type="tel" maxlength="60"></label>
+      <label>Ubicación y referencias de acceso<textarea name="place" maxlength="600"></textarea></label>
+      <label>¿Qué ocurrió?<textarea name="reason" maxlength="600"></textarea></label>
+      <label>¿Cuándo comenzó?<input name="onset" maxlength="160"></label>
+      <label>¿Responde cuando le hablan?<select name="responsive"><option value="">Sin registrar</option><option>Sí</option><option>No</option><option>No sabe</option></select></label>
+      <label>¿Respira según quien llama?<select name="breathing"><option value="">Sin registrar</option><option>Sí</option><option>No</option><option>No sabe</option></select></label>
+      <label>Otras observaciones<textarea name="notes" maxlength="600"></textarea></label>
+      <button type="submit">Guardar interrogatorio</button>
+    </fieldset>
+    <button type="button" data-reload>Recargar ficha guardada</button>
+    <output aria-live="polite"></output>
+  </form>
+</details>
 <div id="detailContainer">
           <div class="detail-empty" id="detailEmpty">Seleccioná un incidente de la bandeja para operar.</div>
         </div>
@@ -244,8 +271,9 @@
   <script src="js/media.js"></script>
   <script src="js/central-map-icons.js"></script>
   <script src="js/central-road-route.js"></script>
+  <script src="js/central-interview.js"></script>
   <script src="js/central-operator.js"></script>
-  <script src="js/app-central.js?v=manual-base-1"></script>
+  <script src="js/app-central.js?v=call-interview-1"></script>
   <script src="js/healthcheck.js"></script>
 
   <!-- C2: inicializar banner offline -->

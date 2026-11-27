@@ -869,6 +869,7 @@
       $('#dispatchCaseStatus').textContent = [caseState(selected.status), selected.priority || 'Sin triage',
         C.BASES?.[selected.baseId]?.name || selected.baseId || 'Base sin informar', selected.assignedUnitId || 'Sin móvil asignado'].join(' · ');
     }
+    window.EMPCallInterview.select(selected);
     window.EMPOperatorPanel.select(selected);
     detailSignature = detailKey();
     const previous = container.dataset.incidentKey;
