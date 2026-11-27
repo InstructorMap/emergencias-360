@@ -1,0 +1,26 @@
+html[data-theme] :is(.login-overlay,.change-password-overlay){
+  background:var(--e-bg);color:var(--e-text);overflow:auto;
+}
+html[data-theme] :is(.login-card,.change-password-card){
+  background:var(--e-surface);color:var(--e-text);border-top-color:var(--e-accent);
+  box-shadow:var(--e-shadow);margin-block:auto;
+}
+html[data-theme] :is(.login-card,.change-password-card) :is(h1,label){color:var(--e-text)}
+html[data-theme] :is(.login-card,.change-password-card) :is(.login-sub,.login-hint,p){color:var(--e-muted)}
+html[data-theme] :is(.login-card,.change-password-card) a{color:var(--e-accent)}
+html[data-theme] :is(.login-card,.change-password-card) input{
+  background:var(--e-input);color:var(--e-text);border-color:var(--e-border);color-scheme:inherit;
+}
+html[data-theme] :is(.login-card,.change-password-card) input::placeholder{color:var(--e-muted);opacity:1}
+html[data-theme] :is(.login-card,.change-password-card) input:focus{outline:2px solid var(--e-accent);outline-offset:1px}
+html[data-theme] :is(.login-card,.change-password-card) .btn-primary{background:#104f89;color:white}
+html[data-theme] .login-logo svg text{fill:var(--e-accent)}
+html[data-theme="dark"] :is(.login-card,.change-password-card) .login-msg{color:#ffb4b4!important}
+html[data-theme="light"] :is(.login-card,.change-password-card) .login-msg{color:#a51d28!important}
+[data-auth-theme]{background:var(--e-raised);color:var(--e-text);border:1px solid var(--e-border);min-height:44px}
+html[data-theme="dark"] .family-body{background-color:var(--e-bg);color:var(--e-text)}
+html[data-theme="dark"] .family-body :is(.panel,.tile,.event-card,.person-card,.family-tabs){background:var(--e-surface);color:var(--e-text);border-color:var(--e-border)}
+html[data-theme="dark"] .family-body :is(.muted,.empty,footer,.event-date){color:var(--e-muted)}
+html[data-theme="dark"] .family-body :is(a,.eyebrow,.event-type){color:var(--e-accent)}
+html[data-theme="dark"] .family-body input{background:var(--e-input);color:var(--e-text);border-color:var(--e-border)}
+html[data-theme="dark"] .family-body input::placeholder{color:var(--e-muted);opacity:1}

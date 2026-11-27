@@ -116,7 +116,7 @@
 
   function initTheme() {
     try {
-      const saved = localStorage.getItem(THEME_KEY);
+      const saved = localStorage.getItem('e360_theme') || localStorage.getItem(THEME_KEY);
       ui.theme = saved === 'light' ? 'light' : 'dark';
     } catch (_) { ui.theme = 'dark'; }
     applyTheme();
@@ -128,7 +128,7 @@
     if (btn) btn.textContent = ui.theme === 'light' ? '🌙' : '☀️';
   }
   function toggleTheme() {
-    ui.theme = ui.theme === 'light' ? 'dark' : 'light';
+    ui.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
     try { localStorage.setItem(THEME_KEY, ui.theme); } catch (_) {}
     applyTheme();
   }

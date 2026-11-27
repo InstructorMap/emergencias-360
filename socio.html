@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0B3C78" />
   <meta name="description" content="EMP - Emergencias Médicas Privadas. Alerta SOS, credencial virtual y red de beneficios. Esta app NO sustituye al 107 / 911 / Bomberos." />
+  <script src="js/emp-theme.js?v=login-1"></script>
   <title>Mi Credencial EMP — Emergencias Médicas Privadas</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
   <link rel="stylesheet" href="css/emp-premium-theme.css?v=2" />
-  <script src="js/emp-theme.js?v=20261123-v11" defer></script>
   <link rel="stylesheet" href="css/socio-app.css?v=20261123-v11" />
   <link rel="stylesheet" href="css/emp-triaje-socio.css?v=1" />
 <style>
@@ -30,6 +30,7 @@
 #empFamilyContacts .emp-family-contact{border:1px solid #91a8c2;border-radius:12px;padding:12px;margin:10px 0;overflow-wrap:anywhere}
 #empFamilyContacts .emp-family-contact button{margin-top:10px;background:#8a263c}
 </style>
+<link rel="stylesheet" href="css/login-theme.css?v=1">
 </head>
 <body class="emp-themed">
 
@@ -53,6 +54,7 @@
         <button type="submit" class="btn-primary" id="loginBtn">Ingresar</button>
         <p class="login-msg" id="loginMsg" role="status" aria-live="polite"></p>
       </form>
+      <button type="button" data-auth-theme>Cambiar tema</button>
       <p class="login-hint">¿No tenés contraseña? Contactá a EMP: <a href="tel:2245444602">2245-444602</a> o <a href="https://wa.me/5492245406323" target="_blank" rel="noopener">WhatsApp</a>.</p>
       <p class="login-hint"><a href="index.html">← Volver al sitio</a></p>
     </div>
@@ -69,6 +71,7 @@
         <button type="submit" class="btn-primary" id="changePasswordBtn">Cambiar contraseña</button>
         <p class="login-msg" id="changePasswordMsg" role="status" aria-live="polite"></p>
       </form>
+      <button type="button" data-auth-theme>Cambiar tema</button>
     </div>
   </div>
 

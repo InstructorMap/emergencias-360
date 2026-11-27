@@ -9,7 +9,7 @@
   if(document.documentElement.hasAttribute('data-theme-root'))document.documentElement.classList.toggle('theme-dark',mode==='dark');
   if(document.body){document.body.setAttribute('data-theme',mode);document.body.classList.toggle('theme-dark',mode==='dark');document.body.classList.toggle('theme-light',mode==='light');}
   var meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=mode==='light'?'#eef3f9':'#080e1c';
-  var btn=document.getElementById('empGlobalTheme');if(btn){btn.textContent=mode==='light'?'☾ Tema oscuro':'☀ Tema claro';btn.setAttribute('aria-label',mode==='light'?'Activar tema oscuro':'Activar tema claro');btn.setAttribute('aria-pressed',String(mode==='light'));}
+  document.querySelectorAll('#empGlobalTheme, [data-auth-theme]').forEach(function(btn){btn.textContent=mode==='light'?'☾ Tema oscuro':'☀ Tema claro';btn.setAttribute('aria-label',mode==='light'?'Activar tema oscuro':'Activar tema claro');btn.setAttribute('aria-pressed',String(mode==='light'));});
  }
  function choose(mode){
   apply(mode);
@@ -17,6 +17,9 @@
  }
  function boot(){
   apply(saved());
+  document.querySelectorAll('[data-auth-theme]').forEach(function(btn){
+   btn.addEventListener('click',function(){choose(document.documentElement.dataset.theme==='light'?'dark':'light');});
+  });
   if(document.getElementById('btnThemeToggle')){
    // Guardia ya tiene un interruptor táctil propio. Se sincroniza la preferencia.
    var guardia=document.getElementById('btnThemeToggle');
