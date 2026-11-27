@@ -1699,10 +1699,16 @@
 
   function openManualIncidentModal() {
     const overlay = el('div', { className: 'modal-overlay' });
+    const base = el('select', { id:'miBase', required:true }, [
+      el('option', { value:'', textContent:'Seleccionar base' }),
+      ...Object.values(C.BASES).map(b => el('option', { value:b.id, textContent:b.name }))
+    ]);
+    base.value = Object.hasOwn(C.BASES, ui.baseFilter) ? ui.baseFilter : '';
     const saveBtn = el('button', {
       type: 'button', className: 'btn-primary', textContent: 'Crear incidente',
       onclick: async () => {
         if (!onlineOrToast()) return;
+        if (!base.value) { toast('Elegí la base del incidente'); base.focus(); return; }
         const guardiaCode = $('#miGuardia').value;
         const priority = $('#miPriority').value;
         const dni = $('#miDni').value.trim();
@@ -1712,11 +1718,12 @@
         await runLoading(saveBtn, async () => {
           try {
             await Store.createManualIncident({
+              baseId: base.value,
               guardiaCode,
               priority: priority || null,
               profileDni: dni || null,
               manualAddress: address || '',
-              detail: notes || 'Incidente creado manualmente.'
+              detail: notes
             });
             if (overlay.parentNode) document.body.removeChild(overlay);
             toast('Incidente creado — alerta enviada a guardia');
@@ -1729,6 +1736,7 @@
     const modal = el('div', { className: 'modal-card' }, [
       el('h2', { textContent: 'Nuevo incidente manual' }),
       el('p', { textContent: 'Se envía directo a la guardia y aparece en la bandeja como RECIBIDA_SERVIDOR.' }),
+      el('label', {}, [el('span', { textContent:'Base del incidente' }), base]),
       el('label', {}, [
         el('span', { textContent: 'Tipo de guardia' }),
         (function () {

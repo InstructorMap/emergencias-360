@@ -947,10 +947,11 @@
       if (!p.guardiaCode || validCodes.indexOf(p.guardiaCode) === -1) {
         throw new Error('Tipo de guardia inválido.');
       }
+      if (!Object.hasOwn(C.BASES, p.baseId)) throw new Error('Elegí una base válida para el incidente.');
       const id = uid('inc');
       const record = {
         id,
-        base_id: p.baseId || state.context.activeBaseId || 'DOLORES',
+        base_id: p.baseId,
         status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
         priority: p.priority || null,
         assigned_unit_id: null,
@@ -964,7 +965,7 @@
           status: INCIDENT_STATES.RECIBIDA_SERVIDOR,
           ts: nowISO(),
           actor: state.profile.nombre || 'central',
-          detail: 'Incidente creado manualmente por central.'
+          detail: String(p.detail || '').trim().slice(0, 300) || 'Incidente creado manualmente por central.'
         }]
       };
       const { data, error } = await state.supabase.from('incidents').insert(record).select().single();
